@@ -1,29 +1,148 @@
-fetch(sheetURL)
-  .then(res => res.text())
-  .then(csvText => {
-    console.log("First 200 chars of CSV:", csvText.slice(0, 200));
-    const rows = csvText.split("\n");
-    console.log("Total rows:", rows.length);
-    const headers = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-    console.log("Headers:", headers);
-    const routeNameIndex = 9; // Route Name column
-    const geoPathIndex = 26; // GEO PATH column
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>LTFRB Interactive Route Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    #map { height: 90vh; width: 100%; }
+    .controls {
+      padding: 10px;
+      background: #fff;
+      font-family: sans-serif;
+    }
+    select, button {
+      margin: 5px;
+      padding: 5px;
+    }
+  </style>
+</head>
+<body>
 
-    rows.slice(1).forEach((row, i) => {
-      const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-      const rn = cols[routeNameIndex]?.trim();
-      const gp = cols[geoPathIndex]?.trim();
-      console.log(`Row ${i+2} name:`, rn, "GeoPath starts with [[?", gp?.startsWith("[["));
-      try {
-        if (gp && gp.startsWith('[[')) {
-          const coords = JSON.parse(gp);
-          console.log(`Parsed ${coords.length} coords for ${rn}`);
-          const latlngs = coords.map(c => [c[1], c[0]]);
-          const pl = L.polyline(latlngs, { color: 'red' }).addTo(map);
-          pl.bindPopup(rn || "Unnamed");
-        }
-      } catch (e) {
-        console.error("Parse error at row", i+2, rn, e, gp);
-      }
-    });
+<div class="controls">
+  <button id="toggleDirection">Filter: ORIGIN</button>
+  <select id="provinceSelect">
+    <option value="">-- Select Province --</option>
+  </select>
+  <select id="lguSelect">
+    <option value="">-- Select LGU --</option>
+  </select>
+  <select id="modeSelect">
+    <option value="">-- Select Mode --</option>
+    <option value="PUJ">PUJ</option>
+    <option value="PUB">PUB</option>
+    <option value="MINI BUS">MINI BUS</option>
+    <option value="UVE">UVE</option>
+  </select>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
+
+let currentDirection = 'ORIGIN'; // ORIGIN or DESTINATION
+let routes = [];
+let map = L.map('map').setView([15.8, 120.6], 8);
+let routeLayers = [];
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+document.getElementById('toggleDirection').addEventListener('click', () => {
+  currentDirection = currentDirection === 'ORIGIN' ? 'DESTINATION' : 'ORIGIN';
+  document.getElementById('toggleDirection').textContent = `Filter: ${currentDirection}`;
+  updateFilters();
+});
+
+function updateFilters() {
+  const provinceSet = new Set();
+  const lguSet = new Set();
+
+  routes.forEach(route => {
+    const province = route[`${currentDirection}_PROVINCE`];
+    const lgu = route[`${currentDirection}_LGU`];
+    if (province) provinceSet.add(province);
+    if (lgu) lguSet.add(lgu);
   });
+
+  const provinceSelect = document.getElementById('provinceSelect');
+  const lguSelect = document.getElementById('lguSelect');
+  provinceSelect.innerHTML = '<option value="">-- Select Province --</option>';
+  lguSelect.innerHTML = '<option value="">-- Select LGU --</option>';
+
+  [...provinceSet].sort().forEach(p => {
+    provinceSelect.innerHTML += `<option value="${p}">${p}</option>`;
+  });
+  [...lguSet].sort().forEach(l => {
+    lguSelect.innerHTML += `<option value="${l}">${l}</option>`;
+  });
+}
+
+function clearMap() {
+  routeLayers.forEach(layer => map.removeLayer(layer));
+  routeLayers = [];
+}
+
+function renderRoutes() {
+  clearMap();
+  const selectedProvince = document.getElementById('provinceSelect').value;
+  const selectedLGU = document.getElementById('lguSelect').value;
+  const selectedMode = document.getElementById('modeSelect').value;
+
+  routes.forEach(route => {
+    const province = route[`${currentDirection}_PROVINCE`];
+    const lgu = route[`${currentDirection}_LGU`];
+    const mode = route['MODE'];
+    const path = route['GEO PATH'];
+
+    if (
+      (selectedProvince === '' || selectedProvince === province) &&
+      (selectedLGU === '' || selectedLGU === lgu) &&
+      (selectedMode === '' || selectedMode === mode)
+    ) {
+      try {
+        const coords = JSON.parse(path);
+        const latlngs = coords.map(c => [c[1], c[0]]);
+        const poly = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+        poly.bindPopup(`Route: ${route['ROUTE NAME'] || 'Unnamed'}<br>Mode: ${mode}`);
+        routeLayers.push(poly);
+      } catch (e) {
+        console.warn('Invalid GEO PATH:', path);
+      }
+    }
+  });
+}
+
+document.getElementById('provinceSelect').addEventListener('change', renderRoutes);
+document.getElementById('lguSelect').addEventListener('change', renderRoutes);
+document.getElementById('modeSelect').addEventListener('change', renderRoutes);
+
+function parseCSV(text) {
+  const [_, ...lines] = text.trim().split('\n'); // skip header row
+  const headers = lines[0].split(','); // Row 2 as headers
+  return lines.map(line => {
+    const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // handle commas in quotes
+    const row = {};
+    headers.forEach((h, i) => row[h.trim().toUpperCase()] = values[i]?.trim());
+    return row;
+  });
+}
+
+fetch(csvUrl)
+  .then(r => r.text())
+  .then(text => {
+    routes = parseCSV(text);
+    updateFilters();
+    renderRoutes();
+  });
+</script>
+
+</body>
+</html>
