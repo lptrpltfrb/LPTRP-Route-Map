@@ -1,31 +1,29 @@
-<script>
-  const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
+fetch(sheetURL)
+  .then(res => res.text())
+  .then(csvText => {
+    console.log("First 200 chars of CSV:", csvText.slice(0, 200));
+    const rows = csvText.split("\n");
+    console.log("Total rows:", rows.length);
+    const headers = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+    console.log("Headers:", headers);
+    const routeNameIndex = 9; // Route Name column
+    const geoPathIndex = 26; // GEO PATH column
 
-  const map = L.map('map').setView([15.8, 120.6], 9);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  fetch(sheetURL)
-    .then(response => response.text())
-    .then(csvText => {
-      const rows = csvText.split('\n').slice(1);
-      for (let row of rows) {
-        const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // handles commas inside quotes
-        const routeName = columns[9]?.trim(); // "Route Name"
-        const geoPathText = columns[26]?.trim(); // "GEO PATH"
-
-        if (geoPathText && geoPathText.startsWith('[[')) {
-          try {
-            const coordinates = JSON.parse(geoPathText);
-            const latlngs = coordinates.map(coord => [coord[1], coord[0]]);
-            const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-            polyline.bindPopup(routeName || 'Unnamed Route');
-          } catch (e) {
-            console.warn('Invalid GEO PATH JSON for route:', routeName, e);
-          }
+    rows.slice(1).forEach((row, i) => {
+      const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+      const rn = cols[routeNameIndex]?.trim();
+      const gp = cols[geoPathIndex]?.trim();
+      console.log(`Row ${i+2} name:`, rn, "GeoPath starts with [[?", gp?.startsWith("[["));
+      try {
+        if (gp && gp.startsWith('[[')) {
+          const coords = JSON.parse(gp);
+          console.log(`Parsed ${coords.length} coords for ${rn}`);
+          const latlngs = coords.map(c => [c[1], c[0]]);
+          const pl = L.polyline(latlngs, { color: 'red' }).addTo(map);
+          pl.bindPopup(rn || "Unnamed");
         }
+      } catch (e) {
+        console.error("Parse error at row", i+2, rn, e, gp);
       }
     });
-</script>
+  });
