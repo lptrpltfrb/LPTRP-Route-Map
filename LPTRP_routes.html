@@ -2,14 +2,14 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>LTFRB Public Transport Routes Map</title>
+  <title>LTFRB LPTRP Route Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
   <style>
-    html, body { margin: 0; padding: 0; }
+    body, html { margin: 0; padding: 0; height: 100%; }
     #map { height: 100vh; width: 100%; }
   </style>
 </head>
@@ -18,31 +18,36 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
+    const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
 
-    const map = L.map('map').setView([15.8, 120.6], 9);
+    const map = L.map('map').setView([15.9, 120.6], 9);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    fetch(csvUrl)
-      .then(res => res.text())
-      .then(text => {
-        const lines = text.split('\n').map(line => line.trim());
-        const headers = lines[1].split(',').map(h => h.trim().toUpperCase());
+    fetch(sheetURL)
+      .then(response => response.text())
+      .then(csvText => {
+        const rows = csvText.trim().split('\n');
+        const headers = rows[0].split(',');
 
-        const geoIndex = headers.indexOf('GEO PATH');
-        const nameIndex = headers.indexOf('ROUTE NAME');
-        const modeIndex = headers.indexOf('MODE');
+        const col = (name) => headers.findIndex(h => h.trim().toUpperCase() === name.toUpperCase());
 
-        for (let i = 2; i < lines.length; i++) {
-          const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          const name = row[nameIndex] || 'Unnamed Route';
-          const mode = row[modeIndex] || 'Unknown';
-          const geoText = row[geoIndex];
+        const routeNameIndex = col('ROUTE NAME');
+        const geoPathIndex = col('GEO PATH');
+        const modeIndex = col('MODE');
 
-          if (geoText && geoText.startsWith('[[')) {
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // smart split
+
+          const name = row[routeNameIndex]?.trim();
+          const geoTextRaw = row[geoPathIndex]?.trim();
+          const mode = row[modeIndex]?.trim().toUpperCase();
+
+          if (geoTextRaw && geoTextRaw.startsWith('[[')) {
             try {
+              const geoText = geoTextRaw.replace(/^"|"$/g, '');
               const coords = JSON.parse(geoText);
               const latlngs = coords.map(c => [c[1], c[0]]);
 
@@ -51,15 +56,23 @@
                             mode === 'MINI BUS' ? 'orange' :
                             mode === 'PUB' ? 'purple' : 'gray';
 
-              const polyline = L.polyline(latlngs, { color, weight: 4 }).addTo(map);
+              const polyline = L.polyline(latlngs, {
+                color,
+                weight: 4
+              }).addTo(map);
+
               polyline.bindPopup(`<b>${name}</b><br>Mode: ${mode}`);
-            } catch (e) {
-              console.warn('❌ Failed to parse GEO PATH:', geoText, e);
+            } catch (err) {
+              console.warn('❌ Failed to parse GEO PATH:', geoTextRaw, err);
             }
           } else {
-            console.warn('⚠️ Invalid GEO PATH:', geoText);
+            console.warn('⚠️ Invalid GEO PATH:', geoTextRaw);
           }
         }
+      })
+      .catch(err => {
+        alert('Failed to load route data.');
+        console.error(err);
       });
   </script>
 </body>
