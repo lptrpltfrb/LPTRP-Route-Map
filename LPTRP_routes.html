@@ -1,78 +1,130 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <title>LPTRP Routes Viewer</title>
   <meta charset="utf-8" />
-  <title>LPTRP Route Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { width: 100%; height: 100vh; }
+    #map { height: 100vh; width: 100%; }
+    .filter-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
   </style>
 </head>
 <body>
+  <div class="filter-bar">
+    <label for="modeFilter">Mode:</label>
+    <select id="modeFilter">
+      <option value="">All</option>
+    </select>
 
-<div id="map"></div>
+    <label for="locationType">Filter:</label>
+    <select id="locationType">
+      <option value="DESTINATION">Destination</option>
+      <option value="ORIGIN">Origin</option>
+    </select>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <label for="locationValue">Province:</label>
+    <select id="locationValue">
+      <option value="">All</option>
+    </select>
+  </div>
+  <div id="map"></div>
 
-<script>
-  // Your actual Google Sheet CSV link
-  const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
+  <script>
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
 
-  // Initialize map
-  const map = L.map('map').setView([13, 122], 6); // Centered on Philippines
+    const map = L.map('map').setView([12.8797, 121.774], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data © OpenStreetMap contributors'
+    }).addTo(map);
 
-  // Add basemap
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+    let allData = [];
+    let allRoutes = [];
 
-  // Fetch and process the CSV data
-  fetch(SHEET_CSV_URL)
-    .then(response => response.text())
-    .then(csvText => {
-      const rows = csvText.trim().split('\n').map(row => row.split(','));
-      const headers = rows[1]; // Headers are in row 2
-      const dataRows = rows.slice(2); // Data starts at row 3
-
-      const headerIndex = {};
-      headers.forEach((h, i) => {
-        headerIndex[h.trim()] = i;
+    function parseCSV(text) {
+      const rows = text.trim().split('\n').map(r => r.split(','));
+      const headers = rows[1];
+      const dataRows = rows.slice(2);
+      return dataRows.map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h.trim()] = row[i]);
+        return obj;
       });
+    }
 
-      dataRows.forEach((cols, i) => {
-        const get = (colName) => cols[headerIndex[colName]]?.trim();
-        const routeName = get('ROUTE NAME') || `Row ${i + 3}`;
-        const geoPathRaw = get('GEO PATH');
+    function renderRoutes() {
+      allRoutes.forEach(route => map.removeLayer(route));
+      allRoutes = [];
+
+      const selectedMode = document.getElementById('modeFilter').value;
+      const locationType = document.getElementById('locationType').value;
+      const locationValue = document.getElementById('locationValue').value;
+
+      allData.forEach(row => {
+        if (selectedMode && row['MODE'] !== selectedMode) return;
+        if (locationValue && row[`${locationType} PROVINCE`] !== locationValue) return;
+
+        let pathStr = row['GEO PATH'];
+        if (!pathStr || pathStr.trim() === '') {
+          console.warn('⚠️ Invalid GEO PATH:', pathStr);
+          return;
+        }
 
         try {
-          if (geoPathRaw && geoPathRaw.trim().startsWith('[[')) {
-            const coordinates = JSON.parse(geoPathRaw);
-
-            if (Array.isArray(coordinates) && Array.isArray(coordinates[0])) {
-              L.polyline(coordinates, {
-                color: 'blue',
-                weight: 3
-              }).addTo(map).bindTooltip(routeName);
-            } else {
-              console.warn(`⚠️ Skipped invalid GEO PATH structure at row ${i + 3}`, coordinates);
-            }
-          } else {
-            console.warn(`⚠️ Invalid GEO PATH format at row ${i + 3}:`, geoPathRaw);
-          }
-        } catch (err) {
-          console.warn(`⚠️ Failed to parse GEO PATH at row ${i + 3}`, geoPathRaw, err);
+          const coords = JSON.parse(pathStr);
+          const polyline = L.polyline(coords, { color: 'blue' }).addTo(map);
+          allRoutes.push(polyline);
+        } catch (e) {
+          console.warn('⚠️ Invalid GEO PATH:', pathStr);
         }
       });
-    })
-    .catch(err => {
-      console.error('❌ Error fetching sheet:', err);
-    });
-</script>
+    }
 
+    function populateFilters() {
+      const modeSet = new Set();
+      const provinceSet = new Set();
+      allData.forEach(row => {
+        if (row['MODE']) modeSet.add(row['MODE']);
+        if (row['DESTINATION PROVINCE']) provinceSet.add(row['DESTINATION PROVINCE']);
+        if (row['ORIGIN PROVINCE']) provinceSet.add(row['ORIGIN PROVINCE']);
+      });
+
+      const modeSelect = document.getElementById('modeFilter');
+      modeSet.forEach(mode => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = mode;
+        modeSelect.appendChild(opt);
+      });
+
+      const provinceSelect = document.getElementById('locationValue');
+      provinceSet.forEach(prov => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = prov;
+        provinceSelect.appendChild(opt);
+      });
+    }
+
+    fetch(csvUrl)
+      .then(response => response.text())
+      .then(text => {
+        allData = parseCSV(text);
+        populateFilters();
+        renderRoutes();
+      });
+
+    document.getElementById('modeFilter').addEventListener('change', renderRoutes);
+    document.getElementById('locationType').addEventListener('change', renderRoutes);
+    document.getElementById('locationValue').addEventListener('change', renderRoutes);
+  </script>
 </body>
 </html>
