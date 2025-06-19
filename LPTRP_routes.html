@@ -1,52 +1,31 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>LTFRB Public Transport Routes Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-  <style>
-    #map { height: 100vh; width: 100%; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
+<script>
+  const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR28Zz9M5VKvUae0FKFbAexI2DWT3kCZb0rCdTrs2NFz4VSSsfrTz_X3a6ftPZr8K3NqEz1_CXn8ntH/pub?gid=664002255&single=true&output=csv';
+  const map = L.map('map').setView([15.8, 120.6], 9);
 
-    const map = L.map('map').setView([15.8, 120.6], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+  fetch(sheetURL)
+    .then(response => response.text())
+    .then(csvText => {
+      const rows = csvText.split('\n').slice(1);
+      for (let row of rows) {
+        const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // handles commas inside quotes
+        const routeName = columns[9]?.trim(); // "Route Name"
+        const geoPathText = columns[26]?.trim(); // "GEO PATH"
 
-    fetch(sheetURL)
-      .then(response => response.text())
-      .then(csvText => {
-        const rows = csvText.split('\n').slice(1);
-        for (let row of rows) {
-          const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // handles commas inside quotes
-          const routeName = columns[columns.findIndex(c => c.trim().toLowerCase() === 'route name') + 1] || '';
-          const geoPathIndex = columns.findIndex(c => c.trim().toUpperCase() === 'GEO PATH');
-          const geoPathText = columns[geoPathIndex + 1]?.trim();
-
-          if (geoPathText && geoPathText.startsWith('[[')) {
-            try {
-              const coordinates = JSON.parse(geoPathText);
-              const latlngs = coordinates.map(coord => [coord[1], coord[0]]);
-              const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-              polyline.bindPopup(routeName || 'Unnamed Route');
-            } catch (e) {
-              console.warn('Invalid GEO PATH JSON for route:', routeName, e);
-            }
+        if (geoPathText && geoPathText.startsWith('[[')) {
+          try {
+            const coordinates = JSON.parse(geoPathText);
+            const latlngs = coordinates.map(coord => [coord[1], coord[0]]);
+            const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+            polyline.bindPopup(routeName || 'Unnamed Route');
+          } catch (e) {
+            console.warn('Invalid GEO PATH JSON for route:', routeName, e);
           }
         }
-      });
-  </script>
-</body>
-</html>
+      }
+    });
+</script>
