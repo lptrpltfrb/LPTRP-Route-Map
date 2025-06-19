@@ -2,147 +2,65 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>LTFRB Interactive Route Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LTFRB Public Transport Routes Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
   <style>
-    #map { height: 90vh; width: 100%; }
-    .controls {
-      padding: 10px;
-      background: #fff;
-      font-family: sans-serif;
-    }
-    select, button {
-      margin: 5px;
-      padding: 5px;
-    }
+    html, body { margin: 0; padding: 0; }
+    #map { height: 100vh; width: 100%; }
   </style>
 </head>
 <body>
+  <div id="map"></div>
 
-<div class="controls">
-  <button id="toggleDirection">Filter: ORIGIN</button>
-  <select id="provinceSelect">
-    <option value="">-- Select Province --</option>
-  </select>
-  <select id="lguSelect">
-    <option value="">-- Select LGU --</option>
-  </select>
-  <select id="modeSelect">
-    <option value="">-- Select Mode --</option>
-    <option value="PUJ">PUJ</option>
-    <option value="PUB">PUB</option>
-    <option value="MINI BUS">MINI BUS</option>
-    <option value="UVE">UVE</option>
-  </select>
-</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
 
-<div id="map"></div>
+    const map = L.map('map').setView([15.8, 120.6], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
+    fetch(csvUrl)
+      .then(res => res.text())
+      .then(text => {
+        const lines = text.split('\n').map(line => line.trim());
+        const headers = lines[1].split(',').map(h => h.trim().toUpperCase());
 
-let currentDirection = 'ORIGIN'; // ORIGIN or DESTINATION
-let routes = [];
-let map = L.map('map').setView([15.8, 120.6], 8);
-let routeLayers = [];
+        const geoIndex = headers.indexOf('GEO PATH');
+        const nameIndex = headers.indexOf('ROUTE NAME');
+        const modeIndex = headers.indexOf('MODE');
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+        for (let i = 2; i < lines.length; i++) {
+          const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+          const name = row[nameIndex] || 'Unnamed Route';
+          const mode = row[modeIndex] || 'Unknown';
+          const geoText = row[geoIndex];
 
-document.getElementById('toggleDirection').addEventListener('click', () => {
-  currentDirection = currentDirection === 'ORIGIN' ? 'DESTINATION' : 'ORIGIN';
-  document.getElementById('toggleDirection').textContent = `Filter: ${currentDirection}`;
-  updateFilters();
-});
+          if (geoText && geoText.startsWith('[[')) {
+            try {
+              const coords = JSON.parse(geoText);
+              const latlngs = coords.map(c => [c[1], c[0]]);
 
-function updateFilters() {
-  const provinceSet = new Set();
-  const lguSet = new Set();
+              const color = mode === 'PUJ' ? 'blue' :
+                            mode === 'UVE' ? 'green' :
+                            mode === 'MINI BUS' ? 'orange' :
+                            mode === 'PUB' ? 'purple' : 'gray';
 
-  routes.forEach(route => {
-    const province = route[`${currentDirection}_PROVINCE`];
-    const lgu = route[`${currentDirection}_LGU`];
-    if (province) provinceSet.add(province);
-    if (lgu) lguSet.add(lgu);
-  });
-
-  const provinceSelect = document.getElementById('provinceSelect');
-  const lguSelect = document.getElementById('lguSelect');
-  provinceSelect.innerHTML = '<option value="">-- Select Province --</option>';
-  lguSelect.innerHTML = '<option value="">-- Select LGU --</option>';
-
-  [...provinceSet].sort().forEach(p => {
-    provinceSelect.innerHTML += `<option value="${p}">${p}</option>`;
-  });
-  [...lguSet].sort().forEach(l => {
-    lguSelect.innerHTML += `<option value="${l}">${l}</option>`;
-  });
-}
-
-function clearMap() {
-  routeLayers.forEach(layer => map.removeLayer(layer));
-  routeLayers = [];
-}
-
-function renderRoutes() {
-  clearMap();
-  const selectedProvince = document.getElementById('provinceSelect').value;
-  const selectedLGU = document.getElementById('lguSelect').value;
-  const selectedMode = document.getElementById('modeSelect').value;
-
-  routes.forEach(route => {
-    const province = route[`${currentDirection}_PROVINCE`];
-    const lgu = route[`${currentDirection}_LGU`];
-    const mode = route['MODE'];
-    const path = route['GEO PATH'];
-
-    if (
-      (selectedProvince === '' || selectedProvince === province) &&
-      (selectedLGU === '' || selectedLGU === lgu) &&
-      (selectedMode === '' || selectedMode === mode)
-    ) {
-      try {
-        const coords = JSON.parse(path);
-        const latlngs = coords.map(c => [c[1], c[0]]);
-        const poly = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-        poly.bindPopup(`Route: ${route['ROUTE NAME'] || 'Unnamed'}<br>Mode: ${mode}`);
-        routeLayers.push(poly);
-      } catch (e) {
-        console.warn('Invalid GEO PATH:', path);
-      }
-    }
-  });
-}
-
-document.getElementById('provinceSelect').addEventListener('change', renderRoutes);
-document.getElementById('lguSelect').addEventListener('change', renderRoutes);
-document.getElementById('modeSelect').addEventListener('change', renderRoutes);
-
-function parseCSV(text) {
-  const [_, ...lines] = text.trim().split('\n'); // skip header row
-  const headers = lines[0].split(','); // Row 2 as headers
-  return lines.map(line => {
-    const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // handle commas in quotes
-    const row = {};
-    headers.forEach((h, i) => row[h.trim().toUpperCase()] = values[i]?.trim());
-    return row;
-  });
-}
-
-fetch(csvUrl)
-  .then(r => r.text())
-  .then(text => {
-    routes = parseCSV(text);
-    updateFilters();
-    renderRoutes();
-  });
-</script>
-
+              const polyline = L.polyline(latlngs, { color, weight: 4 }).addTo(map);
+              polyline.bindPopup(`<b>${name}</b><br>Mode: ${mode}`);
+            } catch (e) {
+              console.warn('❌ Failed to parse GEO PATH:', geoText, e);
+            }
+          } else {
+            console.warn('⚠️ Invalid GEO PATH:', geoText);
+          }
+        }
+      });
+  </script>
 </body>
 </html>
