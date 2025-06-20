@@ -5,7 +5,7 @@
   <title>LTFRB LPTRP Routes Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
+  <!-- Leaflet CSS (no integrity attribute) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
@@ -18,13 +18,13 @@
 <body>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
+  <!-- Leaflet JS (no integrity attribute) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- PapaParse -->
+  <!-- PapaParse for CSV reading -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    const MAP_CENTER = [13.5, 122]; // Adjust as needed
+    const MAP_CENTER = [13.5, 122];
     const MAP_ZOOM = 6.2;
 
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
@@ -43,7 +43,7 @@
         Papa.parse(csvText, {
           header: true,
           skipEmptyLines: true,
-          skipRows: 1, // Important: skip dummy header row
+          skipRows: 1, // skip dummy header row
           complete: function(results) {
             parseCSV(results.data);
           }
