@@ -1,57 +1,104 @@
 <!DOCTYPE html>
-<html><head>
-  <meta charset="utf-8">
-  <title>LTFRB Route Debug</title>
+<html>
+<head>
+  <title>LPTRP Routes Map</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <style>#map{height:100vh;width:100%;}</style>
-</head><body>
-  <div id="map"></div>
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <div id="map"></div>
   <script>
-    alert("Script started"); // Step 1
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
-    alert("Sheet URL loaded"); // Step 2
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-    const map = L.map('map').setView([15.8,120.6],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM'}).addTo(map);
-    alert("Map initialized"); // Step 3
+    function parseCSV(csvText) {
+      const lines = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (lines.length < 3) {
+        console.warn("CSV too short, check if data starts at row 3");
+        return [];
+      }
 
-    fetch(sheetURL)
-      .then(res => {
-        alert("Fetch response received: " + res.status); // Step 4
-        return res.text();
-      })
-      .then(csv => {
-        alert("CSV text length: " + csv.length); // Step 5
+      const headers = lines[1].split(',').map(h => h.trim()); // Use row 2 as header
+      const geoIndex = headers.indexOf("GEO PATH");
 
-        const lines = csv.trim().split('\n');
-        alert("Line count: " + lines.length); // Step 6
+      if (geoIndex === -1) {
+        console.error("GEO PATH column not found in headers:", headers);
+        return [];
+      }
 
-        const header = lines.shift().split(',');
-        const rnIdx = header.map(h=>h.trim().toUpperCase()).indexOf('ROUTE NAME');
-        const gpIdx = header.map(h=>h.trim().toUpperCase()).indexOf('GEO PATH');
-        alert(`Found ROUTE NAME at index ${rnIdx}, GEO PATH at ${gpIdx}`); // Step 7
+      const routes = [];
+      let emptyCount = 0;
+      let validCount = 0;
+      let invalidCount = 0;
 
-        let validCount = 0;
+      for (let i = 2; i < lines.length; i++) { // Start from row 3
+        const row = lines[i].split(',').map(cell => cell.trim());
+        const rawGeo = row[geoIndex];
 
-        lines.forEach((line,i) => {
-          const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          const geo = cols[gpIdx]?.trim();
+        if (!rawGeo) {
+          emptyCount++;
+          console.warn(`⚠️ GEO PATH is empty at row ${i + 1}`);
+          continue;
+        }
 
-          if (geo && geo.startsWith('[[')) {
+        try {
+          const path = JSON.parse(rawGeo);
+          if (Array.isArray(path) && path.every(p => Array.isArray(p) && p.length === 2)) {
+            routes.push(path);
             validCount++;
+          } else {
+            invalidCount++;
+            console.warn(`⚠️ Invalid GEO PATH format at row ${i + 1}:`, rawGeo);
           }
+        } catch (e) {
+          invalidCount++;
+          console.warn(`⚠️ Invalid GEO PATH JSON at row ${i + 1}:`, rawGeo);
+        }
+      }
+
+      console.info(`📊 Rows processed: ${lines.length - 2}`);
+      console.info(`🟢 Valid geo paths: ${validCount}`);
+      console.info(`⚠️ Empty GEO PATH rows: ${emptyCount}`);
+      console.info(`⚠️ Invalid GEO PATH rows: ${invalidCount}`);
+
+      return routes;
+    }
+
+    async function loadRoutes() {
+      try {
+        const res = await fetch(csvUrl);
+        const text = await res.text();
+        const geoPaths = parseCSV(text);
+
+        if (geoPaths.length === 0) {
+          console.warn("No valid routes found.");
+          return;
+        }
+
+        geoPaths.forEach(path => {
+          L.polyline(path.map(([lng, lat]) => [lat, lng]), {
+            color: 'blue',
+            weight: 3
+          }).addTo(map);
         });
 
-        alert("Valid GEO PATH rows: " + validCount); // Step 8
+        map.fitBounds(geoPaths.flat().map(([lng, lat]) => [lat, lng]));
+      } catch (err) {
+        console.error("Failed to load CSV:", err);
+      }
+    }
 
-        if(validCount === 0) alert("No valid geo paths found.");
-      })
-      .catch(err => {
-        alert("Fetch error: " + err);
-        console.error(err);
-      });
+    loadRoutes();
   </script>
-</body></html>
+</body>
+</html>
