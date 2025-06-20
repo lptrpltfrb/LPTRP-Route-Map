@@ -6,16 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
-    .info { background: white; padding: 6px 8px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- Leaflet and PapaParse -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
   <script>
-    const map = L.map('map').setView([12.8797, 121.774], 6); // Centered on Philippines
+    const map = L.map('map').setView([12.8797, 121.774], 6); // Philippines
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
@@ -27,51 +29,48 @@
     async function loadRoutes() {
       try {
         const response = await fetch(csvUrl);
-        const csv = await response.text();
-        parseCSV(csv);
+        const csvText = await response.text();
+
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            const data = results.data;
+            let valid = 0, empty = 0, invalid = 0;
+
+            data.forEach((row, index) => {
+              const path = row["GEO PATH"]?.trim();
+              if (!path) {
+                empty++;
+                return;
+              }
+
+              try {
+                const coordinates = JSON.parse(path);
+                if (!Array.isArray(coordinates)) throw new Error("Invalid format");
+
+                const latlngs = coordinates.map(([lng, lat]) => [lat, lng]); // swap to Leaflet format
+                L.polyline(latlngs, { color: 'blue', weight: 3 }).addTo(map);
+                valid++;
+              } catch (err) {
+                console.warn(`⚠️ Invalid GEO PATH at row ${index + 3}:`, err.message);
+                invalid++;
+              }
+            });
+
+            console.log(`📊 Rows processed: ${data.length}`);
+            console.log(`🟢 Valid geo paths: ${valid}`);
+            console.log(`⚠️ Empty GEO PATH rows: ${empty}`);
+            console.log(`⚠️ Invalid GEO PATH rows: ${invalid}`);
+
+            if (valid === 0) {
+              console.warn("⚠️ No valid routes found.");
+            }
+          }
+        });
+
       } catch (error) {
         console.error("❌ Failed to load CSV:", error);
-      }
-    }
-
-    function parseCSV(data) {
-      const lines = data.trim().split('\n');
-      const headers = lines[1].split(','); // Row 2 = headers
-      const rows = lines.slice(2);         // Row 3+ = data
-
-      let valid = 0;
-      let emptyRows = 0;
-      let invalidRows = 0;
-
-      rows.forEach((row, i) => {
-        const cols = row.split(',');
-
-        const geoPathRaw = cols[25]?.trim(); // Column Z = index 25
-
-        if (!geoPathRaw) {
-          emptyRows++;
-          return;
-        }
-
-        try {
-          const coords = JSON.parse(geoPathRaw);
-          if (!Array.isArray(coords) || coords.length === 0) throw new Error();
-
-          const latLngs = coords.map(([lng, lat]) => [lat, lng]);
-          L.polyline(latLngs, { color: 'blue', weight: 3 }).addTo(map);
-          valid++;
-        } catch {
-          invalidRows++;
-        }
-      });
-
-      console.log(`📊 Rows processed: ${rows.length}`);
-      console.log(`🟢 Valid geo paths: ${valid}`);
-      console.log(`⚠️ Skipped empty GEO PATH rows: ${emptyRows}`);
-      console.log(`⚠️ Skipped invalid GEO PATH rows: ${invalidRows}`);
-
-      if (valid === 0) {
-        console.warn("🚫 No valid routes found.");
       }
     }
 
