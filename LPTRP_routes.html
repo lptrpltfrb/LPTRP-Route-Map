@@ -4,7 +4,10 @@
   <meta charset="utf-8" />
   <title>LTFRB Public Transport Routes Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
   <style>
     #map { height: 100vh; width: 100%; }
   </style>
@@ -16,59 +19,43 @@
   <script>
     const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
 
-    const map = L.map('map').setView([15.8, 120.6], 7);
+    const map = L.map('map').setView([15.8, 120.6], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    function parseCSV(text) {
-      const rows = text.trim().split('\n');
-      const headers = rows[0].split(',').map(h => h.trim().toUpperCase());
-      const data = rows.slice(1).map(row => {
-        const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-        return headers.reduce((obj, key, i) => {
-          obj[key] = values[i] ? values[i].replace(/^"|"$/g, '') : '';
-          return obj;
-        }, {});
-      });
-      return data;
-    }
-
-    function drawRoutes(data) {
-      data.forEach((row, index) => {
-        const path = row['GEO PATH'];
-        const name = row['ROUTE NAME'] || `Route ${index + 1}`;
-        if (!path || path.trim() === '') {
-          console.warn(`⚠️ GEO PATH is empty at row ${index + 2}`);
-          return;
-        }
-
-        try {
-          const coords = JSON.parse(path);
-          if (!Array.isArray(coords)) throw new Error('Not an array');
-
-          const latlngs = coords.map(pair => {
-            if (!Array.isArray(pair) || pair.length < 2) throw new Error('Invalid pair');
-            return [pair[1], pair[0]]; // Leaflet = [lat, lng]
-          });
-
-          const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-          polyline.bindPopup(name);
-        } catch (err) {
-          console.warn(`⚠️ Invalid GEO PATH format at row ${index + 2}:`, path);
-        }
-      });
-    }
-
     fetch(sheetURL)
-      .then(res => res.text())
-      .then(csv => {
-        const data = parseCSV(csv);
-        drawRoutes(data);
+      .then(response => response.text())
+      .then(csvText => {
+        const rows = csvText.trim().split('\n').slice(1); // skip header row 2
+        const header = csvText.split('\n')[0].split(',');
+
+        const routeNameIndex = header.findIndex(h => h.trim().toUpperCase() === 'ROUTE NAME');
+        const geoPathIndex = header.findIndex(h => h.trim().toUpperCase() === 'GEO PATH');
+
+        rows.forEach((row, rowIndex) => {
+          const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // split with quote-safe regex
+          const routeName = columns[routeNameIndex]?.trim() || 'Unnamed Route';
+          const geoPathRaw = columns[geoPathIndex]?.trim();
+
+          if (geoPathRaw && geoPathRaw.startsWith('[[')) {
+            try {
+              const coords = JSON.parse(geoPathRaw);
+              const latlngs = coords.map(c => [c[1], c[0]]);
+              const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+              polyline.bindPopup(routeName);
+            } catch (err) {
+              console.warn(`⚠️ Invalid GEO PATH at row ${rowIndex + 2}:`, geoPathRaw);
+            }
+          } else {
+            // Optional: console.warn if needed
+            // console.warn(`⚠️ No valid GEO PATH at row ${rowIndex + 2}`);
+          }
+        });
       })
-      .catch(err => {
-        console.error('🚨 Error fetching or parsing CSV:', err);
+      .catch(error => {
+        console.error('🚨 Failed to fetch or process CSV:', error);
       });
   </script>
 </body>
