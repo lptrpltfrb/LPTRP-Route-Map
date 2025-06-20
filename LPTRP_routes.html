@@ -20,43 +20,69 @@
     const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
 
     const map = L.map('map').setView([15.8, 120.6], 6);
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     fetch(sheetURL)
-      .then(response => response.text())
-      .then(csvText => {
-        const rows = csvText.trim().split('\n').slice(1); // skip header row 2
-        const header = csvText.split('\n')[0].split(',');
+      .then(res => res.text())
+      .then(csv => {
+        const lines = csv.trim().split('\n');
+        const header = lines.shift().split(',').map(h => h.trim().toUpperCase());
+        const routeNameIdx = header.indexOf('ROUTE NAME');
+        const geoPathIdx = header.indexOf('GEO PATH');
 
-        const routeNameIndex = header.findIndex(h => h.trim().toUpperCase() === 'ROUTE NAME');
-        const geoPathIndex = header.findIndex(h => h.trim().toUpperCase() === 'GEO PATH');
+        const validPaths = [];
+        const allCount = lines.length;
+        const warningCount = { empty: 0, invalid: 0 };
 
-        rows.forEach((row, rowIndex) => {
-          const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // split with quote-safe regex
-          const routeName = columns[routeNameIndex]?.trim() || 'Unnamed Route';
-          const geoPathRaw = columns[geoPathIndex]?.trim();
-
-          if (geoPathRaw && geoPathRaw.startsWith('[[')) {
-            try {
-              const coords = JSON.parse(geoPathRaw);
-              const latlngs = coords.map(c => [c[1], c[0]]);
-              const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-              polyline.bindPopup(routeName);
-            } catch (err) {
-              console.warn(`⚠️ Invalid GEO PATH at row ${rowIndex + 2}:`, geoPathRaw);
-            }
-          } else {
-            // Optional: console.warn if needed
-            // console.warn(`⚠️ No valid GEO PATH at row ${rowIndex + 2}`);
+        lines.forEach((line, i) => {
+          const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+          const routeName = cols[routeNameIdx]?.trim() || `Route ${i + 2}`;
+          const geo = cols[geoPathIdx]?.trim();
+          if (!geo) {
+            warningCount.empty++;
+            return;
           }
+          if (geo.startsWith('[[')) {
+            try {
+              const crds = JSON.parse(geo);
+              if (Array.isArray(crds) && crds.length) {
+                validPaths.push({ name: routeName, coords: crds });
+              } else {
+                warningCount.invalid++;
+              }
+            } catch {
+              warningCount.invalid++;
+            }
+          } else warningCount.invalid++;
         });
+
+        console.log(`📊 Rows processed: ${allCount}`);
+        console.log(`🟢 Valid geo paths: ${validPaths.length}`);
+        console.log(`⚠️ Empty GEO PATH rows: ${warningCount.empty}`);
+        console.log(`⚠️ Invalid GEO PATH rows: ${warningCount.invalid}`);
+
+        validPaths.forEach(item => {
+          const latlngs = item.coords.map(p => [p[1], p[0]]);
+          L.polyline(latlngs, { color: 'blue' })
+           .bindPopup(item.name)
+           .addTo(map);
+        });
+
+        if (validPaths.length) {
+          const allLng = validPaths.flatMap(item => item.coords.map(p => p[0]));
+          const allLat = validPaths.flatMap(item => item.coords.map(p => p[1]));
+          const bounds = [
+            [Math.min(...allLat), Math.min(...allLng)],
+            [Math.max(...allLat), Math.max(...allLng)]
+          ];
+          map.fitBounds(bounds);
+        } else {
+          console.warn('No valid routes found.');
+        }
       })
-      .catch(error => {
-        console.error('🚨 Failed to fetch or process CSV:', error);
-      });
+      .catch(err => console.error('❌ Fetch or parse error:', err));
   </script>
 </body>
 </html>
