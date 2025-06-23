@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
   <style>
     body, html { margin: 0; padding: 0; height: 100%; }
     #map { width: 1170px; height: 800px; margin: auto; }
@@ -16,59 +15,65 @@
       left: 10px;
       background: white;
       padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
       z-index: 1000;
-      width: 300px;
+      max-width: 350px;
       font-family: sans-serif;
     }
-    .search-container h4 {
-      margin: 10px 0 5px;
-    }
-    select, input {
+    .search-container label { font-weight: bold; display: block; margin-top: 10px; }
+    .search-container select,
+    .search-container input {
       width: 100%;
-      margin-bottom: 5px;
+      padding: 4px;
+      margin-top: 4px;
+      margin-bottom: 6px;
     }
+    .search-section { margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+    .search-container button { width: 100%; margin-top: 8px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
+
   <div class="search-container">
-    <h4>Search by Route Name</h4>
-    <select id="routeNameSelect">
-      <option value="">-- Select Route --</option>
-    </select>
+    <div class="search-section">
+      <label for="routeName">Search by Route Name</label>
+      <select id="routeName"><option value="">--Select Route--</option></select>
+    </div>
 
-    <h4>Search by Endpoints</h4>
-    <label>Point A:</label>
-    <select id="pointAType">
-      <option value="">-- Select Point A Type --</option>
-      <option value="ENDPOINT 1 REGION">Region</option>
-      <option value="ENDPOINT 1 PROVINCE">Province</option>
-      <option value="ENDPOINT 1 LGU">LGU</option>
-      <option value="ENDPOINT 1 BARANGAY">Barangay</option>
-      <option value="ENDPOINT 1 TERMINAL">Terminal</option>
-    </select>
-    <input type="text" id="pointAValue" placeholder="Enter Point A value" />
+    <div class="search-section">
+      <label>Search by Endpoints</label>
+      <select id="pointAType">
+        <option value="">--Select--</option>
+        <option value="ENDPOINT 1 REGION">Region</option>
+        <option value="ENDPOINT 1 PROVINCE">Province</option>
+        <option value="ENDPOINT 1 LGU">LGU</option>
+        <option value="ENDPOINT 1 BARANGAY">Barangay</option>
+        <option value="ENDPOINT 1 TERMINAL">Terminal</option>
+      </select>
+      <input id="pointAValue" placeholder="Search Point A" />
 
-    <label>Point B (If Applicable):</label>
-    <select id="pointBType">
-      <option value="">-- Select Point B Type --</option>
-      <option value="ENDPOINT 2 REGION">Region</option>
-      <option value="ENDPOINT 2 PROVINCE">Province</option>
-      <option value="ENDPOINT 2 LGU">LGU</option>
-      <option value="ENDPOINT 2 BARANGAY">Barangay</option>
-      <option value="ENDPOINT 2 TERMINAL">Terminal</option>
-    </select>
-    <input type="text" id="pointBValue" placeholder="Enter Point B value" />
+      <select id="pointBType">
+        <option value="">--Select--</option>
+        <option value="ENDPOINT 2 REGION">Region</option>
+        <option value="ENDPOINT 2 PROVINCE">Province</option>
+        <option value="ENDPOINT 2 LGU">LGU</option>
+        <option value="ENDPOINT 2 BARANGAY">Barangay</option>
+        <option value="ENDPOINT 2 TERMINAL">Terminal</option>
+      </select>
+      <input id="pointBValue" placeholder="Search Point B (optional)" />
 
-    <label>Via (Optional):</label>
-    <select id="viaType">
-      <option value="">-- Select Via Type --</option>
-      <option value="ROUTE STRUCTURE">Road</option>
-      <option value="CORRIDOR">LGU</option>
-    </select>
-    <input type="text" id="viaValue" placeholder="Enter Via value" />
+      <select id="viaType">
+        <option value="">--Select--</option>
+        <option value="ROUTE STRUCTURE">Road</option>
+        <option value="CORRIDOR">LGU</option>
+      </select>
+      <input id="viaValue" placeholder="Search via (optional)" />
+
+      <button onclick="applyFilters()">🔍 Apply Filters</button>
+      <button onclick="resetFilters()">♻️ Clear Filters</button>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -81,81 +86,119 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    const routeLayers = [];
+    const allData = [];
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-    let allRoutes = [];
 
     function getRandomColor() {
-      return `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
     }
 
-    function drawRoute(row) {
-      const geoPathRaw = row["GEO PATH"];
-      if (!geoPathRaw) return;
-      try {
-        const paths = JSON.parse(geoPathRaw);
-        const pathSegments = Array.isArray(paths[0][0]) ? paths : [paths];
-        pathSegments.forEach(segment => {
-          const latlngs = segment.map(coord => [coord[1], coord[0]]);
-          L.polyline(latlngs, {
-            color: getRandomColor(),
-            weight: 4
-          }).addTo(map).bindPopup(
-            `<b>${row["ROUTE NAME"] || "Unnamed Route"}</b><br>` +
-            `DENO: ${row["DENO"] || ""}<br>` +
-            `NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}<br>` +
-            `CLASSIFICATION: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}`
-          );
-        });
-      } catch (e) {
-        console.warn("Invalid GEO PATH", e);
-      }
+    function clearMap() {
+      routeLayers.forEach(layer => map.removeLayer(layer));
+      routeLayers.length = 0;
     }
 
-    function applySearchFilters() {
-      map.eachLayer(layer => { if (layer instanceof L.Polyline) map.removeLayer(layer); });
+    function applyFilters() {
+      const routeName = document.getElementById("routeName").value.toLowerCase();
+      const pointACol = document.getElementById("pointAType").value;
+      const pointAVal = document.getElementById("pointAValue").value.toLowerCase();
+      const pointBCol = document.getElementById("pointBType").value;
+      const pointBVal = document.getElementById("pointBValue").value.toLowerCase();
+      const viaCol = document.getElementById("viaType").value;
+      const viaVal = document.getElementById("viaValue").value.toLowerCase();
 
-      const aType = document.getElementById('pointAType').value;
-      const aVal = document.getElementById('pointAValue').value.trim().toLowerCase();
-      const bType = document.getElementById('pointBType').value;
-      const bVal = document.getElementById('pointBValue').value.trim().toLowerCase();
-      const vType = document.getElementById('viaType').value;
-      const vVal = document.getElementById('viaValue').value.trim().toLowerCase();
-      const routeName = document.getElementById('routeNameSelect').value;
+      clearMap();
 
-      allRoutes.forEach(row => {
-        let match = true;
+      allData.forEach((row, index) => {
+        const matchRoute = routeName && row["ROUTE NAME"]?.toLowerCase().includes(routeName);
+        const matchA = pointACol && row[pointACol]?.toLowerCase().includes(pointAVal);
+        const matchB = pointBCol && pointBVal && row[pointBCol]?.toLowerCase().includes(pointBVal);
+        const matchVia = viaCol && viaVal && row[viaCol]?.toLowerCase().includes(viaVal);
 
-        if (routeName && row["ROUTE NAME"] !== routeName) match = false;
-        if (aType && aVal && !(row[aType] || '').toLowerCase().includes(aVal)) match = false;
-        if (bType && bVal && !(row[bType] || '').toLowerCase().includes(bVal)) match = false;
-        if (vType && vVal && !(row[vType] || '').toLowerCase().includes(vVal)) match = false;
+        const shouldShow =
+          (routeName && matchRoute) ||
+          (pointACol && matchA && (!pointBVal || matchB) && (!viaVal || matchVia));
 
-        if (match) drawRoute(row);
+        if (!shouldShow) return;
+
+        const geo = row["GEO PATH"];
+        if (!geo) return;
+
+        try {
+          const coords = JSON.parse(geo);
+          const paths = Array.isArray(coords[0][0]) ? coords : [coords];
+
+          paths.forEach(segment => {
+            const latlngs = segment.map(c => [c[1], c[0]]);
+            const poly = L.polyline(latlngs, {
+              color: getRandomColor(),
+              weight: 4
+            }).addTo(map);
+
+            poly.bindPopup(
+              `<strong>${row["ROUTE NAME"]}</strong><br>` +
+              `NAU: ${row["NO. OF AUTHORIZED UNITS"] || "N/A"}<br>` +
+              `DENO: ${row["DENO"] || ""}<br>` +
+              `CLASSIFICATION: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}`
+            );
+            routeLayers.push(poly);
+          });
+        } catch(e) {
+          console.warn("GEO PATH error on row", index+2, e);
+        }
+      });
+    }
+
+    function resetFilters() {
+      document.querySelectorAll(".search-container select, .search-container input").forEach(el => el.value = "");
+      clearMap();
+      drawAllRoutes();
+    }
+
+    function drawAllRoutes() {
+      allData.forEach((row, index) => {
+        const geo = row["GEO PATH"];
+        if (!geo) return;
+        try {
+          const coords = JSON.parse(geo);
+          const paths = Array.isArray(coords[0][0]) ? coords : [coords];
+
+          paths.forEach(segment => {
+            const latlngs = segment.map(c => [c[1], c[0]]);
+            const poly = L.polyline(latlngs, {
+              color: getRandomColor(),
+              weight: 3
+            }).addTo(map);
+
+            poly.bindPopup(
+              `<strong>${row["ROUTE NAME"]}</strong><br>` +
+              `NAU: ${row["NO. OF AUTHORIZED UNITS"] || "N/A"}<br>` +
+              `DENO: ${row["DENO"] || ""}<br>` +
+              `CLASSIFICATION: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}`
+            );
+            routeLayers.push(poly);
+          });
+        } catch {}
       });
     }
 
     fetch(csvUrl)
-      .then(response => response.text())
+      .then(res => res.text())
       .then(csv => {
         Papa.parse(csv, {
           header: true,
           skipEmptyLines: true,
-          complete: results => {
-            allRoutes = results.data;
-            allRoutes.forEach(drawRoute);
+          complete: (results) => {
+            allData.push(...results.data);
+            drawAllRoutes();
 
-            const routeNameSelect = document.getElementById('routeNameSelect');
-            const uniqueNames = [...new Set(allRoutes.map(row => row["ROUTE NAME"]).filter(Boolean))].sort();
-            uniqueNames.forEach(name => {
-              const opt = document.createElement('option');
-              opt.value = name;
-              opt.textContent = name;
-              routeNameSelect.appendChild(opt);
-            });
-
-            document.querySelectorAll('select, input').forEach(control => {
-              control.addEventListener('change', applySearchFilters);
-              control.addEventListener('keyup', applySearchFilters);
+            const routeNames = [...new Set(results.data.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
+            const routeDropdown = document.getElementById("routeName");
+            routeNames.forEach(name => {
+              const opt = document.createElement("option");
+              opt.value = opt.text = name;
+              routeDropdown.appendChild(opt);
             });
           }
         });
