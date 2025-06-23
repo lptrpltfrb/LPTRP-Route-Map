@@ -19,14 +19,14 @@
       z-index: 1000;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
       font-family: sans-serif;
-      max-width: 320px;
+      max-width: 340px;
     }
 
     .search-container h4 {
       margin: 10px 0 5px;
     }
 
-    select, input[type="text"] {
+    select {
       width: 100%;
       margin-bottom: 8px;
       padding: 4px;
@@ -44,7 +44,7 @@
 
     <h4>Search by Endpoints</h4>
     <select id="pointASelect">
-      <option value="">-- Select Point A --</option>
+      <option value="">-- Point A --</option>
     </select>
     <select id="pointBSelect">
       <option value="">-- If Applicable --</option>
@@ -56,7 +56,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
   <script>
     const map = L.map('map').setView([13, 122], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -65,26 +64,24 @@
     }).addTo(map);
 
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-
     const allLayers = [];
     let allData = [];
 
     function getRandomColor() {
-      return "#" + Math.floor(Math.random()*16777215).toString(16);
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
     }
 
     function drawRoutes(filteredData) {
       allLayers.forEach(layer => map.removeLayer(layer));
       allLayers.length = 0;
-
-      filteredData.forEach((row, index) => {
+      filteredData.forEach(row => {
         const geoPath = row["GEO PATH"];
         const routeName = row["ROUTE NAME"];
         const deno = row["DENO"];
         const nau = row["NO. OF AUTHORIZED UNITS"];
         const classification = row["ROUTE CLASSIFICATION (if LPTRP)"];
 
-        if (!geoPath || geoPath.trim() === "") return;
+        if (!geoPath) return;
         try {
           const paths = JSON.parse(geoPath);
           const segments = Array.isArray(paths[0][0]) ? paths : [paths];
@@ -99,7 +96,7 @@
             allLayers.push(layer);
           });
         } catch (e) {
-          console.warn(`Invalid GEO PATH:`, e);
+          console.warn("Invalid GEO PATH", e);
         }
       });
     }
@@ -107,62 +104,44 @@
     function populateDropdown(id, values) {
       const select = document.getElementById(id);
       select.innerHTML = `<option value="">${select.options[0].text}</option>`;
-      [...new Set(values.filter(Boolean).sort())].forEach(v => {
-        const option = document.createElement('option');
-        option.value = v;
-        option.textContent = v;
-        select.appendChild(option);
+      [...new Set(values.filter(Boolean).sort())].forEach(val => {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = val;
+        select.appendChild(opt);
       });
     }
 
     function filterRoutes() {
-      const selectedName = document.getElementById("routeNameSelect").value;
+      const name = document.getElementById("routeNameSelect").value;
       const pointA = document.getElementById("pointASelect").value;
       const pointB = document.getElementById("pointBSelect").value;
       const via = document.getElementById("viaSelect").value;
-
       let filtered = allData;
 
-      if (selectedName) {
-        filtered = filtered.filter(row => row["ROUTE NAME"] === selectedName);
-      }
-
-      if (pointA) {
-        filtered = filtered.filter(row =>
-          row["ENDPOINT 1 REGION"] === pointA ||
-          row["ENDPOINT 1 PROVINCE"] === pointA ||
-          row["ENDPOINT 1 LGU"] === pointA ||
-          row["ENDPOINT 1 BARANGAY"] === pointA ||
-          row["ENDPOINT 1 TERMINAL"] === pointA
-        );
-      }
-
-      if (pointB) {
-        filtered = filtered.filter(row =>
-          row["ENDPOINT 2 REGION"] === pointB ||
-          row["ENDPOINT 2 PROVINCE"] === pointB ||
-          row["ENDPOINT 2 LGU"] === pointB ||
-          row["ENDPOINT 2 BARANGAY"] === pointB ||
-          row["ENDPOINT 2 TERMINAL"] === pointB
-        );
-      }
-
-      if (via) {
-        filtered = filtered.filter(row =>
-          row["ROUTE STRUCTURE"] === via || row["CORRIDOR"] === via
-        );
-      }
+      if (name) filtered = filtered.filter(r => r["ROUTE NAME"] === name);
+      if (pointA) filtered = filtered.filter(r =>
+        r["ENDPOINT 1 REGION"] === pointA || r["ENDPOINT 1 PROVINCE"] === pointA ||
+        r["ENDPOINT 1 LGU"] === pointA || r["ENDPOINT 1 BARANGAY"] === pointA || r["ENDPOINT 1 TERMINAL"] === pointA
+      );
+      if (pointB) filtered = filtered.filter(r =>
+        r["ENDPOINT 2 REGION"] === pointB || r["ENDPOINT 2 PROVINCE"] === pointB ||
+        r["ENDPOINT 2 LGU"] === pointB || r["ENDPOINT 2 BARANGAY"] === pointB || r["ENDPOINT 2 TERMINAL"] === pointB
+      );
+      if (via) filtered = filtered.filter(r =>
+        r["ROUTE STRUCTURE"] === via || r["CORRIDOR"] === via
+      );
 
       drawRoutes(filtered);
     }
 
     fetch(csvUrl)
-      .then(response => response.text())
+      .then(res => res.text())
       .then(csv => {
         Papa.parse(csv, {
           header: true,
           skipEmptyLines: true,
-          complete: function(results) {
+          complete: results => {
             allData = results.data;
             drawRoutes(allData);
 
