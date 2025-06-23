@@ -4,192 +4,158 @@
   <title>LPTRP Route Map</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body, html { margin: 0; padding: 0; }
-    #map { width: 1170px; height: 800px; margin: auto; }
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
     .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
       padding: 10px;
-      font-family: sans-serif;
+      border-radius: 8px;
+      z-index: 1000;
+      width: 300px;
     }
-    .controls select, .controls input {
+    .controls input, .controls select {
+      width: 100%;
+      margin: 5px 0;
       padding: 5px;
     }
   </style>
 </head>
 <body>
-  <div class="controls">
-    <select id="filterType">
-      <option value="DESTINATION">Destination</option>
-      <option value="ORIGIN">Origin</option>
-    </select>
+<div id="map"></div>
+<div class="controls">
+  <input type="text" id="searchRoute" placeholder="Search by Route Name" />
+  <select id="pointAType">
+    <option value="">Point A - Select type</option>
+    <option value="ENDPOINT 1 REGION">Region</option>
+    <option value="ENDPOINT 1 PROVINCE">Province</option>
+    <option value="ENDPOINT 1 LGU">LGU</option>
+    <option value="ENDPOINT 1 BARANGAY">Barangay</option>
+    <option value="ENDPOINT 1 TERMINAL">Terminal</option>
+  </select>
+  <input type="text" id="pointAValue" placeholder="Enter Point A value" />
 
-    <select multiple id="regionFilter"></select>
-    <select multiple id="provinceFilter"></select>
-    <select multiple id="lguFilter"></select>
-    <select multiple id="denoFilter"></select>
+  <select id="pointBType">
+    <option value="">Point B - Select type</option>
+    <option value="ENDPOINT 2 REGION">Region</option>
+    <option value="ENDPOINT 2 PROVINCE">Province</option>
+    <option value="ENDPOINT 2 LGU">LGU</option>
+    <option value="ENDPOINT 2 BARANGAY">Barangay</option>
+    <option value="ENDPOINT 2 TERMINAL">Terminal</option>
+  </select>
+  <input type="text" id="pointBValue" placeholder="Enter Point B value" />
 
-    <input type="text" id="searchRoute" placeholder="Search Route Name..." />
-    <input type="text" id="originInput" placeholder="Origin LGU" />
-    <input type="text" id="viaInput" placeholder="Via (optional)" />
-    <input type="text" id="destinationInput" placeholder="Destination LGU" />
-    <button onclick="suggestRoutes()">Suggest Route</button>
-  </div>
+  <select id="viaType">
+    <option value="">Via - Select type</option>
+    <option value="ROUTE STRUCTURE">Road</option>
+    <option value="CORRIDOR">LGU</option>
+  </select>
+  <input type="text" id="viaValue" placeholder="Enter via value" />
 
-  <div id="map"></div>
+  <button onclick="applyFilters()">Apply Filters</button>
+  <button onclick="resetFilters()">Reset</button>
+</div>
 
-  <!-- Leaflet & PapaParse JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
-  <script>
-    const map = L.map('map').setView([13, 122], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
+<script>
+const map = L.map('map').setView([13, 122], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+L.control.scale().addTo(map);
 
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv';
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+const routeLayers = [];
+let routeData = [];
 
-    let allData = [];
-    let allLayers = [];
+function resetMap() {
+  routeLayers.forEach(layer => map.removeLayer(layer));
+  routeLayers.length = 0;
+}
 
-    function randomColor() {
-      return `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
-    }
+function applyFilters() {
+  const routeSearch = document.getElementById('searchRoute').value.trim().toLowerCase();
+  const pointACol = document.getElementById('pointAType').value;
+  const pointAVal = document.getElementById('pointAValue').value.trim().toLowerCase();
+  const pointBCol = document.getElementById('pointBType').value;
+  const pointBVal = document.getElementById('pointBValue').value.trim().toLowerCase();
+  const viaCol = document.getElementById('viaType').value;
+  const viaVal = document.getElementById('viaValue').value.trim().toLowerCase();
 
-    function clearMap() {
-      allLayers.forEach(layer => map.removeLayer(layer));
-      allLayers = [];
-    }
+  resetMap();
 
-    function addRoute(row, color) {
-      try {
-        const coords = JSON.parse(row["GEO PATH"]);
-        if (!Array.isArray(coords)) return;
-        const latlngs = coords.map(p => [p[1], p[0]]);
-        const route = L.polyline(latlngs, {
-          color,
-          weight: 4,
-          opacity: 0.8
-        }).addTo(map);
+  routeData.forEach(row => {
+    const name = (row["ROUTE NAME"] || "").toLowerCase();
+    const geo = row["GEO PATH"];
+    if (!geo || geo.trim() === "") return;
 
-        route.bindPopup(`<b>${row["ROUTE NAME"]}</b><br>${row["ENDPOINT 1 LGU"]} ➜ ${row["ENDPOINT 2 LGU"]}`);
-        allLayers.push(route);
-      } catch (e) {
-        console.warn("Invalid GEO PATH", e);
-      }
-    }
+    if (routeSearch && !name.includes(routeSearch)) return;
+    if (pointACol && pointAVal && (row[pointACol] || "").toLowerCase() !== pointAVal) return;
+    if (pointBCol && pointBVal && (row[pointBCol] || "").toLowerCase() !== pointBVal) return;
+    if (viaCol && viaVal && (row[viaCol] || "").toLowerCase() !== viaVal) return;
 
-    function updateFilters(data) {
-      const filters = {
-        regionFilter: new Set(),
-        provinceFilter: new Set(),
-        lguFilter: new Set(),
-        denoFilter: new Set(),
-      };
-      data.forEach(row => {
-        filters.regionFilter.add(row["REGION"]);
-        filters.provinceFilter.add(row["PROVINCE"]);
-        filters.lguFilter.add(row["LGU"]);
-        filters.denoFilter.add(row["DENO"]);
-      });
-      for (const [id, set] of Object.entries(filters)) {
-        const sel = document.getElementById(id);
-        sel.innerHTML = '';
-        [...set].sort().forEach(val => {
-          const opt = document.createElement('option');
-          opt.value = val;
-          opt.textContent = val;
-          sel.appendChild(opt);
-        });
-      }
-    }
+    try {
+      const coords = JSON.parse(geo).map(p => [p[1], p[0]]);
+      const poly = L.polyline(coords, {
+        color: getRandomColor(),
+        weight: 4
+      }).addTo(map);
 
-    function getSelectedValues(id) {
-      return [...document.getElementById(id).selectedOptions].map(o => o.value);
-    }
-
-    function applyFilters() {
-      clearMap();
-      const type = document.getElementById("filterType").value;
-      const filters = {
-        REGION: getSelectedValues("regionFilter"),
-        PROVINCE: getSelectedValues("provinceFilter"),
-        LGU: getSelectedValues("lguFilter"),
-        DENO: getSelectedValues("denoFilter")
-      };
-
-      const colPrefix = (type === "ORIGIN") ? "ENDPOINT 1" : "ENDPOINT 2";
-      const filtered = allData.filter(row =>
-        (!filters.REGION.length || filters.REGION.includes(row[`${colPrefix} REGION`])) &&
-        (!filters.PROVINCE.length || filters.PROVINCE.includes(row[`${colPrefix} PROVINCE`])) &&
-        (!filters.LGU.length || filters.LGU.includes(row[`${colPrefix} LGU`])) &&
-        (!filters.DENO.length || filters.DENO.includes(row["DENO"]))
+      poly.bindPopup(
+        `<b>${row["ROUTE NAME"] || "Unnamed"}</b><br>` +
+        `DENO: ${row["DENO"] || ""}<br>` +
+        `NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}<br>` +
+        `CLASSIFICATION: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}`
       );
 
-      const groupByDeno = filters.DENO.length > 0;
-      const colors = {};
-
-      filtered.forEach(row => {
-        const key = groupByDeno ? row["DENO"] : Math.random();
-        if (!colors[key]) colors[key] = randomColor();
-        addRoute(row, colors[key]);
-      });
+      routeLayers.push(poly);
+    } catch (e) {
+      console.warn("Invalid GEO PATH JSON", e);
     }
+  });
+}
 
-    function suggestRoutes() {
-      clearMap();
-      const origin = document.getElementById("originInput").value.toLowerCase();
-      const via = document.getElementById("viaInput").value.toLowerCase();
-      const destination = document.getElementById("destinationInput").value.toLowerCase();
+function resetFilters() {
+  document.getElementById('searchRoute').value = "";
+  document.getElementById('pointAType').value = "";
+  document.getElementById('pointAValue').value = "";
+  document.getElementById('pointBType').value = "";
+  document.getElementById('pointBValue').value = "";
+  document.getElementById('viaType').value = "";
+  document.getElementById('viaValue').value = "";
+  applyFilters();
+}
 
-      const matches = allData.filter(row => {
-        const e1 = row["ENDPOINT 1 LGU"]?.toLowerCase() || "";
-        const e2 = row["ENDPOINT 2 LGU"]?.toLowerCase() || "";
-        const matchOrigin = e1.includes(origin) || e2.includes(origin);
-        const matchDest = e1.includes(destination) || e2.includes(destination);
-        const matchVia = via ? e1.includes(via) || e2.includes(via) : true;
-        return matchOrigin && matchDest && matchVia;
-      });
+function getRandomColor() {
+  const letters = '0123456789ABCDEF';
+  let color = '#';
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color;
+}
 
-      matches.forEach(row => addRoute(row, randomColor()));
+async function loadCSV() {
+  const response = await fetch(csvUrl);
+  const text = await response.text();
+
+  Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(res) {
+      routeData = res.data;
+      applyFilters();
     }
+  });
+}
 
-    function setupSearch() {
-      const input = document.getElementById("searchRoute");
-      input.addEventListener("input", () => {
-        const query = input.value.toLowerCase();
-        clearMap();
-        const matches = allData.filter(row => row["ROUTE NAME"]?.toLowerCase().includes(query));
-        matches.forEach(row => addRoute(row, randomColor()));
-      });
-    }
-
-    fetch(csvUrl)
-      .then(res => res.text())
-      .then(csv => {
-        Papa.parse(csv, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            allData = results.data.filter(r => r["GEO PATH"]);
-            updateFilters(allData);
-            applyFilters(); // Load initial map
-            setupSearch();
-          }
-        });
-      });
-
-    // Auto-apply filter changes
-    ["regionFilter", "provinceFilter", "lguFilter", "denoFilter", "filterType"].forEach(id => {
-      document.getElementById(id).addEventListener("change", applyFilters);
-    });
-  </script>
+loadCSV();
+</script>
 </body>
 </html>
