@@ -138,10 +138,10 @@
 
             poly.bindPopup(
               `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
-              `${row["DENO"] ? `<div>DENO: ${row["DENO"]}</div>` : ""}` +
-              `${row["Class"] ? `<div>CLASS: ${row["Class"]}</div>` : ""}` +
-              `${row["ROUTE CLASSIFICATION (if LPTRP)"] ? `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"]}</div>` : ""}` +
-              `${row["NO. OF AUTHORIZED UNITS"] ? `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"]}</div>` : ""}`
+              `<div>DENO: ${row["DENO"] || ""}</div>` +
+              `<div>CLASS: ${row["Class"] || ""}</div>` +
+              `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
+              `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
             );
             routeLayers.push(poly);
           });
@@ -174,10 +174,10 @@
 
             poly.bindPopup(
               `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
-              `${row["DENO"] ? `<div>DENO: ${row["DENO"]}</div>` : ""}` +
-              `${row["Class"] ? `<div>CLASS: ${row["Class"]}</div>` : ""}` +
-              `${row["ROUTE CLASSIFICATION (if LPTRP)"] ? `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"]}</div>` : ""}` +
-              `${row["NO. OF AUTHORIZED UNITS"] ? `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"]}</div>` : ""}`
+              `<div>DENO: ${row["DENO"] || ""}</div>` +
+              `<div>CLASS: ${row["Class"] || ""}</div>` +
+              `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
+              `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
             );
             routeLayers.push(poly);
           });
