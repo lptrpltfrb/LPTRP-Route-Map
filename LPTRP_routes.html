@@ -4,25 +4,61 @@
   <title>LPTRP Route Map</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body, html { margin: 0; padding: 0; }
     #map { width: 1170px; height: 800px; margin: auto; }
+
+    .search-container {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 1000;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      font-family: sans-serif;
+      max-width: 320px;
+    }
+
+    .search-container h4 {
+      margin: 10px 0 5px;
+    }
+
+    select, input[type="text"] {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 4px;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
+  <div class="search-container">
+    <h4>Search by Route Name</h4>
+    <select id="routeNameSelect">
+      <option value="">-- Select Route Name --</option>
+    </select>
+
+    <h4>Search by Endpoints</h4>
+    <select id="pointASelect">
+      <option value="">-- Select Point A --</option>
+    </select>
+    <select id="pointBSelect">
+      <option value="">-- If Applicable --</option>
+    </select>
+    <select id="viaSelect">
+      <option value="">-- Optional --</option>
+    </select>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- PapaParse CSV parser -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    const map = L.map('map').setView([13, 122], 6); // Philippines center
-
+    const map = L.map('map').setView([13, 122], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
       attribution: '© OpenStreetMap contributors'
@@ -30,72 +66,133 @@
 
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
+    const allLayers = [];
+    let allData = [];
+
     function getRandomColor() {
-      return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+      return "#" + Math.floor(Math.random()*16777215).toString(16);
     }
 
-    async function loadRoutes() {
-      const response = await fetch(csvUrl);
-      const csvText = await response.text();
+    function drawRoutes(filteredData) {
+      allLayers.forEach(layer => map.removeLayer(layer));
+      allLayers.length = 0;
 
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-          const data = results.data;
-          let validCount = 0, emptyCount = 0, invalidCount = 0;
+      filteredData.forEach((row, index) => {
+        const geoPath = row["GEO PATH"];
+        const routeName = row["ROUTE NAME"];
+        const deno = row["DENO"];
+        const nau = row["NO. OF AUTHORIZED UNITS"];
+        const classification = row["ROUTE CLASSIFICATION (if LPTRP)"];
 
-          data.forEach((row, index) => {
-            const routeName = row["ROUTE NAME"] || `Route ${index + 2}`;
-            const geoPathRaw = row["GEO PATH"];
-            const deno = (row["DENO"] || "UNKNOWN").trim().toUpperCase();
-            const nau = row["NO. OF AUTHORIZED UNITS"] || "N/A";
-            const classification = row["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A";
-
-            if (!geoPathRaw || geoPathRaw.trim() === "") {
-              emptyCount++;
-              return;
-            }
-
-            try {
-              const paths = JSON.parse(geoPathRaw);
-              const pathsArray = Array.isArray(paths[0][0]) ? paths : [paths];
-
-              pathsArray.forEach(segment => {
-                const latlngs = segment.map(coord => [coord[1], coord[0]]);
-                L.polyline(latlngs, {
-                  color: getRandomColor(),
-                  weight: 4
-                })
-                .addTo(map)
-                .bindPopup(
-                  `<strong>${routeName}</strong><br>
-                   <strong>DENO:</strong> ${deno}<br>
-                   <strong>NAU:</strong> ${nau}<br>
-                   <strong>CLASSIFICATION:</strong> ${classification}`
-                );
-              });
-
-              validCount++;
-            } catch (e) {
-              console.warn(`⚠️ Invalid GEO PATH at row ${index + 2}: ${e.message}`);
-              invalidCount++;
-            }
+        if (!geoPath || geoPath.trim() === "") return;
+        try {
+          const paths = JSON.parse(geoPath);
+          const segments = Array.isArray(paths[0][0]) ? paths : [paths];
+          segments.forEach(segment => {
+            const latlngs = segment.map(coord => [coord[1], coord[0]]);
+            const color = getRandomColor();
+            const layer = L.polyline(latlngs, {
+              color,
+              weight: 4
+            }).bindPopup(`<strong>${routeName}</strong><br>DENO: ${deno}<br>NAU: ${nau}<br>CLASSIFICATION: ${classification}`);
+            layer.addTo(map);
+            allLayers.push(layer);
           });
-
-          console.log(`📊 Rows processed: ${data.length}`);
-          console.log(`🟢 Valid geo paths: ${validCount}`);
-          console.log(`⚠️ Skipped empty GEO PATH rows: ${emptyCount}`);
-          console.log(`⚠️ Skipped invalid GEO PATH rows: ${invalidCount}`);
-
-          if (validCount === 0) {
-            console.warn("⚠️ No valid routes found.");
-          }
+        } catch (e) {
+          console.warn(`Invalid GEO PATH:`, e);
         }
       });
     }
 
-    loadRoutes();
+    function populateDropdown(id, values) {
+      const select = document.getElementById(id);
+      select.innerHTML = `<option value="">${select.options[0].text}</option>`;
+      [...new Set(values.filter(Boolean).sort())].forEach(v => {
+        const option = document.createElement('option');
+        option.value = v;
+        option.textContent = v;
+        select.appendChild(option);
+      });
+    }
+
+    function filterRoutes() {
+      const selectedName = document.getElementById("routeNameSelect").value;
+      const pointA = document.getElementById("pointASelect").value;
+      const pointB = document.getElementById("pointBSelect").value;
+      const via = document.getElementById("viaSelect").value;
+
+      let filtered = allData;
+
+      if (selectedName) {
+        filtered = filtered.filter(row => row["ROUTE NAME"] === selectedName);
+      }
+
+      if (pointA) {
+        filtered = filtered.filter(row =>
+          row["ENDPOINT 1 REGION"] === pointA ||
+          row["ENDPOINT 1 PROVINCE"] === pointA ||
+          row["ENDPOINT 1 LGU"] === pointA ||
+          row["ENDPOINT 1 BARANGAY"] === pointA ||
+          row["ENDPOINT 1 TERMINAL"] === pointA
+        );
+      }
+
+      if (pointB) {
+        filtered = filtered.filter(row =>
+          row["ENDPOINT 2 REGION"] === pointB ||
+          row["ENDPOINT 2 PROVINCE"] === pointB ||
+          row["ENDPOINT 2 LGU"] === pointB ||
+          row["ENDPOINT 2 BARANGAY"] === pointB ||
+          row["ENDPOINT 2 TERMINAL"] === pointB
+        );
+      }
+
+      if (via) {
+        filtered = filtered.filter(row =>
+          row["ROUTE STRUCTURE"] === via || row["CORRIDOR"] === via
+        );
+      }
+
+      drawRoutes(filtered);
+    }
+
+    fetch(csvUrl)
+      .then(response => response.text())
+      .then(csv => {
+        Papa.parse(csv, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            allData = results.data;
+            drawRoutes(allData);
+
+            populateDropdown("routeNameSelect", allData.map(r => r["ROUTE NAME"]));
+            populateDropdown("pointASelect", [].concat(
+              allData.map(r => r["ENDPOINT 1 REGION"]),
+              allData.map(r => r["ENDPOINT 1 PROVINCE"]),
+              allData.map(r => r["ENDPOINT 1 LGU"]),
+              allData.map(r => r["ENDPOINT 1 BARANGAY"]),
+              allData.map(r => r["ENDPOINT 1 TERMINAL"])
+            ));
+            populateDropdown("pointBSelect", [].concat(
+              allData.map(r => r["ENDPOINT 2 REGION"]),
+              allData.map(r => r["ENDPOINT 2 PROVINCE"]),
+              allData.map(r => r["ENDPOINT 2 LGU"]),
+              allData.map(r => r["ENDPOINT 2 BARANGAY"]),
+              allData.map(r => r["ENDPOINT 2 TERMINAL"])
+            ));
+            populateDropdown("viaSelect", [].concat(
+              allData.map(r => r["ROUTE STRUCTURE"]),
+              allData.map(r => r["CORRIDOR"])
+            ));
+          }
+        });
+      });
+
+    document.getElementById("routeNameSelect").addEventListener("change", filterRoutes);
+    document.getElementById("pointASelect").addEventListener("change", filterRoutes);
+    document.getElementById("pointBSelect").addEventListener("change", filterRoutes);
+    document.getElementById("viaSelect").addEventListener("change", filterRoutes);
   </script>
 </body>
 </html>
