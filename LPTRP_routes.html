@@ -1,128 +1,100 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LTFRB Route Map Viewer</title>
+  <title>LPTRP Route Map</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #map { width: 100%; height: 90vh; }
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      z-index: 1000;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    }
-    #controls input, #controls select {
-      width: 200px;
-      margin: 5px 0;
-    }
+    body, html { margin: 0; padding: 0; }
+    #map { width: 1170px; height: 800px; margin: auto; }
   </style>
 </head>
 <body>
+  <div id="map"></div>
 
-<div id="controls">
-  <input type="text" id="routeSearch" placeholder="Search Route Name" />
-  <input type="text" id="lguSearch" placeholder="Search LGU" />
-</div>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- PapaParse CSV parser -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
-<div id="map"></div>
+  <script>
+    const map = L.map('map').setView([13, 122], 6); // Philippines center
 
-<script>
-  const sheetUrl = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/gviz/tq?tqx=out:csv&sheet=MASTERLIST';
-  const map = L.map('map').setView([12.8797, 121.7740], 6); // Philippines center
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-  L.control.scale().addTo(map);
+    async function loadRoutes() {
+      const response = await fetch(csvUrl);
+      const csvText = await response.text();
 
-  const routes = [];
-  let routeLayers = [];
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          const data = results.data;
+          let validCount = 0, emptyCount = 0, invalidCount = 0;
 
-  function getRandomColor() {
-    return '#' + Math.floor(Math.random()*16777215).toString(16);
-  }
+          data.forEach((row, index) => {
+            const routeName = row["ROUTE NAME"] || `Route ${index + 2}`;
+            const geoPathRaw = row["GEO PATH"];
+            const deno = (row["DENO"] || "UNKNOWN").trim().toUpperCase();
 
-  function renderRoutes(filteredRoutes) {
-    // Clear existing routes
-    routeLayers.forEach(layer => map.removeLayer(layer));
-    routeLayers = [];
+            if (!geoPathRaw || geoPathRaw.trim() === "") {
+              emptyCount++;
+              return;
+            }
 
-    filteredRoutes.forEach(({ path, info }) => {
-      const polyline = L.polyline(path, {
-        color: getRandomColor(),
-        weight: 3,
-        opacity: 0.7
-      }).bindPopup(`<b>Route Name:</b> ${info.routeName}<br><b>LGU:</b> ${info.lgu}`)
-        .addTo(map);
-      routeLayers.push(polyline);
-    });
-  }
+            try {
+              const paths = JSON.parse(geoPathRaw);
+              const pathsArray = Array.isArray(paths[0][0]) ? paths : [paths];
 
-  fetch(sheetUrl)
-    .then(res => res.text())
-    .then(csv => {
-      const rows = csv.trim().split('\n').map(r => r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/));
-      const headers = rows[1]; // Assuming headers on row 2
-      const data = rows.slice(2); // skip first two rows
+              pathsArray.forEach(segment => {
+                const latlngs = segment.map(coord => [coord[1], coord[0]]);
+                L.polyline(latlngs, {
+                  color: getColorByDeno(deno),
+                  weight: 4
+                })
+                .addTo(map)
+                .bindPopup(`<strong>${routeName}</strong><br><em>DENO: ${deno}</em>`);
+              });
 
-      const routeNameIdx = headers.findIndex(h => h.trim().toLowerCase() === 'route name');
-      const lguIdx = headers.findIndex(h => h.trim().toLowerCase() === 'lgu');
-      const geoPathIdx = 25; // GEO PATH column index (Z)
+              validCount++;
+            } catch (e) {
+              console.warn(`⚠️ Invalid GEO PATH at row ${index + 2}: ${e.message}`);
+              invalidCount++;
+            }
+          });
 
-      data.forEach(row => {
-        const geoPathRaw = row[geoPathIdx];
-        if (!geoPathRaw || geoPathRaw.trim() === '') return;
+          console.log(`📊 Rows processed: ${data.length}`);
+          console.log(`🟢 Valid geo paths: ${validCount}`);
+          console.log(`⚠️ Skipped empty GEO PATH rows: ${emptyCount}`);
+          console.log(`⚠️ Skipped invalid GEO PATH rows: ${invalidCount}`);
 
-        try {
-          const cleaned = geoPathRaw.replace(/^"|"$/g, '').replace(/""/g, '"');
-          const path = JSON.parse(cleaned);
-
-          if (Array.isArray(path)) {
-            routes.push({
-              path,
-              info: {
-                routeName: row[routeNameIdx]?.trim() || '',
-                lgu: row[lguIdx]?.trim() || ''
-              }
-            });
+          if (validCount === 0) {
+            console.warn("⚠️ No valid routes found.");
           }
-        } catch (e) {
-          console.warn('Invalid GEO PATH:', geoPathRaw);
         }
       });
+    }
 
-      renderRoutes(routes);
-    });
+    function getColorByDeno(deno) {
+      switch (deno) {
+        case "PUJ": return "#f39c12";         // Orange
+        case "PUB": return "#2980b9";         // Blue
+        case "MINI BUS": return "#8e44ad";    // Purple
+        case "UVE": return "#27ae60";         // Green
+        default: return "#999999";            // Gray for unknown types
+      }
+    }
 
-  function filterRoutes() {
-    const routeSearch = document.getElementById('routeSearch').value.toLowerCase();
-    const lguSearch = document.getElementById('lguSearch').value.toLowerCase();
-
-    const filtered = routes.filter(({ info }) => {
-      return (
-        info.routeName.toLowerCase().includes(routeSearch) &&
-        info.lgu.toLowerCase().includes(lguSearch)
-      );
-    });
-
-    renderRoutes(filtered);
-  }
-
-  document.getElementById('routeSearch').addEventListener('input', filterRoutes);
-  document.getElementById('lguSearch').addEventListener('input', filterRoutes);
-</script>
-
+    loadRoutes();
+  </script>
 </body>
 </html>
