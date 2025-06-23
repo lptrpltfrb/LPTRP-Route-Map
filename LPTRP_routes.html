@@ -1,102 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LPTRP Route Map</title>
+  <title>LTFRB Route Map Viewer</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; }
-    #map { height: 100vh; width: 100%; }
-    .controls {
+    body { margin: 0; font-family: sans-serif; }
+    #map { width: 100%; height: 90vh; }
+    #controls {
       position: absolute;
       top: 10px;
       left: 10px;
       background: white;
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      padding: 10px;
       z-index: 1000;
-      width: 300px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     }
-    .controls h4 { margin: 5px 0 10px; font-size: 16px; }
-    .controls label { display: block; margin-top: 8px; font-size: 14px; }
-    .controls input, .controls select {
-      width: 100%;
-      padding: 6px;
-      margin-top: 4px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    .leaflet-control-scale-line {
-      background: white;
-      padding: 2px 5px;
-      border-radius: 3px;
-    }
-    .north-arrow {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      z-index: 1000;
-      width: 50px;
-      opacity: 0.8;
+    #controls input, #controls select {
+      width: 200px;
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="controls">
-    <h4>Search by Route Name</h4>
-    <input type="text" id="routeNameSearch" placeholder="Type Route Name...">
 
-    <h4>Search by Endpoints</h4>
-    <label for="pointAType">Point A</label>
-    <select id="pointAType">
-      <option value="">--Choose--</option>
-      <option value="ENDPOINT 1 REGION">Region</option>
-      <option value="ENDPOINT 1 PROVINCE">Province</option>
-      <option value="ENDPOINT 1 LGU">LGU</option>
-      <option value="ENDPOINT 1 BARANGAY">Barangay</option>
-      <option value="ENDPOINT 1 TERMINAL">Terminal</option>
-    </select>
-    <input type="text" id="pointAValue" placeholder="Type Point A value...">
+<div id="controls">
+  <input type="text" id="routeSearch" placeholder="Search Route Name" />
+  <input type="text" id="lguSearch" placeholder="Search LGU" />
+</div>
 
-    <label for="pointBType">Point B</label>
-    <select id="pointBType">
-      <option value="">--If Applicable--</option>
-      <option value="ENDPOINT 2 REGION">Region</option>
-      <option value="ENDPOINT 2 PROVINCE">Province</option>
-      <option value="ENDPOINT 2 LGU">LGU</option>
-      <option value="ENDPOINT 2 BARANGAY">Barangay</option>
-      <option value="ENDPOINT 2 TERMINAL">Terminal</option>
-    </select>
-    <input type="text" id="pointBValue" placeholder="Type Point B value...">
+<div id="map"></div>
 
-    <label for="viaType">via</label>
-    <select id="viaType">
-      <option value="">--Optional--</option>
-      <option value="ROUTE STRUCTURE">Road</option>
-      <option value="CORRIDOR">LGU</option>
-    </select>
-    <input type="text" id="viaValue" placeholder="Type via value...">
-  </div>
+<script>
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/gviz/tq?tqx=out:csv&sheet=MASTERLIST';
+  const map = L.map('map').setView([12.8797, 121.7740], 6); // Philippines center
 
-  <img class="north-arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Compass_Rose_English_North.svg/120px-Compass_Rose_English_North.svg.png" alt="North Arrow">
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- PapaParse for CSV -->
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  L.control.scale().addTo(map);
 
-  <script>
-    const map = L.map('map').setView([13, 122], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    L.control.scale().addTo(map);
-  </script>
+  const routes = [];
+  let routeLayers = [];
+
+  function getRandomColor() {
+    return '#' + Math.floor(Math.random()*16777215).toString(16);
+  }
+
+  function renderRoutes(filteredRoutes) {
+    // Clear existing routes
+    routeLayers.forEach(layer => map.removeLayer(layer));
+    routeLayers = [];
+
+    filteredRoutes.forEach(({ path, info }) => {
+      const polyline = L.polyline(path, {
+        color: getRandomColor(),
+        weight: 3,
+        opacity: 0.7
+      }).bindPopup(`<b>Route Name:</b> ${info.routeName}<br><b>LGU:</b> ${info.lgu}`)
+        .addTo(map);
+      routeLayers.push(polyline);
+    });
+  }
+
+  fetch(sheetUrl)
+    .then(res => res.text())
+    .then(csv => {
+      const rows = csv.trim().split('\n').map(r => r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/));
+      const headers = rows[1]; // Assuming headers on row 2
+      const data = rows.slice(2); // skip first two rows
+
+      const routeNameIdx = headers.findIndex(h => h.trim().toLowerCase() === 'route name');
+      const lguIdx = headers.findIndex(h => h.trim().toLowerCase() === 'lgu');
+      const geoPathIdx = 25; // GEO PATH column index (Z)
+
+      data.forEach(row => {
+        const geoPathRaw = row[geoPathIdx];
+        if (!geoPathRaw || geoPathRaw.trim() === '') return;
+
+        try {
+          const cleaned = geoPathRaw.replace(/^"|"$/g, '').replace(/""/g, '"');
+          const path = JSON.parse(cleaned);
+
+          if (Array.isArray(path)) {
+            routes.push({
+              path,
+              info: {
+                routeName: row[routeNameIdx]?.trim() || '',
+                lgu: row[lguIdx]?.trim() || ''
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Invalid GEO PATH:', geoPathRaw);
+        }
+      });
+
+      renderRoutes(routes);
+    });
+
+  function filterRoutes() {
+    const routeSearch = document.getElementById('routeSearch').value.toLowerCase();
+    const lguSearch = document.getElementById('lguSearch').value.toLowerCase();
+
+    const filtered = routes.filter(({ info }) => {
+      return (
+        info.routeName.toLowerCase().includes(routeSearch) &&
+        info.lgu.toLowerCase().includes(lguSearch)
+      );
+    });
+
+    renderRoutes(filtered);
+  }
+
+  document.getElementById('routeSearch').addEventListener('input', filterRoutes);
+  document.getElementById('lguSearch').addEventListener('input', filterRoutes);
+</script>
+
 </body>
 </html>
