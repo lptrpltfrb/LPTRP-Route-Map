@@ -64,10 +64,12 @@
       </select>
       <input id="pointBValue" placeholder="Search Point B (optional)" />
 
-      <input disabled style="width: 100%; font-weight: bold; text-align: center; border: 1px solid #ccc; background: #f9f9f9;" value="--Select via--" />
-
-      <input id="viaRoad" placeholder="Road (optional)" />
-      <input id="viaLGU" placeholder="LGU (optional)" />
+      <select id="viaType" multiple size="2">
+        <option value="ROUTE STRUCTURE">Road</option>
+        <option value="CORRIDOR">LGU</option>
+      </select>
+      <input id="viaRoad" placeholder="Search via Road (optional)" style="display:none" />
+      <input id="viaLGU" placeholder="Search via LGU (optional)" style="display:none" />
 
       <button onclick="applyFilters()">🔍 Apply Filters</button>
       <button onclick="resetFilters()">♻️ Clear Filters</button>
@@ -88,6 +90,12 @@
     const allData = [];
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
+    document.getElementById("viaType").addEventListener("change", function() {
+      const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+      document.getElementById("viaRoad").style.display = selected.includes("ROUTE STRUCTURE") ? "block" : "none";
+      document.getElementById("viaLGU").style.display = selected.includes("CORRIDOR") ? "block" : "none";
+    });
+
     function getRandomColor() {
       return '#' + Math.floor(Math.random()*16777215).toString(16);
     }
@@ -103,8 +111,10 @@
       const pointAVal = document.getElementById("pointAValue").value.toLowerCase();
       const pointBCol = document.getElementById("pointBType").value;
       const pointBVal = document.getElementById("pointBValue").value.toLowerCase();
-      const viaCol = document.getElementById("viaType").value;
-      const viaVal = document.getElementById("viaValue").value.toLowerCase();
+
+      const viaTypes = Array.from(document.getElementById("viaType").selectedOptions).map(opt => opt.value);
+      const viaRoadVal = document.getElementById("viaRoad").value.toLowerCase();
+      const viaLGUVal = document.getElementById("viaLGU").value.toLowerCase();
 
       clearMap();
 
@@ -112,11 +122,14 @@
         const matchRoute = routeName && row["ROUTE NAME"]?.toLowerCase().includes(routeName);
         const matchA = pointACol && row[pointACol]?.toLowerCase().includes(pointAVal);
         const matchB = pointBCol && pointBVal && row[pointBCol]?.toLowerCase().includes(pointBVal);
-        const matchVia = viaCol && viaVal && row[viaCol]?.toLowerCase().includes(viaVal);
+        const matchVia = (
+          (!viaRoadVal || (viaTypes.includes("ROUTE STRUCTURE") && row["ROUTE STRUCTURE"]?.toLowerCase().includes(viaRoadVal))) &&
+          (!viaLGUVal || (viaTypes.includes("CORRIDOR") && row["CORRIDOR"]?.toLowerCase().includes(viaLGUVal)))
+        );
 
         const shouldShow =
           (routeName && matchRoute) ||
-          (pointACol && matchA && (!pointBVal || matchB) && (!viaVal || matchVia));
+          (pointACol && matchA && (!pointBVal || matchB) && matchVia);
 
         if (!shouldShow) return;
 
@@ -151,6 +164,8 @@
 
     function resetFilters() {
       document.querySelectorAll(".search-container select, .search-container input").forEach(el => el.value = "");
+      document.getElementById("viaRoad").style.display = "none";
+      document.getElementById("viaLGU").style.display = "none";
       clearMap();
       drawAllRoutes();
     }
