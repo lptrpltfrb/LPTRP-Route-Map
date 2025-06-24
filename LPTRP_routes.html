@@ -45,7 +45,7 @@
     <div class="search-section">
       <label>Search by Endpoints</label>
       <select id="pointAType">
-        <option value="">--Select--</option>
+        <option value="">--Select Point A by--</option>
         <option value="ENDPOINT 1 REGION">Region</option>
         <option value="ENDPOINT 1 PROVINCE">Province</option>
         <option value="ENDPOINT 1 LGU">LGU</option>
@@ -55,7 +55,7 @@
       <input id="pointAValue" placeholder="Search Point A" />
 
       <select id="pointBType">
-        <option value="">--Select--</option>
+        <option value="">--Select Point B by--</option>
         <option value="ENDPOINT 2 REGION">Region</option>
         <option value="ENDPOINT 2 PROVINCE">Province</option>
         <option value="ENDPOINT 2 LGU">LGU</option>
@@ -64,12 +64,9 @@
       </select>
       <input id="pointBValue" placeholder="Search Point B (optional)" />
 
-      <select id="viaType">
-        <option value="">--Select--</option>
-        <option value="ROUTE STRUCTURE">Road</option>
-        <option value="CORRIDOR">LGU</option>
-      </select>
-      <input id="viaValue" placeholder="Search via (optional)" />
+      <label><strong>--Select via--</strong></label>
+      <input id="viaRoad" placeholder="Road (optional)" />
+      <input id="viaLGU" placeholder="LGU (optional)" />
 
       <button onclick="applyFilters()">🔍 Apply Filters</button>
       <button onclick="resetFilters()">♻️ Clear Filters</button>
