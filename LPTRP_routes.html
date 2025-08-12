@@ -23,7 +23,8 @@
     }
     .search-container label { font-weight: bold; display: block; margin-top: 10px; }
     .search-container select,
-    .search-container input {
+    .search-container input,
+    .search-container datalist {
       width: 100%;
       padding: 4px;
       margin-top: 4px;
@@ -52,7 +53,8 @@
         <option value="ENDPOINT 1 BARANGAY">Barangay</option>
         <option value="ENDPOINT 1 TERMINAL">Terminal</option>
       </select>
-      <input id="pointAValue" placeholder="Search Point A" />
+      <input id="pointAValue" placeholder="Search Point A" list="pointAList" />
+      <datalist id="pointAList"></datalist>
 
       <select id="pointBType">
         <option value="">--Select Point B by--</option>
@@ -62,14 +64,17 @@
         <option value="ENDPOINT 2 BARANGAY">Barangay</option>
         <option value="ENDPOINT 2 TERMINAL">Terminal</option>
       </select>
-      <input id="pointBValue" placeholder="Search Point B (optional)" />
+      <input id="pointBValue" placeholder="Search Point B (optional)" list="pointBList" />
+      <datalist id="pointBList"></datalist>
 
       <select id="viaType" multiple size="2">
         <option value="ROUTE STRUCTURE">Road</option>
         <option value="CORRIDOR">LGU</option>
       </select>
-      <input id="viaRoad" placeholder="Search via Road (optional)" style="display:none" />
-      <input id="viaLGU" placeholder="Search via LGU (optional)" style="display:none" />
+      <input id="viaRoad" placeholder="Search via Road (optional)" style="display:none" list="viaRoadList" />
+      <datalist id="viaRoadList"></datalist>
+      <input id="viaLGU" placeholder="Search via LGU (optional)" style="display:none" list="viaLGUList" />
+      <datalist id="viaLGUList"></datalist>
 
       <button onclick="applyFilters()">🔍 Apply Filters</button>
       <button onclick="resetFilters()">♻️ Clear Filters</button>
@@ -88,7 +93,7 @@
 
     const routeLayers = [];
     const allData = [];
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    const csvUrl = "YOUR_GOOGLE_SHEET_CSV_URL_HERE";
 
     document.getElementById("viaType").addEventListener("change", function() {
       const selected = Array.from(this.selectedOptions).map(opt => opt.value);
@@ -97,7 +102,11 @@
     });
 
     function getRandomColor() {
-      return '#' + Math.floor(Math.random()*16777215).toString(16);
+      const darkColors = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+        "#8c564b", "#e377c2", "#7f7f7f", "#17becf"
+      ];
+      return darkColors[Math.floor(Math.random() * darkColors.length)];
     }
 
     function clearMap() {
@@ -182,7 +191,7 @@
             const latlngs = segment.map(c => [c[1], c[0]]);
             const poly = L.polyline(latlngs, {
               color: getRandomColor(),
-              weight: 3
+              weight: 4
             }).addTo(map);
 
             poly.bindPopup(
@@ -208,6 +217,7 @@
             allData.push(...results.data);
             drawAllRoutes();
 
+            // Populate dropdowns + datalists
             const routeNames = [...new Set(results.data.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
             const routeDropdown = document.getElementById("routeName");
             routeNames.forEach(name => {
@@ -215,6 +225,31 @@
               opt.value = opt.text = name;
               routeDropdown.appendChild(opt);
             });
+
+            const fillDatalist = (column, listId) => {
+              const values = [...new Set(results.data.map(r => r[column]).filter(Boolean))].sort();
+              const list = document.getElementById(listId);
+              values.forEach(v => {
+                const opt = document.createElement("option");
+                opt.value = v;
+                list.appendChild(opt);
+              });
+            };
+
+            fillDatalist("ENDPOINT 1 REGION", "pointAList");
+            fillDatalist("ENDPOINT 1 PROVINCE", "pointAList");
+            fillDatalist("ENDPOINT 1 LGU", "pointAList");
+            fillDatalist("ENDPOINT 1 BARANGAY", "pointAList");
+            fillDatalist("ENDPOINT 1 TERMINAL", "pointAList");
+
+            fillDatalist("ENDPOINT 2 REGION", "pointBList");
+            fillDatalist("ENDPOINT 2 PROVINCE", "pointBList");
+            fillDatalist("ENDPOINT 2 LGU", "pointBList");
+            fillDatalist("ENDPOINT 2 BARANGAY", "pointBList");
+            fillDatalist("ENDPOINT 2 TERMINAL", "pointBList");
+
+            fillDatalist("ROUTE STRUCTURE", "viaRoadList");
+            fillDatalist("CORRIDOR", "viaLGUList");
           }
         });
       });
