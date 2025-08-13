@@ -6,8 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/choices.js/10.2.0/styles/choices.min.css" />
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body, html { margin: 0; padding: 0; height: 100%; }
     #map { width: 1200px; height: 750px; margin: auto; }
     .search-container {
       position: absolute;
@@ -21,7 +22,7 @@
       max-width: 350px;
       font-family: sans-serif;
       overflow-y: auto;
-      max-height: 90%;
+      max-height: 700px;
     }
     .search-container label { font-weight: bold; display: block; margin-top: 10px; }
     .search-container select,
@@ -39,55 +40,35 @@
   <div id="map"></div>
 
   <div class="search-container">
-    <!-- Search by Route Name -->
     <div class="search-section">
-      <label>Search by Route Name</label>
-      <select id="routeName" multiple size="5"></select>
+      <label for="routeName">Search by Route Name</label>
+      <select id="routeName" multiple></select>
     </div>
 
-    <!-- Search by Endpoints -->
     <div class="search-section">
+      <label>Search by Endpoints</label>
       <label>Endpoint 1</label>
-      <input id="ep1Region" placeholder="Select Region" list="listEP1Region" />
-      <datalist id="listEP1Region"></datalist>
+      <input id="ep1Region" placeholder="Select Region">
+      <input id="ep1Province" placeholder="Select Province">
+      <input id="ep1LGU" placeholder="Select LGU">
+      <input id="ep1Barangay" placeholder="Select Barangay">
+      <input id="ep1Terminal" placeholder="Select Terminal">
 
-      <input id="ep1Province" placeholder="Select Province" list="listEP1Province" />
-      <datalist id="listEP1Province"></datalist>
-
-      <input id="ep1LGU" placeholder="Select LGU" list="listEP1LGU" />
-      <datalist id="listEP1LGU"></datalist>
-
-      <input id="ep1Barangay" placeholder="Select Barangay" list="listEP1Barangay" />
-      <datalist id="listEP1Barangay"></datalist>
-
-      <input id="ep1Terminal" placeholder="Select Terminal" list="listEP1Terminal" />
-      <datalist id="listEP1Terminal"></datalist>
-    </div>
-
-    <div class="search-section">
       <label>Endpoint 2</label>
-      <input id="ep2Region" placeholder="Select Region" list="listEP2Region" />
-      <datalist id="listEP2Region"></datalist>
+      <input id="ep2Region" placeholder="Select Region">
+      <input id="ep2Province" placeholder="Select Province">
+      <input id="ep2LGU" placeholder="Select LGU">
+      <input id="ep2Barangay" placeholder="Select Barangay">
+      <input id="ep2Terminal" placeholder="Select Terminal">
 
-      <input id="ep2Province" placeholder="Select Province" list="listEP2Province" />
-      <datalist id="listEP2Province"></datalist>
-
-      <input id="ep2LGU" placeholder="Select LGU" list="listEP2LGU" />
-      <datalist id="listEP2LGU"></datalist>
-
-      <input id="ep2Barangay" placeholder="Select Barangay" list="listEP2Barangay" />
-      <datalist id="listEP2Barangay"></datalist>
-
-      <input id="ep2Terminal" placeholder="Select Terminal" list="listEP2Terminal" />
-      <datalist id="listEP2Terminal"></datalist>
+      <button onclick="applyFilters()">🔍 Apply Filters</button>
+      <button onclick="resetFilters()">♻️ Clear Filters</button>
     </div>
-
-    <button onclick="applyFilters()">🔍 Apply Filters</button>
-    <button onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/choices.js/10.2.0/choices.min.js"></script>
 
   <script>
     const map = L.map('map').setView([13, 122], 6);
@@ -100,14 +81,8 @@
     const allData = [];
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    function getRandomDarkColor() {
-      const letters = '0123456789ABCDEF';
-      let color = '#';
-      for (let i = 0; i < 6; i++) {
-        let c = Math.floor(Math.random() * 10); // Darker tones
-        color += letters[c];
-      }
-      return color;
+    function getRandomColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
     }
 
     function clearMap() {
@@ -115,76 +90,106 @@
       routeLayers.length = 0;
     }
 
-    function drawRoute(row) {
-      const geo = row["GEO PATH"];
-      if (!geo) return;
-      try {
-        const coords = JSON.parse(geo);
-        const paths = Array.isArray(coords[0][0]) ? coords : [coords];
-        paths.forEach(segment => {
-          const latlngs = segment.map(c => [c[1], c[0]]);
-          const poly = L.polyline(latlngs, { color: getRandomDarkColor(), weight: 4 }).addTo(map);
-          poly.bindPopup(
-            `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
-            `<div>DENO: ${row["DENO"] || ""}</div>` +
-            `<div>CLASS: ${row["CLASS"] || ""}</div>` +
-            `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
-            `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
-          );
-          routeLayers.push(poly);
-        });
-      } catch (e) {
-        console.warn("GEO PATH error", e);
-      }
-    }
-
-    function drawAllRoutes() {
-      allData.forEach(row => drawRoute(row));
-    }
-
     function applyFilters() {
+      const selectedRoutes = Array.from(document.getElementById("routeName").selectedOptions).map(o => o.value.toLowerCase());
+
+      const ep1Region = document.getElementById("ep1Region").value.toLowerCase();
+      const ep1Province = document.getElementById("ep1Province").value.toLowerCase();
+      const ep1LGU = document.getElementById("ep1LGU").value.toLowerCase();
+      const ep1Barangay = document.getElementById("ep1Barangay").value.toLowerCase();
+      const ep1Terminal = document.getElementById("ep1Terminal").value.toLowerCase();
+
+      const ep2Region = document.getElementById("ep2Region").value.toLowerCase();
+      const ep2Province = document.getElementById("ep2Province").value.toLowerCase();
+      const ep2LGU = document.getElementById("ep2LGU").value.toLowerCase();
+      const ep2Barangay = document.getElementById("ep2Barangay").value.toLowerCase();
+      const ep2Terminal = document.getElementById("ep2Terminal").value.toLowerCase();
+
       clearMap();
-      const selectedRoutes = Array.from(document.getElementById("routeName").selectedOptions).map(opt => opt.value.toLowerCase());
 
-      const epFilters = {
-        ep1Region: document.getElementById("ep1Region").value.toLowerCase(),
-        ep1Province: document.getElementById("ep1Province").value.toLowerCase(),
-        ep1LGU: document.getElementById("ep1LGU").value.toLowerCase(),
-        ep1Barangay: document.getElementById("ep1Barangay").value.toLowerCase(),
-        ep1Terminal: document.getElementById("ep1Terminal").value.toLowerCase(),
-        ep2Region: document.getElementById("ep2Region").value.toLowerCase(),
-        ep2Province: document.getElementById("ep2Province").value.toLowerCase(),
-        ep2LGU: document.getElementById("ep2LGU").value.toLowerCase(),
-        ep2Barangay: document.getElementById("ep2Barangay").value.toLowerCase(),
-        ep2Terminal: document.getElementById("ep2Terminal").value.toLowerCase()
-      };
+      allData.forEach((row, index) => {
+        const matchRoute = selectedRoutes.length === 0 || selectedRoutes.includes(row["ROUTE NAME"]?.toLowerCase());
 
-      allData.forEach(row => {
-        let matchRoute = selectedRoutes.length === 0 || selectedRoutes.includes(row["ROUTE NAME"]?.toLowerCase());
+        const matchEP1 = (!ep1Region || row["ENDPOINT 1 REGION"]?.toLowerCase().includes(ep1Region) || row["ENDPOINT 2 REGION"]?.toLowerCase().includes(ep1Region)) &&
+                         (!ep1Province || row["ENDPOINT 1 PROVINCE"]?.toLowerCase().includes(ep1Province) || row["ENDPOINT 2 PROVINCE"]?.toLowerCase().includes(ep1Province)) &&
+                         (!ep1LGU || row["ENDPOINT 1 LGU"]?.toLowerCase().includes(ep1LGU) || row["ENDPOINT 2 LGU"]?.toLowerCase().includes(ep1LGU)) &&
+                         (!ep1Barangay || row["ENDPOINT 1 BARANGAY"]?.toLowerCase().includes(ep1Barangay) || row["ENDPOINT 2 BARANGAY"]?.toLowerCase().includes(ep1Barangay)) &&
+                         (!ep1Terminal || row["ENDPOINT 1 TERMINAL"]?.toLowerCase().includes(ep1Terminal) || row["ENDPOINT 2 TERMINAL"]?.toLowerCase().includes(ep1Terminal));
 
-        let matchEndpoints = true;
-        if (epFilters.ep1Region && ![row["ENDPOINT 1 REGION"], row["ENDPOINT 2 REGION"]].some(v => v?.toLowerCase() === epFilters.ep1Region)) matchEndpoints = false;
-        if (epFilters.ep1Province && ![row["ENDPOINT 1 PROVINCE"], row["ENDPOINT 2 PROVINCE"]].some(v => v?.toLowerCase() === epFilters.ep1Province)) matchEndpoints = false;
-        if (epFilters.ep1LGU && ![row["ENDPOINT 1 LGU"], row["ENDPOINT 2 LGU"]].some(v => v?.toLowerCase() === epFilters.ep1LGU)) matchEndpoints = false;
-        if (epFilters.ep1Barangay && ![row["ENDPOINT 1 BARANGAY"], row["ENDPOINT 2 BARANGAY"]].some(v => v?.toLowerCase() === epFilters.ep1Barangay)) matchEndpoints = false;
-        if (epFilters.ep1Terminal && ![row["ENDPOINT 1 TERMINAL"], row["ENDPOINT 2 TERMINAL"]].some(v => v?.toLowerCase() === epFilters.ep1Terminal)) matchEndpoints = false;
+        const matchEP2 = (!ep2Region || row["ENDPOINT 1 REGION"]?.toLowerCase().includes(ep2Region) || row["ENDPOINT 2 REGION"]?.toLowerCase().includes(ep2Region)) &&
+                         (!ep2Province || row["ENDPOINT 1 PROVINCE"]?.toLowerCase().includes(ep2Province) || row["ENDPOINT 2 PROVINCE"]?.toLowerCase().includes(ep2Province)) &&
+                         (!ep2LGU || row["ENDPOINT 1 LGU"]?.toLowerCase().includes(ep2LGU) || row["ENDPOINT 2 LGU"]?.toLowerCase().includes(ep2LGU)) &&
+                         (!ep2Barangay || row["ENDPOINT 1 BARANGAY"]?.toLowerCase().includes(ep2Barangay) || row["ENDPOINT 2 BARANGAY"]?.toLowerCase().includes(ep2Barangay)) &&
+                         (!ep2Terminal || row["ENDPOINT 1 TERMINAL"]?.toLowerCase().includes(ep2Terminal) || row["ENDPOINT 2 TERMINAL"]?.toLowerCase().includes(ep2Terminal));
 
-        if (epFilters.ep2Region && ![row["ENDPOINT 1 REGION"], row["ENDPOINT 2 REGION"]].some(v => v?.toLowerCase() === epFilters.ep2Region)) matchEndpoints = false;
-        if (epFilters.ep2Province && ![row["ENDPOINT 1 PROVINCE"], row["ENDPOINT 2 PROVINCE"]].some(v => v?.toLowerCase() === epFilters.ep2Province)) matchEndpoints = false;
-        if (epFilters.ep2LGU && ![row["ENDPOINT 1 LGU"], row["ENDPOINT 2 LGU"]].some(v => v?.toLowerCase() === epFilters.ep2LGU)) matchEndpoints = false;
-        if (epFilters.ep2Barangay && ![row["ENDPOINT 1 BARANGAY"], row["ENDPOINT 2 BARANGAY"]].some(v => v?.toLowerCase() === epFilters.ep2Barangay)) matchEndpoints = false;
-        if (epFilters.ep2Terminal && ![row["ENDPOINT 1 TERMINAL"], row["ENDPOINT 2 TERMINAL"]].some(v => v?.toLowerCase() === epFilters.ep2Terminal)) matchEndpoints = false;
+        const shouldShow = matchRoute && matchEP1 && matchEP2;
 
-        if (matchRoute && matchEndpoints) {
-          drawRoute(row);
+        if (!shouldShow) return;
+
+        const geo = row["GEO PATH"];
+        if (!geo) return;
+
+        try {
+          const coords = JSON.parse(geo);
+          const paths = Array.isArray(coords[0][0]) ? coords : [coords];
+
+          paths.forEach(segment => {
+            const latlngs = segment.map(c => [c[1], c[0]]);
+            const poly = L.polyline(latlngs, {
+              color: getRandomColor(),
+              weight: 4
+            }).addTo(map);
+
+            poly.bindPopup(
+              `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
+              `<div>DENO: ${row["DENO"] || ""}</div>` +
+              `<div>CLASS: ${row["CLASS"] || ""}</div>` +
+              `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
+              `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
+            );
+            routeLayers.push(poly);
+          });
+        } catch(e) {
+          console.warn("GEO PATH error on row", index+2, e);
         }
       });
     }
 
     function resetFilters() {
-      document.querySelectorAll(".search-container select, .search-container input").forEach(el => el.value = "");
+      document.querySelectorAll(".search-container select, .search-container input").forEach(el => {
+        if (el.multiple) el.value = [];
+        else el.value = "";
+      });
       clearMap();
       drawAllRoutes();
+    }
+
+    function drawAllRoutes() {
+      allData.forEach((row, index) => {
+        const geo = row["GEO PATH"];
+        if (!geo) return;
+        try {
+          const coords = JSON.parse(geo);
+          const paths = Array.isArray(coords[0][0]) ? coords : [coords];
+
+          paths.forEach(segment => {
+            const latlngs = segment.map(c => [c[1], c[0]]);
+            const poly = L.polyline(latlngs, {
+              color: getRandomColor(),
+              weight: 3
+            }).addTo(map);
+
+            poly.bindPopup(
+              `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
+              `<div>DENO: ${row["DENO"] || ""}</div>` +
+              `<div>CLASS: ${row["CLASS"] || ""}</div>` +
+              `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
+              `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
+            );
+            routeLayers.push(poly);
+          });
+        } catch {}
+      });
     }
 
     fetch(csvUrl)
@@ -195,38 +200,43 @@
           skipEmptyLines: true,
           complete: (results) => {
             allData.push(...results.data);
+            drawAllRoutes();
 
+            // Populate Route Name multiselect
             const routeNames = [...new Set(results.data.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
+            const routeDropdown = document.getElementById("routeName");
             routeNames.forEach(name => {
               const opt = document.createElement("option");
-              opt.value = name;
-              opt.text = name;
-              document.getElementById("routeName").appendChild(opt);
+              opt.value = opt.text = name;
+              routeDropdown.appendChild(opt);
             });
+            new Choices(routeDropdown, { removeItemButton: true, searchResultLimit: 50 });
 
+            // Populate endpoint suggestions
             const fields = [
-              { id: "listEP1Region", cols: ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"] },
-              { id: "listEP1Province", cols: ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"] },
-              { id: "listEP1LGU", cols: ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"] },
-              { id: "listEP1Barangay", cols: ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"] },
-              { id: "listEP1Terminal", cols: ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"] },
-              { id: "listEP2Region", cols: ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"] },
-              { id: "listEP2Province", cols: ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"] },
-              { id: "listEP2LGU", cols: ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"] },
-              { id: "listEP2Barangay", cols: ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"] },
-              { id: "listEP2Terminal", cols: ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"] }
+              {id: "ep1Region", cols: ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"]},
+              {id: "ep1Province", cols: ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"]},
+              {id: "ep1LGU", cols: ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"]},
+              {id: "ep1Barangay", cols: ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"]},
+              {id: "ep1Terminal", cols: ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"]},
+              {id: "ep2Region", cols: ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"]},
+              {id: "ep2Province", cols: ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"]},
+              {id: "ep2LGU", cols: ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"]},
+              {id: "ep2Barangay", cols: ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"]},
+              {id: "ep2Terminal", cols: ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"]}
             ];
 
-            fields.forEach(field => {
-              const values = [...new Set(results.data.flatMap(r => field.cols.map(c => r[c])).filter(Boolean))].sort();
-              values.forEach(val => {
-                const opt = document.createElement("option");
-                opt.value = val;
-                document.getElementById(field.id).appendChild(opt);
+            fields.forEach(f => {
+              const uniqueVals = [...new Set(
+                results.data.flatMap(r => f.cols.map(c => r[c])).filter(Boolean)
+              )].sort();
+              new Choices(document.getElementById(f.id), {
+                choices: uniqueVals.map(v => ({value: v, label: v})),
+                searchEnabled: true,
+                removeItemButton: false,
+                shouldSort: true
               });
             });
-
-            drawAllRoutes();
           }
         });
       });
