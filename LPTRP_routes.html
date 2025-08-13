@@ -2,491 +2,217 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>LPTRP Route Map — Search</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>LPTRP Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body, html { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
-    #map { width:1170px; height:800px; margin:20px auto; display:block; position:relative; }
-
-    /* Search panel (hovering) */
-    .search-container {
+    body { margin: 0; padding: 0; }
+    #map { width: 2000px; height: 700px; }
+    .search-panel {
       position: absolute;
-      top: 12px;
-      left: 12px;
-      background: #fff;
-      padding: 12px;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.18);
-      z-index: 1001;
-      width: 340px;
-      max-height: 760px;
-      overflow: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      max-width: 350px;
+      font-family: Arial, sans-serif;
+      z-index: 1000;
     }
-    .search-section { margin-bottom: 12px; border-bottom: 1px solid #e6e6e6; padding-bottom: 10px; }
-    .search-section h4 { margin: 0 0 8px 0; font-size: 14px; }
-    label { display:block; font-size:12px; margin:6px 0 4px; color:#333; }
-    input[type="text"], .search-select { width:100%; padding:6px 8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; font-size:13px; }
-    .tokens { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-    .token { background:#e6f0ff; padding:4px 8px; border-radius:12px; font-size:13px; display:inline-flex; align-items:center; gap:6px; }
-    .token button { border:none; background:transparent; cursor:pointer; font-size:14px; }
-    .btn { width:100%; padding:8px; margin-top:8px; border-radius:6px; border:none; cursor:pointer; font-size:14px; }
-    .btn-primary { background:#2d6cdf; color:#fff; }
-    .btn-secondary { background:#f0f0f0; color:#333; }
-
-    /* suggestion list under inputs */
-    .suggest-list { position:relative; }
-    .suggest-dropdown { position:absolute; z-index:1500; left:0; right:0; background:#fff; border:1px solid #ddd; max-height:180px; overflow:auto; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
-    .suggest-item { padding:6px 8px; cursor:pointer; font-size:13px; }
-    .suggest-item:hover { background:#f0f8ff; }
-
-    /* north arrow */
-    .north-arrow { position:absolute; top:12px; right:12px; z-index:1002; width:56px; height:56px; background:rgba(255,255,255,0.9); border-radius:6px; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
-    .north-arrow svg { width:36px; height:36px; }
-
-    /* scale control placeholder */
-    .leaflet-control-scale-line { background: rgba(255,255,255,0.9) !important; padding:2px 6px; border-radius:4px; }
-
-    /* small responsive tweak */
-    @media (max-width:1250px) {
-      #map { width:100%; height:80vh; margin:0; }
-      .search-container { left:8px; top:8px; width:320px; }
+    .search-panel h4 {
+      margin: 8px 0 4px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .search-panel input {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .suggest-list { position: relative; }
+    .suggest-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #ccc;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+      z-index: 2000;
+    }
+    .suggest-dropdown div {
+      padding: 5px;
+      cursor: pointer;
+    }
+    .suggest-dropdown div:hover {
+      background: #f0f0f0;
     }
   </style>
 </head>
 <body>
-
   <div id="map"></div>
-
-  <!-- Search UI -->
-  <div class="search-container" id="searchPanel">
-    <!-- Route name multi-select -->
-    <div class="search-section">
-      <h4>Search by Route Name</h4>
-      <label for="routeInput">Select Route (type & Add)</label>
-      <div style="display:flex; gap:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name..." class="search-select" />
-        <button id="addRouteBtn" class="btn btn-secondary" title="Add route">Add</button>
-      </div>
-      <div class="tokens" id="routeTokens"></div>
-      <button id="clearRoutesBtn" class="btn btn-secondary" style="margin-top:8px;">Clear Selected Routes</button>
+  <div class="search-panel">
+    <h4>Search by Route Name</h4>
+    <div class="suggest-list">
+      <input id="routeInput" type="text" placeholder="Type route name..." />
+      <div id="s_routeInput" class="suggest-dropdown"></div>
     </div>
 
-    <!-- Endpoints -->
-    <div class="search-section">
-      <h4>Search by Endpoints</h4>
+    <h4>Search by Endpoints</h4>
 
-      <div style="font-weight:600; margin-top:6px;">Endpoint 1</div>
-      <label>Region</label>
-      <div class="suggest-list"><input id="ep1_region" class="search-select" type="text" placeholder="Start typing region..." /><div id="s_ep1_region" class="suggest-dropdown" style="display:none"></div></div>
+    <strong>Endpoint 1</strong>
+    <div class="suggest-list"><input id="ep1_region" placeholder="Select Region" /><div id="s_ep1_region" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep1_province" placeholder="Select Province" /><div id="s_ep1_province" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep1_lgu" placeholder="Select LGU" /><div id="s_ep1_lgu" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep1_barangay" placeholder="Select Barangay" /><div id="s_ep1_barangay" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep1_terminal" placeholder="Select Terminal" /><div id="s_ep1_terminal" class="suggest-dropdown"></div></div>
 
-      <label>Province</label>
-      <div class="suggest-list"><input id="ep1_province" class="search-select" type="text" placeholder="Start typing province..." /><div id="s_ep1_province" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>LGU</label>
-      <div class="suggest-list"><input id="ep1_lgu" class="search-select" type="text" placeholder="Start typing LGU..." /><div id="s_ep1_lgu" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>Barangay</label>
-      <div class="suggest-list"><input id="ep1_brgy" class="search-select" type="text" placeholder="Start typing Barangay..." /><div id="s_ep1_brgy" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>Terminal</label>
-      <div class="suggest-list"><input id="ep1_term" class="search-select" type="text" placeholder="Start typing Terminal..." /><div id="s_ep1_term" class="suggest-dropdown" style="display:none"></div></div>
-
-      <hr style="margin:10px 0">
-
-      <div style="font-weight:600; margin-top:6px;">Endpoint 2</div>
-      <label>Region</label>
-      <div class="suggest-list"><input id="ep2_region" class="search-select" type="text" placeholder="Start typing region..." /><div id="s_ep2_region" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>Province</label>
-      <div class="suggest-list"><input id="ep2_province" class="search-select" type="text" placeholder="Start typing province..." /><div id="s_ep2_province" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>LGU</label>
-      <div class="suggest-list"><input id="ep2_lgu" class="search-select" type="text" placeholder="Start typing LGU..." /><div id="s_ep2_lgu" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>Barangay</label>
-      <div class="suggest-list"><input id="ep2_brgy" class="search-select" type="text" placeholder="Start typing Barangay..." /><div id="s_ep2_brgy" class="suggest-dropdown" style="display:none"></div></div>
-
-      <label>Terminal</label>
-      <div class="suggest-list"><input id="ep2_term" class="search-select" type="text" placeholder="Start typing Terminal..." /><div id="s_ep2_term" class="suggest-dropdown" style="display:none"></div></div>
-
-      <div style="margin-top:10px;">
-        <button id="applyBtn" class="btn btn-primary">🔍 Apply Filters</button>
-        <button id="resetBtn" class="btn btn-secondary">♻️ Reset</button>
-      </div>
-    </div>
+    <strong>Endpoint 2</strong>
+    <div class="suggest-list"><input id="ep2_region" placeholder="Select Region" /><div id="s_ep2_region" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep2_province" placeholder="Select Province" /><div id="s_ep2_province" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep2_lgu" placeholder="Select LGU" /><div id="s_ep2_lgu" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep2_barangay" placeholder="Select Barangay" /><div id="s_ep2_barangay" class="suggest-dropdown"></div></div>
+    <div class="suggest-list"><input id="ep2_terminal" placeholder="Select Terminal" /><div id="s_ep2_terminal" class="suggest-dropdown"></div></div>
   </div>
 
-  <!-- North arrow -->
-  <div class="north-arrow" title="North">
-    <!-- simple north arrow svg -->
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <g transform="translate(2,2) scale(0.8)">
-        <polygon points="10,0 0,20 20,20" fill="#2d6cdf"/>
-        <rect x="8" y="12" width="4" height="8" fill="#2d6cdf"/>
-        <text x="10" y="22" text-anchor="middle" font-size="10" fill="#111">N</text>
-      </g>
-    </svg>
-  </div>
-
-  <!-- Leaflet & PapaParse -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
   <script>
-  /* ========= CONFIG ========= */
-  // Put your published CSV URL here (MASTERLIST tab published)
-  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
 
-  // Header names in your sheet (must match exactly)
-  const HDR_ROUTE = "ROUTE NAME";
-  const HDR_GEO = "GEO PATH";
-  // endpoint headers
-  const E1 = {
-    REGION: "ENDPOINT 1 REGION",
-    PROVINCE: "ENDPOINT 1 PROVINCE",
-    LGU: "ENDPOINT 1 LGU",
-    BARANGAY: "ENDPOINT 1 BARANGAY",
-    TERMINAL: "ENDPOINT 1 TERMINAL"
-  };
-  const E2 = {
-    REGION: "ENDPOINT 2 REGION",
-    PROVINCE: "ENDPOINT 2 PROVINCE",
-    LGU: "ENDPOINT 2 LGU",
-    BARANGAY: "ENDPOINT 2 BARANGAY",
-    TERMINAL: "ENDPOINT 2 TERMINAL"
-  };
+    let allRoutes = [];
+    let routeLayers = [];
 
-  const POPUP_FIELDS = {
-    DENO: "DENO",
-    CLASS: "Class",
-    ROUTE_CLASS: "ROUTE CLASSIFICATION (if LPTRP)",
-    NAU: "NO. OF AUTHORIZED UNITS"
-  };
-
-  /* ========= MAP SETUP ========= */
-  const map = L.map('map').setView([13, 122], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 18
-  }).addTo(map);
-  L.control.scale({imperial: false, position: 'bottomleft'}).addTo(map);
-
-  /* ========= STATE ========= */
-  let allData = [];          // parsed CSV rows (array of objects)
-  let routeLayerGroup = L.layerGroup().addTo(map);
-  const routeColorByIndex = {}; // keep stable random color per row index
-
-  /* ========= HELPERS ========= */
-  function randColor() {
-    // produce darker colors for visibility
-    const letters = '456789ABCD';
-    let color = '#';
-    for (let i=0;i<6;i++) color += letters[Math.floor(Math.random()*letters.length)];
-    return color;
-  }
-
-  function safeParseGeo(text) {
-    // try to robustly parse GEO PATH -- returns array of paths (each path = [ [lon,lat], ... ])
-    if (!text) return null;
-    let t = (""+text).trim();
-    // Some entries already are like: [[lon,lat],[lon,lat],...]
-    // Some are nested or have stray characters. We try JSON.parse; if fails, attempt small cleanups.
-    try {
-      const parsed = JSON.parse(t);
-      return Array.isArray(parsed) ? parsed : null;
-    } catch (e) {
-      // attempt simple fixes: replace "],[[" (no comma) issues, ensure brackets
-      try {
-        // replace stray double commas, fix common invisible characters
-        const cleaned = t.replace(/\uFEFF/g,'').replace(/\r/g,'').replace(/\n/g,'').trim();
-        // if it looks like multiple arrays stuck together without outer array, wrap them
-        if (!cleaned.startsWith('[')) return null;
-        const fixed = cleaned;
-        const parsed2 = JSON.parse(fixed);
-        return Array.isArray(parsed2) ? parsed2 : null;
-      } catch (e2) {
-        return null;
-      }
-    }
-  }
-
-  function coordsToLatLngs(coords) {
-    // coords could be [lon,lat] or [ [lon,lat], ... ] etc.
-    // Here we expect segment = [[lon,lat],...]
-    return coords.map(c => [c[1], c[0]]);
-  }
-
-  function buildPopupHtml(row) {
-    // ROUTE NAME (bigger) then fields; blank fields should show nothing after label
-    const route = row[HDR_ROUTE] || "";
-    const deno = row[POPUP_FIELDS.DENO] || "";
-    const cls  = row[POPUP_FIELDS.CLASS] || row[POPUP_FIELDS.CLASS.toUpperCase()] || row["Class"] || "";
-    const rclass = row[POPUP_FIELDS.ROUTE_CLASS] || "";
-    const nau  = row[POPUP_FIELDS.NAU] || "";
-
-    // show label but if value blank, show just label and blank content line
-    const fmt = (label, val) => `<div style="margin:2px 0"><strong style="text-transform:none">${label}:</strong> ${val?escapeHtml(val):''}</div>`;
-    return `<div style="font-family:Arial, sans-serif; line-height:1.25">
-      <div style="font-size:16px; font-weight:700; margin-bottom:6px">${escapeHtml(route)}</div>
-      ${fmt('DENO', deno)}
-      ${fmt('CLASS', cls)}
-      ${fmt('ROUTE CLASS', rclass)}
-      ${fmt('NAU', nau)}
-    </div>`;
-  }
-
-  function escapeHtml(s) {
-    return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  /* ========= AUTOCOMPLETE / UI HELPERS ========= */
-  function makeSuggestBox(inputEl, dropdownEl, items) {
-    // items: array of strings (unique)
-    inputEl.addEventListener('input', () => {
-      const v = inputEl.value.trim().toLowerCase();
-      dropdownEl.innerHTML = '';
-      if (!v) { dropdownEl.style.display = 'none'; return; }
-      const matches = items.filter(x => (x||'').toLowerCase().includes(v)).slice(0,200);
-      if (matches.length === 0) { dropdownEl.style.display = 'none'; return; }
-      matches.forEach(m => {
-        const div = document.createElement('div');
-        div.className = 'suggest-item';
-        div.textContent = m;
-        div.addEventListener('click', () => {
-          inputEl.value = m;
-          dropdownEl.style.display = 'none';
+    function makeSuggestBox(inputEl, dropdownEl, list) {
+      inputEl.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        dropdownEl.innerHTML = '';
+        if (!val) { dropdownEl.style.display = 'none'; return; }
+        const matches = list.filter(item => item && item.toLowerCase().includes(val)).slice(0, 20);
+        matches.forEach(match => {
+          const div = document.createElement('div');
+          div.textContent = match;
+          div.onclick = () => {
+            inputEl.value = match;
+            dropdownEl.style.display = 'none';
+            filterRoutes();
+          };
+          dropdownEl.appendChild(div);
         });
-        dropdownEl.appendChild(div);
+        dropdownEl.style.display = matches.length ? 'block' : 'none';
       });
-      dropdownEl.style.display = 'block';
-    });
-    // hide on blur (delay to allow click)
-    inputEl.addEventListener('blur', () => setTimeout(()=> dropdownEl.style.display='none', 150));
-    inputEl.addEventListener('focus', () => { /* open suggestions of all if empty? optional */ });
-  }
-
-  function createToken(container, text) {
-    const t = document.createElement('span');
-    t.className = 'token';
-    t.textContent = text;
-    const btn = document.createElement('button');
-    btn.innerHTML = '✕';
-    btn.title = 'Remove';
-    btn.style.marginLeft = '6px';
-    btn.onclick = () => { container.removeChild(t); };
-    t.appendChild(btn);
-    container.appendChild(t);
-  }
-
-  /* ========= FILTER LOGIC ========= */
-  function getSelectedRouteNames() {
-    const tokens = Array.from(document.querySelectorAll('#routeTokens .token')).map(n => n.firstChild.nodeValue.trim());
-    return tokens;
-  }
-
-  function applyFilters() {
-    // Collect filter criteria
-    const selectedRoutes = getSelectedRouteNames(); // array or []
-    const ep1 = {
-      region: document.getElementById('ep1_region').value.trim().toLowerCase(),
-      province: document.getElementById('ep1_province').value.trim().toLowerCase(),
-      lgu: document.getElementById('ep1_lgu').value.trim().toLowerCase(),
-      brgy: document.getElementById('ep1_brgy').value.trim().toLowerCase(),
-      term: document.getElementById('ep1_term').value.trim().toLowerCase()
-    };
-    const ep2 = {
-      region: document.getElementById('ep2_region').value.trim().toLowerCase(),
-      province: document.getElementById('ep2_province').value.trim().toLowerCase(),
-      lgu: document.getElementById('ep2_lgu').value.trim().toLowerCase(),
-      brgy: document.getElementById('ep2_brgy').value.trim().toLowerCase(),
-      term: document.getElementById('ep2_term').value.trim().toLowerCase()
-    };
-
-    // Clear map layers
-    routeLayerGroup.clearLayers();
-
-    // iterate rows
-    allData.forEach((row, idx) => {
-      // ROUTE NAME filter: if selectedRoutes non-empty, must match any
-      if (selectedRoutes.length) {
-        const rn = (row[HDR_ROUTE]||'').toString().toLowerCase();
-        const matchesRoute = selectedRoutes.some(sel => rn.includes(sel.toLowerCase()));
-        if (!matchesRoute) return;
-      }
-
-      // endpoint filters: only enforce non-empty inputs
-      function matchField(value, userVal) {
-        if (!userVal) return true; // not filtering on this field
-        return (value||'').toString().toLowerCase().includes(userVal);
-      }
-
-      if (!matchField(row[E1.REGION], ep1.region)) return;
-      if (!matchField(row[E1.PROVINCE], ep1.province)) return;
-      if (!matchField(row[E1.LGU], ep1.lgu)) return;
-      if (!matchField(row[E1.BARANGAY], ep1.brgy)) return;
-      if (!matchField(row[E1.TERMINAL], ep1.term)) return;
-
-      if (!matchField(row[E2.REGION], ep2.region)) return;
-      if (!matchField(row[E2.PROVINCE], ep2.province)) return;
-      if (!matchField(row[E2.LGU], ep2.lgu)) return;
-      if (!matchField(row[E2.BARANGAY], ep2.brgy)) return;
-      if (!matchField(row[E2.TERMINAL], ep2.term)) return;
-
-      // If we reached here, row passes filters -> draw its geo path
-      const geoRaw = row[HDR_GEO];
-      const parsed = safeParseGeo(geoRaw);
-      if (!parsed) return;
-
-      // handle if parsed is nested (array of segments) or single segment
-      let segments = parsed;
-      // If first element looks like a number pair rather than array-of-arrays, then wrap
-      if (segments.length && typeof segments[0][0] === 'number') segments = [segments];
-
-      // choose color stable by index
-      if (!routeColorByIndex[idx]) routeColorByIndex[idx] = randColor();
-      const color = routeColorByIndex[idx];
-
-      segments.forEach(seg => {
-        try {
-          const latlngs = coordsToLatLngs(seg);
-          const poly = L.polyline(latlngs, { color: color, weight: 4, opacity: 0.95 }).addTo(routeLayerGroup);
-          poly.bindPopup(buildPopupHtml(row));
-        } catch (e) {
-          // ignore segment
+      document.addEventListener('click', function(e) {
+        if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) {
+          dropdownEl.style.display = 'none';
         }
       });
-    });
+    }
 
-    // zoom to layer bounds if there are them
-    const bounds = routeLayerGroup.getBounds();
-    if (bounds.isValid()) map.fitBounds(bounds.pad(0.1));
-  }
+    function filterRoutes() {
+      const routeVal = document.getElementById('routeInput').value.trim().toLowerCase();
+      const ep1 = {
+        region: document.getElementById('ep1_region').value.trim().toLowerCase(),
+        province: document.getElementById('ep1_province').value.trim().toLowerCase(),
+        lgu: document.getElementById('ep1_lgu').value.trim().toLowerCase(),
+        barangay: document.getElementById('ep1_barangay').value.trim().toLowerCase(),
+        terminal: document.getElementById('ep1_terminal').value.trim().toLowerCase()
+      };
+      const ep2 = {
+        region: document.getElementById('ep2_region').value.trim().toLowerCase(),
+        province: document.getElementById('ep2_province').value.trim().toLowerCase(),
+        lgu: document.getElementById('ep2_lgu').value.trim().toLowerCase(),
+        barangay: document.getElementById('ep2_barangay').value.trim().toLowerCase(),
+        terminal: document.getElementById('ep2_terminal').value.trim().toLowerCase()
+      };
 
-  function resetAll() {
-    // clear tokens & inputs
-    document.getElementById('routeTokens').innerHTML = '';
-    ['ep1_region','ep1_province','ep1_lgu','ep1_brgy','ep1_term','ep2_region','ep2_province','ep2_lgu','ep2_brgy','ep2_term','routeInput'].forEach(id => {
-      document.getElementById(id).value = '';
-    });
-    routeColorByIndex = {};
-    routeLayerGroup.clearLayers();
-    drawAllRoutes();
-  }
+      routeLayers.forEach(layer => map.removeLayer(layer));
+      routeLayers = [];
 
-  /* ========= DRAW ALL ========= */
-  function drawAllRoutes() {
-    routeLayerGroup.clearLayers();
-    allData.forEach((row, idx) => {
-      const geoRaw = row[HDR_GEO];
-      const parsed = safeParseGeo(geoRaw);
-      if (!parsed) return;
-      let segments = parsed;
-      if (segments.length && typeof segments[0][0] === 'number') segments = [segments];
-      if (!routeColorByIndex[idx]) routeColorByIndex[idx] = randColor();
-      const color = routeColorByIndex[idx];
-      segments.forEach(seg => {
-        try {
-          const latlngs = coordsToLatLngs(seg);
-          const poly = L.polyline(latlngs, { color: color, weight: 3, opacity: 0.9 }).addTo(routeLayerGroup);
-          poly.bindPopup(buildPopupHtml(row));
-        } catch(e) {}
+      allRoutes.forEach(r => {
+        let show = true;
+        if (routeVal && !r['ROUTE NAME'].toLowerCase().includes(routeVal)) show = false;
+
+        if (ep1.region && r['ENDPOINT 1 REGION'].toLowerCase() !== ep1.region) show = false;
+        if (ep1.province && r['ENDPOINT 1 PROVINCE'].toLowerCase() !== ep1.province) show = false;
+        if (ep1.lgu && r['ENDPOINT 1 LGU'].toLowerCase() !== ep1.lgu) show = false;
+        if (ep1.barangay && r['ENDPOINT 1 BARANGAY'].toLowerCase() !== ep1.barangay) show = false;
+        if (ep1.terminal && r['ENDPOINT 1 TERMINAL'].toLowerCase() !== ep1.terminal) show = false;
+
+        if (ep2.region && r['ENDPOINT 2 REGION'].toLowerCase() !== ep2.region) show = false;
+        if (ep2.province && r['ENDPOINT 2 PROVINCE'].toLowerCase() !== ep2.province) show = false;
+        if (ep2.lgu && r['ENDPOINT 2 LGU'].toLowerCase() !== ep2.lgu) show = false;
+        if (ep2.barangay && r['ENDPOINT 2 BARANGAY'].toLowerCase() !== ep2.barangay) show = false;
+        if (ep2.terminal && r['ENDPOINT 2 TERMINAL'].toLowerCase() !== ep2.terminal) show = false;
+
+        if (show && r['GEO PATH']) {
+          try {
+            const coords = JSON.parse(r['GEO PATH']);
+            const line = L.polyline(coords.map(c => [c[1], c[0]]), { color: getRandomDarkColor(), weight: 3 });
+            line.bindPopup(`<b>${r['ROUTE NAME']}</b><br>
+              DENO: ${r['DENO'] || ''}<br>
+              CLASS: ${r['Class'] || ''}<br>
+              ROUTE CLASS: ${r['ROUTE CLASSIFICATION (if LPTRP)'] || ''}<br>
+              NAU: ${r['NO. OF AUTHORIZED UNITS'] || ''}`);
+            line.addTo(map);
+            routeLayers.push(line);
+          } catch (e) {}
+        }
       });
-    });
-  }
+    }
 
-  /* ========= LOAD CSV ========= */
-  function loadCsvAndInit() {
-    fetch(csvUrl).then(r => r.text()).then(text => {
-      Papa.parse(text, {
+    function getRandomDarkColor() {
+      const letters = '0123456789ABCDEF';
+      let color = '#';
+      for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 12)]; // darker range
+      }
+      return color;
+    }
+
+    function loadCsvAndInit() {
+      Papa.parse('YOUR_GOOGLE_SHEET_CSV_URL_HERE', {
+        download: true,
         header: true,
-        skipEmptyLines: true,
-        complete: (res) => {
-          allData = res.data || [];
+        complete: function(results) {
+          allRoutes = results.data;
+          const routeNames = [...new Set(allRoutes.map(r => r['ROUTE NAME']).filter(Boolean))];
+          const ep1_region = [...new Set(allRoutes.map(r => r['ENDPOINT 1 REGION']).filter(Boolean))];
+          const ep1_province = [...new Set(allRoutes.map(r => r['ENDPOINT 1 PROVINCE']).filter(Boolean))];
+          const ep1_lgu = [...new Set(allRoutes.map(r => r['ENDPOINT 1 LGU']).filter(Boolean))];
+          const ep1_barangay = [...new Set(allRoutes.map(r => r['ENDPOINT 1 BARANGAY']).filter(Boolean))];
+          const ep1_terminal = [...new Set(allRoutes.map(r => r['ENDPOINT 1 TERMINAL']).filter(Boolean))];
 
-          // populate suggestion lists
-          const unique = (arr) => Array.from(new Set(arr.filter(Boolean).map(s => (''+s).trim()))).sort((a,b)=>a.localeCompare(b));
+          const ep2_region = [...new Set(allRoutes.map(r => r['ENDPOINT 2 REGION']).filter(Boolean))];
+          const ep2_province = [...new Set(allRoutes.map(r => r['ENDPOINT 2 PROVINCE']).filter(Boolean))];
+          const ep2_lgu = [...new Set(allRoutes.map(r => r['ENDPOINT 2 LGU']).filter(Boolean))];
+          const ep2_barangay = [...new Set(allRoutes.map(r => r['ENDPOINT 2 BARANGAY']).filter(Boolean))];
+          const ep2_terminal = [...new Set(allRoutes.map(r => r['ENDPOINT 2 TERMINAL']).filter(Boolean))];
 
-          const routeNames = unique(allData.map(r => r[HDR_ROUTE]));
-          // prepare arrays for endpoint fields
-          const ep1_region_vals = unique(allData.map(r => r[E1.REGION]));
-          const ep1_province_vals = unique(allData.map(r => r[E1.PROVINCE]));
-          const ep1_lgu_vals = unique(allData.map(r => r[E1.LGU]));
-          const ep1_brgy_vals = unique(allData.map(r => r[E1.BARANGAY]));
-          const ep1_term_vals = unique(allData.map(r => r[E1.TERMINAL]));
+          makeSuggestBox(document.getElementById('routeInput'), document.getElementById('s_routeInput'), routeNames);
+          makeSuggestBox(document.getElementById('ep1_region'), document.getElementById('s_ep1_region'), ep1_region);
+          makeSuggestBox(document.getElementById('ep1_province'), document.getElementById('s_ep1_province'), ep1_province);
+          makeSuggestBox(document.getElementById('ep1_lgu'), document.getElementById('s_ep1_lgu'), ep1_lgu);
+          makeSuggestBox(document.getElementById('ep1_barangay'), document.getElementById('s_ep1_barangay'), ep1_barangay);
+          makeSuggestBox(document.getElementById('ep1_terminal'), document.getElementById('s_ep1_terminal'), ep1_terminal);
 
-          const ep2_region_vals = unique(allData.map(r => r[E2.REGION]));
-          const ep2_province_vals = unique(allData.map(r => r[E2.PROVINCE]));
-          const ep2_lgu_vals = unique(allData.map(r => r[E2.LGU]));
-          const ep2_brgy_vals = unique(allData.map(r => r[E2.BARANGAY]));
-          const ep2_term_vals = unique(allData.map(r => r[E2.TERMINAL]));
-
-          // set up autocomplete
-          makeSuggestBox(document.getElementById('ep1_region'), document.getElementById('s_ep1_region'), ep1_region_vals);
-          makeSuggestBox(document.getElementById('ep1_province'), document.getElementById('s_ep1_province'), ep1_province_vals);
-          makeSuggestBox(document.getElementById('ep1_lgu'), document.getElementById('s_ep1_lgu'), ep1_lgu_vals);
-          makeSuggestBox(document.getElementById('ep1_brgy'), document.getElementById('s_ep1_brgy'), ep1_brgy_vals);
-          makeSuggestBox(document.getElementById('ep1_term'), document.getElementById('s_ep1_term'), ep1_term_vals);
-
-          makeSuggestBox(document.getElementById('ep2_region'), document.getElementById('s_ep2_region'), ep2_region_vals);
-          makeSuggestBox(document.getElementById('ep2_province'), document.getElementById('s_ep2_province'), ep2_province_vals);
-          makeSuggestBox(document.getElementById('ep2_lgu'), document.getElementById('s_ep2_lgu'), ep2_lgu_vals);
-          makeSuggestBox(document.getElementById('ep2_brgy'), document.getElementById('s_ep2_brgy'), ep2_brgy_vals);
-          makeSuggestBox(document.getElementById('ep2_term'), document.getElementById('s_ep2_term'), ep2_term_vals);
-
-          // route name suggestions (for the add input)
-          makeSuggestBox(document.getElementById('routeInput'), createInlineDropdownFor(routeNames), routeNames);
-
-          // draw all initially
-          drawAllRoutes();
-        },
-        error: (err) => console.error('CSV parse error', err)
+          makeSuggestBox(document.getElementById('ep2_region'), document.getElementById('s_ep2_region'), ep2_region);
+          makeSuggestBox(document.getElementById('ep2_province'), document.getElementById('s_ep2_province'), ep2_province);
+          makeSuggestBox(document.getElementById('ep2_lgu'), document.getElementById('s_ep2_lgu'), ep2_lgu);
+          makeSuggestBox(document.getElementById('ep2_barangay'), document.getElementById('s_ep2_barangay'), ep2_barangay);
+          makeSuggestBox(document.getElementById('ep2_terminal'), document.getElementById('s_ep2_terminal'), ep2_terminal);
+        }
       });
-    }).catch(e => {
-      console.error('Failed to fetch CSV — check URL & CORS (host on https).', e);
-      alert('Failed to load CSV. If you opened this file locally (file:///), try hosting it on GitHub Pages or run a local server. CORS can block the fetch.');
-    });
-  }
+    }
 
-  // Utility: adapt a small dropdown element for routeInput autocomplete to re-use makeSuggestBox's signature
-  function createInlineDropdownFor(list) {
-    // create a floating dropdown element near routeInput (we'll append to body and position)
-    const dd = document.createElement('div');
-    dd.className = 'suggest-dropdown';
-    dd.style.display = 'none';
-    dd.style.position = 'absolute';
-    dd.style.zIndex = 2000;
-    // append to search container and return dd; positioning handled by makeSuggestBox events (we use input focus to position)
-    // We'll attach it to the same parent as input so relative positioning works.
-    const input = document.getElementById('routeInput');
-    input.parentElement.appendChild(dd);
-    // adapt makeSuggestBox to reposition dd when shown
-    input.addEventListener('focus', ()=> {
-      // no-op: makeSuggestBox will show suggestions on input
-    });
-    // return the element for makeSuggestBox
-    return dd;
-  }
-
-  /* ========= UI wiring ========= */
-  document.getElementById('addRouteBtn').addEventListener('click', () => {
-    const v = document.getElementById('routeInput').value.trim();
-    if (!v) return;
-    createToken(document.getElementById('routeTokens'), v);
-    document.getElementById('routeInput').value = '';
-  });
-  document.getElementById('clearRoutesBtn').addEventListener('click', () => {
-    document.getElementById('routeTokens').innerHTML = '';
-  });
-
-  document.getElementById('applyBtn').addEventListener('click', () => applyFilters());
-  document.getElementById('resetBtn').addEventListener('click', () => resetAll());
-
-  /* ========= start ========= */
-  loadCsvAndInit();
-
+    loadCsvAndInit();
   </script>
 </body>
 </html>
