@@ -1,218 +1,187 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>LPTRP Routes Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    body { margin: 0; padding: 0; }
-    #map { width: 2000px; height: 700px; }
-    .search-panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      max-width: 350px;
-      font-family: Arial, sans-serif;
-      z-index: 1000;
-    }
-    .search-panel h4 {
-      margin: 8px 0 4px;
-      font-size: 14px;
-      font-weight: bold;
-    }
-    .search-panel input {
-      width: 100%;
-      padding: 5px;
-      margin-bottom: 6px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    .suggest-list { position: relative; }
-    .suggest-dropdown {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: white;
-      border: 1px solid #ccc;
-      max-height: 150px;
-      overflow-y: auto;
-      display: none;
-      z-index: 2000;
-    }
-    .suggest-dropdown div {
-      padding: 5px;
-      cursor: pointer;
-    }
-    .suggest-dropdown div:hover {
-      background: #f0f0f0;
-    }
-  </style>
+<meta charset="utf-8" />
+<title>LPTRP Route Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<!-- Awesomplete for suggestions -->
+<link rel="stylesheet" href="https://leaverou.github.io/awesomplete/awesomplete.css" />
+<script src="https://leaverou.github.io/awesomplete/awesomplete.min.js"></script>
+
+<style>
+  body { margin:0; padding:0; }
+  #map { width: 2000px; height: 700px; }
+
+  .search-panel {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: white;
+    padding: 10px;
+    z-index: 1000;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    max-height: 90%;
+    overflow-y: auto;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+  }
+
+  .search-panel h3 {
+    margin: 8px 0 4px;
+    font-size: 14px;
+  }
+
+  .search-panel input {
+    width: 250px;
+    margin-bottom: 6px;
+    padding: 5px;
+  }
+</style>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="search-panel">
-    <h4>Search by Route Name</h4>
-    <div class="suggest-list">
-      <input id="routeInput" type="text" placeholder="Type route name..." />
-      <div id="s_routeInput" class="suggest-dropdown"></div>
-    </div>
 
-    <h4>Search by Endpoints</h4>
+<div id="map"></div>
 
-    <strong>Endpoint 1</strong>
-    <div class="suggest-list"><input id="ep1_region" placeholder="Select Region" /><div id="s_ep1_region" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep1_province" placeholder="Select Province" /><div id="s_ep1_province" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep1_lgu" placeholder="Select LGU" /><div id="s_ep1_lgu" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep1_barangay" placeholder="Select Barangay" /><div id="s_ep1_barangay" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep1_terminal" placeholder="Select Terminal" /><div id="s_ep1_terminal" class="suggest-dropdown"></div></div>
+<div class="search-panel">
+  <h3>Search by Route Name</h3>
+  <input id="routeNameInput" placeholder="Select Route" class="awesomplete" data-multiple />
 
-    <strong>Endpoint 2</strong>
-    <div class="suggest-list"><input id="ep2_region" placeholder="Select Region" /><div id="s_ep2_region" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep2_province" placeholder="Select Province" /><div id="s_ep2_province" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep2_lgu" placeholder="Select LGU" /><div id="s_ep2_lgu" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep2_barangay" placeholder="Select Barangay" /><div id="s_ep2_barangay" class="suggest-dropdown"></div></div>
-    <div class="suggest-list"><input id="ep2_terminal" placeholder="Select Terminal" /><div id="s_ep2_terminal" class="suggest-dropdown"></div></div>
-  </div>
+  <h3>Search by Endpoints</h3>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
-  <script>
-    const map = L.map('map').setView([12.8797, 121.7740], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
+  <strong>Endpoint 1</strong><br>
+  <input id="ep1Region" placeholder="Select Region">
+  <input id="ep1Province" placeholder="Select Province">
+  <input id="ep1LGU" placeholder="Select LGU">
+  <input id="ep1Barangay" placeholder="Select Barangay">
+  <input id="ep1Terminal" placeholder="Select Terminal">
 
-    let allRoutes = [];
-    let routeLayers = [];
+  <br><strong>Endpoint 2</strong><br>
+  <input id="ep2Region" placeholder="Select Region">
+  <input id="ep2Province" placeholder="Select Province">
+  <input id="ep2LGU" placeholder="Select LGU">
+  <input id="ep2Barangay" placeholder="Select Barangay">
+  <input id="ep2Terminal" placeholder="Select Terminal">
+</div>
 
-    function makeSuggestBox(inputEl, dropdownEl, list) {
-      inputEl.addEventListener('input', function() {
-        const val = this.value.toLowerCase();
-        dropdownEl.innerHTML = '';
-        if (!val) { dropdownEl.style.display = 'none'; return; }
-        const matches = list.filter(item => item && item.toLowerCase().includes(val)).slice(0, 20);
-        matches.forEach(match => {
-          const div = document.createElement('div');
-          div.textContent = match;
-          div.onclick = () => {
-            inputEl.value = match;
-            dropdownEl.style.display = 'none';
-            filterRoutes();
-          };
-          dropdownEl.appendChild(div);
-        });
-        dropdownEl.style.display = matches.length ? 'block' : 'none';
-      });
-      document.addEventListener('click', function(e) {
-        if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) {
-          dropdownEl.style.display = 'none';
-        }
-      });
+<script>
+const sheetUrl = 'YOUR_PUBLISHED_CSV_URL_HERE'; // replace with your published CSV link
+
+let map = L.map('map').setView([12.8797, 121.7740], 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+let allData = [];
+let routeLayers = [];
+
+// Dark color palette
+function getRandomDarkColor() {
+  const colors = ['#1b1b1b','#2b2b2b','#003366','#004c4c','#660000','#663300','#4d004d','#003300','#1a1a1a','#0d0d0d','#333333','#222222'];
+  return colors[Math.floor(Math.random()*colors.length)];
+}
+
+// Load CSV
+fetch(sheetUrl)
+  .then(res => res.text())
+  .then(csv => {
+    const rows = csv.split('\n').map(r => r.split(','));
+    const headers = rows.shift();
+    allData = rows.map(row => {
+      let obj = {};
+      headers.forEach((h, i) => obj[h.trim()] = row[i] ? row[i].trim() : '');
+      return obj;
+    });
+    initSuggestions();
+    drawRoutes();
+  });
+
+// Populate suggestions
+function initSuggestions() {
+  const setAwesomplete = (id, values) => {
+    new Awesomplete(document.getElementById(id), { list: [...new Set(values.filter(v => v))] });
+  };
+
+  setAwesomplete('routeNameInput', allData.map(d => d['ROUTE NAME']));
+  setAwesomplete('ep1Region', allData.map(d => d['ENDPOINT 1 REGION']));
+  setAwesomplete('ep1Province', allData.map(d => d['ENDPOINT 1 PROVINCE']));
+  setAwesomplete('ep1LGU', allData.map(d => d['ENDPOINT 1 LGU']));
+  setAwesomplete('ep1Barangay', allData.map(d => d['ENDPOINT 1 BARANGAY']));
+  setAwesomplete('ep1Terminal', allData.map(d => d['ENDPOINT 1 TERMINAL']));
+
+  setAwesomplete('ep2Region', allData.map(d => d['ENDPOINT 2 REGION']));
+  setAwesomplete('ep2Province', allData.map(d => d['ENDPOINT 2 PROVINCE']));
+  setAwesomplete('ep2LGU', allData.map(d => d['ENDPOINT 2 LGU']));
+  setAwesomplete('ep2Barangay', allData.map(d => d['ENDPOINT 2 BARANGAY']));
+  setAwesomplete('ep2Terminal', allData.map(d => d['ENDPOINT 2 TERMINAL']));
+}
+
+// Draw routes with filtering
+function drawRoutes() {
+  routeLayers.forEach(l => map.removeLayer(l));
+  routeLayers = [];
+
+  const routeFilter = document.getElementById('routeNameInput').value.split(',').map(s => s.trim()).filter(s => s);
+  const ep1R = document.getElementById('ep1Region').value.trim();
+  const ep1P = document.getElementById('ep1Province').value.trim();
+  const ep1L = document.getElementById('ep1LGU').value.trim();
+  const ep1B = document.getElementById('ep1Barangay').value.trim();
+  const ep1T = document.getElementById('ep1Terminal').value.trim();
+
+  const ep2R = document.getElementById('ep2Region').value.trim();
+  const ep2P = document.getElementById('ep2Province').value.trim();
+  const ep2L = document.getElementById('ep2LGU').value.trim();
+  const ep2B = document.getElementById('ep2Barangay').value.trim();
+  const ep2T = document.getElementById('ep2Terminal').value.trim();
+
+  allData.forEach(row => {
+    if (routeFilter.length && !routeFilter.includes(row['ROUTE NAME'])) return;
+    if (ep1R && row['ENDPOINT 1 REGION'] !== ep1R) return;
+    if (ep1P && row['ENDPOINT 1 PROVINCE'] !== ep1P) return;
+    if (ep1L && row['ENDPOINT 1 LGU'] !== ep1L) return;
+    if (ep1B && row['ENDPOINT 1 BARANGAY'] !== ep1B) return;
+    if (ep1T && row['ENDPOINT 1 TERMINAL'] !== ep1T) return;
+
+    if (ep2R && row['ENDPOINT 2 REGION'] !== ep2R) return;
+    if (ep2P && row['ENDPOINT 2 PROVINCE'] !== ep2P) return;
+    if (ep2L && row['ENDPOINT 2 LGU'] !== ep2L) return;
+    if (ep2B && row['ENDPOINT 2 BARANGAY'] !== ep2B) return;
+    if (ep2T && row['ENDPOINT 2 TERMINAL'] !== ep2T) return;
+
+    let path;
+    try {
+      path = JSON.parse(row['GEO PATH']);
+    } catch (e) {
+      return;
     }
 
-    function filterRoutes() {
-      const routeVal = document.getElementById('routeInput').value.trim().toLowerCase();
-      const ep1 = {
-        region: document.getElementById('ep1_region').value.trim().toLowerCase(),
-        province: document.getElementById('ep1_province').value.trim().toLowerCase(),
-        lgu: document.getElementById('ep1_lgu').value.trim().toLowerCase(),
-        barangay: document.getElementById('ep1_barangay').value.trim().toLowerCase(),
-        terminal: document.getElementById('ep1_terminal').value.trim().toLowerCase()
-      };
-      const ep2 = {
-        region: document.getElementById('ep2_region').value.trim().toLowerCase(),
-        province: document.getElementById('ep2_province').value.trim().toLowerCase(),
-        lgu: document.getElementById('ep2_lgu').value.trim().toLowerCase(),
-        barangay: document.getElementById('ep2_barangay').value.trim().toLowerCase(),
-        terminal: document.getElementById('ep2_terminal').value.trim().toLowerCase()
-      };
-
-      routeLayers.forEach(layer => map.removeLayer(layer));
-      routeLayers = [];
-
-      allRoutes.forEach(r => {
-        let show = true;
-        if (routeVal && !r['ROUTE NAME'].toLowerCase().includes(routeVal)) show = false;
-
-        if (ep1.region && r['ENDPOINT 1 REGION'].toLowerCase() !== ep1.region) show = false;
-        if (ep1.province && r['ENDPOINT 1 PROVINCE'].toLowerCase() !== ep1.province) show = false;
-        if (ep1.lgu && r['ENDPOINT 1 LGU'].toLowerCase() !== ep1.lgu) show = false;
-        if (ep1.barangay && r['ENDPOINT 1 BARANGAY'].toLowerCase() !== ep1.barangay) show = false;
-        if (ep1.terminal && r['ENDPOINT 1 TERMINAL'].toLowerCase() !== ep1.terminal) show = false;
-
-        if (ep2.region && r['ENDPOINT 2 REGION'].toLowerCase() !== ep2.region) show = false;
-        if (ep2.province && r['ENDPOINT 2 PROVINCE'].toLowerCase() !== ep2.province) show = false;
-        if (ep2.lgu && r['ENDPOINT 2 LGU'].toLowerCase() !== ep2.lgu) show = false;
-        if (ep2.barangay && r['ENDPOINT 2 BARANGAY'].toLowerCase() !== ep2.barangay) show = false;
-        if (ep2.terminal && r['ENDPOINT 2 TERMINAL'].toLowerCase() !== ep2.terminal) show = false;
-
-        if (show && r['GEO PATH']) {
-          try {
-            const coords = JSON.parse(r['GEO PATH']);
-            const line = L.polyline(coords.map(c => [c[1], c[0]]), { color: getRandomDarkColor(), weight: 3 });
-            line.bindPopup(`<b>${r['ROUTE NAME']}</b><br>
-              DENO: ${r['DENO'] || ''}<br>
-              CLASS: ${r['Class'] || ''}<br>
-              ROUTE CLASS: ${r['ROUTE CLASSIFICATION (if LPTRP)'] || ''}<br>
-              NAU: ${r['NO. OF AUTHORIZED UNITS'] || ''}`);
-            line.addTo(map);
-            routeLayers.push(line);
-          } catch (e) {}
-        }
-      });
+    if (Array.isArray(path)) {
+      let layer = L.polyline(path.map(p => [p[1], p[0]]), {
+        color: getRandomDarkColor(),
+        weight: 3
+      }).bindPopup(`
+        <b style="font-size:16px">${row['ROUTE NAME']}</b><br>
+        DENO: ${row['DENO'] || ''}<br>
+        CLASS: ${row['Class'] || ''}<br>
+        ROUTE CLASS: ${row['ROUTE CLASSIFICATION (if LPTRP)'] || ''}<br>
+        NAU: ${row['NO. OF AUTHORIZED UNITS'] || ''}
+      `);
+      layer.addTo(map);
+      routeLayers.push(layer);
     }
+  });
+}
 
-    function getRandomDarkColor() {
-      const letters = '0123456789ABCDEF';
-      let color = '#';
-      for (let i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 12)]; // darker range
-      }
-      return color;
-    }
-
-    function loadCsvAndInit() {
-      Papa.parse('YOUR_GOOGLE_SHEET_CSV_URL_HERE', {
-        download: true,
-        header: true,
-        complete: function(results) {
-          allRoutes = results.data;
-          const routeNames = [...new Set(allRoutes.map(r => r['ROUTE NAME']).filter(Boolean))];
-          const ep1_region = [...new Set(allRoutes.map(r => r['ENDPOINT 1 REGION']).filter(Boolean))];
-          const ep1_province = [...new Set(allRoutes.map(r => r['ENDPOINT 1 PROVINCE']).filter(Boolean))];
-          const ep1_lgu = [...new Set(allRoutes.map(r => r['ENDPOINT 1 LGU']).filter(Boolean))];
-          const ep1_barangay = [...new Set(allRoutes.map(r => r['ENDPOINT 1 BARANGAY']).filter(Boolean))];
-          const ep1_terminal = [...new Set(allRoutes.map(r => r['ENDPOINT 1 TERMINAL']).filter(Boolean))];
-
-          const ep2_region = [...new Set(allRoutes.map(r => r['ENDPOINT 2 REGION']).filter(Boolean))];
-          const ep2_province = [...new Set(allRoutes.map(r => r['ENDPOINT 2 PROVINCE']).filter(Boolean))];
-          const ep2_lgu = [...new Set(allRoutes.map(r => r['ENDPOINT 2 LGU']).filter(Boolean))];
-          const ep2_barangay = [...new Set(allRoutes.map(r => r['ENDPOINT 2 BARANGAY']).filter(Boolean))];
-          const ep2_terminal = [...new Set(allRoutes.map(r => r['ENDPOINT 2 TERMINAL']).filter(Boolean))];
-
-          makeSuggestBox(document.getElementById('routeInput'), document.getElementById('s_routeInput'), routeNames);
-          makeSuggestBox(document.getElementById('ep1_region'), document.getElementById('s_ep1_region'), ep1_region);
-          makeSuggestBox(document.getElementById('ep1_province'), document.getElementById('s_ep1_province'), ep1_province);
-          makeSuggestBox(document.getElementById('ep1_lgu'), document.getElementById('s_ep1_lgu'), ep1_lgu);
-          makeSuggestBox(document.getElementById('ep1_barangay'), document.getElementById('s_ep1_barangay'), ep1_barangay);
-          makeSuggestBox(document.getElementById('ep1_terminal'), document.getElementById('s_ep1_terminal'), ep1_terminal);
-
-          makeSuggestBox(document.getElementById('ep2_region'), document.getElementById('s_ep2_region'), ep2_region);
-          makeSuggestBox(document.getElementById('ep2_province'), document.getElementById('s_ep2_province'), ep2_province);
-          makeSuggestBox(document.getElementById('ep2_lgu'), document.getElementById('s_ep2_lgu'), ep2_lgu);
-          makeSuggestBox(document.getElementById('ep2_barangay'), document.getElementById('s_ep2_barangay'), ep2_barangay);
-          makeSuggestBox(document.getElementById('ep2_terminal'), document.getElementById('s_ep2_terminal'), ep2_terminal);
-        }
-      });
-    }
-
-    loadCsvAndInit();
-  </script>
+// Event listeners
+document.querySelectorAll('.search-panel input').forEach(inp => {
+  inp.addEventListener('change', drawRoutes);
+});
+</script>
 </body>
 </html>
