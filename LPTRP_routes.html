@@ -1,46 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8">
 <title>LPTRP Route Map</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<!-- Leaflet -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<!-- Awesomplete for suggestions -->
-<link rel="stylesheet" href="https://leaverou.github.io/awesomplete/awesomplete.css" />
-<script src="https://leaverou.github.io/awesomplete/awesomplete.min.js"></script>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   body { margin:0; padding:0; }
-  #map { width: 2000px; height: 700px; }
-
-  .search-panel {
+  #map { width: 100%; height: 700px; }
+  .search-container {
     position: absolute;
     top: 10px;
     left: 10px;
+    z-index: 1000;
     background: white;
     padding: 10px;
-    z-index: 1000;
     border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    max-height: 90%;
-    overflow-y: auto;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    max-width: 350px;
     font-family: Arial, sans-serif;
-    font-size: 13px;
   }
-
-  .search-panel h3 {
-    margin: 8px 0 4px;
-    font-size: 14px;
+  .search-container h4 {
+    margin: 6px 0 4px;
   }
-
-  .search-panel input {
-    width: 250px;
+  .search-container input, .search-container select, .search-container button {
+    width: 100%;
     margin-bottom: 6px;
     padding: 5px;
+    font-size: 14px;
+  }
+  .leaflet-popup-content {
+    font-size: 14px;
   }
 </style>
 </head>
@@ -48,140 +39,155 @@
 
 <div id="map"></div>
 
-<div class="search-panel">
-  <h3>Search by Route Name</h3>
-  <input id="routeNameInput" placeholder="Select Route" class="awesomplete" data-multiple />
+<div class="search-container">
+  <h4>Search by Route Name</h4>
+  <input id="routeNameInput" list="routeNameList" placeholder="Select Route">
+  <datalist id="routeNameList"></datalist>
 
-  <h3>Search by Endpoints</h3>
+  <h4>Search by Endpoints</h4>
+  <strong>Endpoint 1</strong>
+  <input id="ep1Region" list="ep1RegionList" placeholder="Select Region">
+  <datalist id="ep1RegionList"></datalist>
+  <input id="ep1Province" list="ep1ProvinceList" placeholder="Select Province">
+  <datalist id="ep1ProvinceList"></datalist>
+  <input id="ep1LGU" list="ep1LGUList" placeholder="Select LGU">
+  <datalist id="ep1LGUList"></datalist>
+  <input id="ep1Barangay" list="ep1BarangayList" placeholder="Select Barangay">
+  <datalist id="ep1BarangayList"></datalist>
+  <input id="ep1Terminal" list="ep1TerminalList" placeholder="Select Terminal">
+  <datalist id="ep1TerminalList"></datalist>
 
-  <strong>Endpoint 1</strong><br>
-  <input id="ep1Region" placeholder="Select Region">
-  <input id="ep1Province" placeholder="Select Province">
-  <input id="ep1LGU" placeholder="Select LGU">
-  <input id="ep1Barangay" placeholder="Select Barangay">
-  <input id="ep1Terminal" placeholder="Select Terminal">
+  <strong>Endpoint 2</strong>
+  <input id="ep2Region" list="ep2RegionList" placeholder="Select Region">
+  <datalist id="ep2RegionList"></datalist>
+  <input id="ep2Province" list="ep2ProvinceList" placeholder="Select Province">
+  <datalist id="ep2ProvinceList"></datalist>
+  <input id="ep2LGU" list="ep2LGUList" placeholder="Select LGU">
+  <datalist id="ep2LGUList"></datalist>
+  <input id="ep2Barangay" list="ep2BarangayList" placeholder="Select Barangay">
+  <datalist id="ep2BarangayList"></datalist>
+  <input id="ep2Terminal" list="ep2TerminalList" placeholder="Select Terminal">
+  <datalist id="ep2TerminalList"></datalist>
 
-  <br><strong>Endpoint 2</strong><br>
-  <input id="ep2Region" placeholder="Select Region">
-  <input id="ep2Province" placeholder="Select Province">
-  <input id="ep2LGU" placeholder="Select LGU">
-  <input id="ep2Barangay" placeholder="Select Barangay">
-  <input id="ep2Terminal" placeholder="Select Terminal">
+  <button onclick="applyFilters()">Apply Filters</button>
+  <button onclick="clearFilters()">Clear Filters</button>
 </div>
 
 <script>
-const sheetUrl = 'YOUR_PUBLISHED_CSV_URL_HERE'; // replace with your published CSV link
-
-let map = L.map('map').setView([12.8797, 121.7740], 6);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
-}).addTo(map);
+const sheetUrl = "YOUR_PUBLISHED_CSV_URL"; // Replace with your CSV link
 
 let allData = [];
 let routeLayers = [];
 
-// Dark color palette
+const map = L.map('map').setView([12.8797, 121.7740], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
 function getRandomDarkColor() {
-  const colors = ['#1b1b1b','#2b2b2b','#003366','#004c4c','#660000','#663300','#4d004d','#003300','#1a1a1a','#0d0d0d','#333333','#222222'];
-  return colors[Math.floor(Math.random()*colors.length)];
+  const r = Math.floor(Math.random() * 128);
+  const g = Math.floor(Math.random() * 128);
+  const b = Math.floor(Math.random() * 128);
+  return `rgb(${r},${g},${b})`;
 }
 
-// Load CSV
-fetch(sheetUrl)
-  .then(res => res.text())
-  .then(csv => {
-    const rows = csv.split('\n').map(r => r.split(','));
-    const headers = rows.shift();
-    allData = rows.map(row => {
-      let obj = {};
-      headers.forEach((h, i) => obj[h.trim()] = row[i] ? row[i].trim() : '');
-      return obj;
-    });
-    initSuggestions();
-    drawRoutes();
+function loadData() {
+  Papa.parse(sheetUrl, {
+    download: true,
+    header: true,
+    complete: function(results) {
+      allData = results.data;
+      populateSuggestions();
+      drawRoutes(allData);
+    }
   });
-
-// Populate suggestions
-function initSuggestions() {
-  const setAwesomplete = (id, values) => {
-    new Awesomplete(document.getElementById(id), { list: [...new Set(values.filter(v => v))] });
-  };
-
-  setAwesomplete('routeNameInput', allData.map(d => d['ROUTE NAME']));
-  setAwesomplete('ep1Region', allData.map(d => d['ENDPOINT 1 REGION']));
-  setAwesomplete('ep1Province', allData.map(d => d['ENDPOINT 1 PROVINCE']));
-  setAwesomplete('ep1LGU', allData.map(d => d['ENDPOINT 1 LGU']));
-  setAwesomplete('ep1Barangay', allData.map(d => d['ENDPOINT 1 BARANGAY']));
-  setAwesomplete('ep1Terminal', allData.map(d => d['ENDPOINT 1 TERMINAL']));
-
-  setAwesomplete('ep2Region', allData.map(d => d['ENDPOINT 2 REGION']));
-  setAwesomplete('ep2Province', allData.map(d => d['ENDPOINT 2 PROVINCE']));
-  setAwesomplete('ep2LGU', allData.map(d => d['ENDPOINT 2 LGU']));
-  setAwesomplete('ep2Barangay', allData.map(d => d['ENDPOINT 2 BARANGAY']));
-  setAwesomplete('ep2Terminal', allData.map(d => d['ENDPOINT 2 TERMINAL']));
 }
 
-// Draw routes with filtering
-function drawRoutes() {
-  routeLayers.forEach(l => map.removeLayer(l));
+function populateSuggestions() {
+  const uniqueValues = (col) => [...new Set(allData.map(row => row[col]?.trim()).filter(v => v))].sort();
+
+  fillDatalist('routeNameList', uniqueValues('ROUTE NAME'));
+  fillDatalist('ep1RegionList', uniqueValues('ENDPOINT 1 REGION'));
+  fillDatalist('ep1ProvinceList', uniqueValues('ENDPOINT 1 PROVINCE'));
+  fillDatalist('ep1LGUList', uniqueValues('ENDPOINT 1 LGU'));
+  fillDatalist('ep1BarangayList', uniqueValues('ENDPOINT 1 BARANGAY'));
+  fillDatalist('ep1TerminalList', uniqueValues('ENDPOINT 1 TERMINAL'));
+  fillDatalist('ep2RegionList', uniqueValues('ENDPOINT 2 REGION'));
+  fillDatalist('ep2ProvinceList', uniqueValues('ENDPOINT 2 PROVINCE'));
+  fillDatalist('ep2LGUList', uniqueValues('ENDPOINT 2 LGU'));
+  fillDatalist('ep2BarangayList', uniqueValues('ENDPOINT 2 BARANGAY'));
+  fillDatalist('ep2TerminalList', uniqueValues('ENDPOINT 2 TERMINAL'));
+}
+
+function fillDatalist(id, values) {
+  const dl = document.getElementById(id);
+  dl.innerHTML = '';
+  values.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v;
+    dl.appendChild(opt);
+  });
+}
+
+function drawRoutes(data) {
+  routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
 
-  const routeFilter = document.getElementById('routeNameInput').value.split(',').map(s => s.trim()).filter(s => s);
-  const ep1R = document.getElementById('ep1Region').value.trim();
-  const ep1P = document.getElementById('ep1Province').value.trim();
-  const ep1L = document.getElementById('ep1LGU').value.trim();
-  const ep1B = document.getElementById('ep1Barangay').value.trim();
-  const ep1T = document.getElementById('ep1Terminal').value.trim();
-
-  const ep2R = document.getElementById('ep2Region').value.trim();
-  const ep2P = document.getElementById('ep2Province').value.trim();
-  const ep2L = document.getElementById('ep2LGU').value.trim();
-  const ep2B = document.getElementById('ep2Barangay').value.trim();
-  const ep2T = document.getElementById('ep2Terminal').value.trim();
-
-  allData.forEach(row => {
-    if (routeFilter.length && !routeFilter.includes(row['ROUTE NAME'])) return;
-    if (ep1R && row['ENDPOINT 1 REGION'] !== ep1R) return;
-    if (ep1P && row['ENDPOINT 1 PROVINCE'] !== ep1P) return;
-    if (ep1L && row['ENDPOINT 1 LGU'] !== ep1L) return;
-    if (ep1B && row['ENDPOINT 1 BARANGAY'] !== ep1B) return;
-    if (ep1T && row['ENDPOINT 1 TERMINAL'] !== ep1T) return;
-
-    if (ep2R && row['ENDPOINT 2 REGION'] !== ep2R) return;
-    if (ep2P && row['ENDPOINT 2 PROVINCE'] !== ep2P) return;
-    if (ep2L && row['ENDPOINT 2 LGU'] !== ep2L) return;
-    if (ep2B && row['ENDPOINT 2 BARANGAY'] !== ep2B) return;
-    if (ep2T && row['ENDPOINT 2 TERMINAL'] !== ep2T) return;
-
-    let path;
+  data.forEach(row => {
+    if (!row['GEO PATH']) return;
     try {
-      path = JSON.parse(row['GEO PATH']);
-    } catch (e) {
-      return;
-    }
-
-    if (Array.isArray(path)) {
-      let layer = L.polyline(path.map(p => [p[1], p[0]]), {
-        color: getRandomDarkColor(),
-        weight: 3
-      }).bindPopup(`
-        <b style="font-size:16px">${row['ROUTE NAME']}</b><br>
+      const coords = JSON.parse(row['GEO PATH']);
+      const color = getRandomDarkColor();
+      const polyline = L.polyline(coords, { color, weight: 3 }).addTo(map);
+      polyline.bindPopup(`
+        <strong>${row['ROUTE NAME']}</strong><br>
         DENO: ${row['DENO'] || ''}<br>
-        CLASS: ${row['Class'] || ''}<br>
-        ROUTE CLASS: ${row['ROUTE CLASSIFICATION (if LPTRP)'] || ''}<br>
-        NAU: ${row['NO. OF AUTHORIZED UNITS'] || ''}
+        NAU: ${row['NO. OF AUTHORIZED UNITS'] || ''}<br>
+        Classification: ${row['ROUTE CLASSIFICATION (if LPTRP)'] || ''}
       `);
-      layer.addTo(map);
-      routeLayers.push(layer);
-    }
+      routeLayers.push(polyline);
+    } catch (e) {}
   });
 }
 
-// Event listeners
-document.querySelectorAll('.search-panel input').forEach(inp => {
-  inp.addEventListener('change', drawRoutes);
-});
+function applyFilters() {
+  const filters = {
+    routeName: document.getElementById('routeNameInput').value.trim(),
+    ep1Region: document.getElementById('ep1Region').value.trim(),
+    ep1Province: document.getElementById('ep1Province').value.trim(),
+    ep1LGU: document.getElementById('ep1LGU').value.trim(),
+    ep1Barangay: document.getElementById('ep1Barangay').value.trim(),
+    ep1Terminal: document.getElementById('ep1Terminal').value.trim(),
+    ep2Region: document.getElementById('ep2Region').value.trim(),
+    ep2Province: document.getElementById('ep2Province').value.trim(),
+    ep2LGU: document.getElementById('ep2LGU').value.trim(),
+    ep2Barangay: document.getElementById('ep2Barangay').value.trim(),
+    ep2Terminal: document.getElementById('ep2Terminal').value.trim(),
+  };
+
+  const filtered = allData.filter(row => {
+    return (!filters.routeName || row['ROUTE NAME'] === filters.routeName) &&
+           (!filters.ep1Region || row['ENDPOINT 1 REGION'] === filters.ep1Region) &&
+           (!filters.ep1Province || row['ENDPOINT 1 PROVINCE'] === filters.ep1Province) &&
+           (!filters.ep1LGU || row['ENDPOINT 1 LGU'] === filters.ep1LGU) &&
+           (!filters.ep1Barangay || row['ENDPOINT 1 BARANGAY'] === filters.ep1Barangay) &&
+           (!filters.ep1Terminal || row['ENDPOINT 1 TERMINAL'] === filters.ep1Terminal) &&
+           (!filters.ep2Region || row['ENDPOINT 2 REGION'] === filters.ep2Region) &&
+           (!filters.ep2Province || row['ENDPOINT 2 PROVINCE'] === filters.ep2Province) &&
+           (!filters.ep2LGU || row['ENDPOINT 2 LGU'] === filters.ep2LGU) &&
+           (!filters.ep2Barangay || row['ENDPOINT 2 BARANGAY'] === filters.ep2Barangay) &&
+           (!filters.ep2Terminal || row['ENDPOINT 2 TERMINAL'] === filters.ep2Terminal);
+  });
+
+  drawRoutes(filtered);
+}
+
+function clearFilters() {
+  document.querySelectorAll('.search-container input').forEach(el => el.value = '');
+  drawRoutes(allData);
+}
+
+loadData();
 </script>
 </body>
 </html>
