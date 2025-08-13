@@ -6,10 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
-
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
+    body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
     #map { width: 1200px; height: 750px; margin: auto; }
     .search-container {
       position: absolute;
@@ -21,9 +20,6 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
       z-index: 1000;
       max-width: 350px;
-      font-family: sans-serif;
-      overflow-y: auto;
-      max-height: 95%;
     }
     .search-container label { font-weight: bold; display: block; margin-top: 10px; }
     .search-container input {
@@ -33,7 +29,22 @@
       margin-bottom: 6px;
     }
     .search-section { margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-    .search-container button { width: 100%; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      background: #007bff;
+      color: white;
+      padding: 2px 5px;
+      border-radius: 4px;
+      margin: 2px;
+      font-size: 12px;
+    }
+    .tag button {
+      background: none;
+      border: none;
+      color: white;
+      margin-left: 4px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -42,24 +53,34 @@
   <div class="search-container">
     <div class="search-section">
       <label>Search by Route Name</label>
-      <select id="routeName" multiple></select>
+      <input id="routeNameInput" placeholder="Type route name" />
+      <div id="routeTags"></div>
     </div>
 
     <div class="search-section">
       <label>Search by Endpoints</label>
-      <div><b>Endpoint 1</b></div>
-      <input id="ep1Region" placeholder="Select Region" />
-      <input id="ep1Province" placeholder="Select Province" />
-      <input id="ep1LGU" placeholder="Select LGU" />
-      <input id="ep1Barangay" placeholder="Select Barangay" />
-      <input id="ep1Terminal" placeholder="Select Terminal" />
 
-      <div><b>Endpoint 2</b></div>
-      <input id="ep2Region" placeholder="Select Region" />
-      <input id="ep2Province" placeholder="Select Province" />
-      <input id="ep2LGU" placeholder="Select LGU" />
-      <input id="ep2Barangay" placeholder="Select Barangay" />
-      <input id="ep2Terminal" placeholder="Select Terminal" />
+      <label>Endpoint 1 Region</label>
+      <input id="ep1Region" placeholder="Search Region" />
+      <label>Endpoint 1 Province</label>
+      <input id="ep1Province" placeholder="Search Province" />
+      <label>Endpoint 1 LGU</label>
+      <input id="ep1LGU" placeholder="Search LGU" />
+      <label>Endpoint 1 Barangay</label>
+      <input id="ep1Barangay" placeholder="Search Barangay" />
+      <label>Endpoint 1 Terminal</label>
+      <input id="ep1Terminal" placeholder="Search Terminal" />
+
+      <label>Endpoint 2 Region</label>
+      <input id="ep2Region" placeholder="Search Region" />
+      <label>Endpoint 2 Province</label>
+      <input id="ep2Province" placeholder="Search Province" />
+      <label>Endpoint 2 LGU</label>
+      <input id="ep2LGU" placeholder="Search LGU" />
+      <label>Endpoint 2 Barangay</label>
+      <input id="ep2Barangay" placeholder="Search Barangay" />
+      <label>Endpoint 2 Terminal</label>
+      <input id="ep2Terminal" placeholder="Search Terminal" />
 
       <button onclick="applyFilters()">🔍 Apply Filters</button>
       <button onclick="resetFilters()">♻️ Clear Filters</button>
@@ -68,7 +89,8 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
 
   <script>
     const map = L.map('map').setView([13, 122], 6);
@@ -79,19 +101,12 @@
 
     const routeLayers = [];
     const allData = [];
+    const selectedRoutes = [];
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    const routeChoices = new Choices('#routeName', { removeItemButton: true, searchResultLimit: 20, shouldSort: true });
-
-    const epFields = [
-      "ep1Region","ep1Province","ep1LGU","ep1Barangay","ep1Terminal",
-      "ep2Region","ep2Province","ep2LGU","ep2Barangay","ep2Terminal"
-    ];
-    const epChoices = {};
-    epFields.forEach(id => epChoices[id] = new Choices(`#${id}`, { removeItemButton: true, searchResultLimit: 20, shouldSort: true }));
-
     function getRandomColor() {
-      return '#' + Math.floor(Math.random()*16777215).toString(16);
+      const colors = ["#ff0000","#0000ff","#006400","#8b0000","#ff8c00","#9400d3","#008080"];
+      return colors[Math.floor(Math.random() * colors.length)];
     }
 
     function clearMap() {
@@ -99,10 +114,8 @@
       routeLayers.length = 0;
     }
 
-    function drawRoutes(filterFn) {
-      clearMap();
-      allData.forEach((row) => {
-        if (filterFn && !filterFn(row)) return;
+    function drawRoutes(data) {
+      data.forEach(row => {
         const geo = row["GEO PATH"];
         if (!geo) return;
         try {
@@ -110,7 +123,7 @@
           const paths = Array.isArray(coords[0][0]) ? coords : [coords];
           paths.forEach(segment => {
             const latlngs = segment.map(c => [c[1], c[0]]);
-            const poly = L.polyline(latlngs, { color: getRandomColor(), weight: 3 }).addTo(map);
+            const poly = L.polyline(latlngs, { color: getRandomColor(), weight: 4 }).addTo(map);
             poly.bindPopup(
               `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
               `<div>DENO: ${row["DENO"] || ""}</div>` +
@@ -120,47 +133,64 @@
             );
             routeLayers.push(poly);
           });
-        } catch(e) {
-          console.warn("GEO PATH parse error:", e);
-        }
+        } catch {}
       });
     }
 
     function applyFilters() {
-      const selectedRoutes = routeChoices.getValue(true).map(v => v.toLowerCase());
+      clearMap();
+      const filters = {
+        routes: selectedRoutes.map(r => r.toLowerCase()),
+        ep1Region: $("#ep1Region").val().toLowerCase(),
+        ep1Province: $("#ep1Province").val().toLowerCase(),
+        ep1LGU: $("#ep1LGU").val().toLowerCase(),
+        ep1Barangay: $("#ep1Barangay").val().toLowerCase(),
+        ep1Terminal: $("#ep1Terminal").val().toLowerCase(),
+        ep2Region: $("#ep2Region").val().toLowerCase(),
+        ep2Province: $("#ep2Province").val().toLowerCase(),
+        ep2LGU: $("#ep2LGU").val().toLowerCase(),
+        ep2Barangay: $("#ep2Barangay").val().toLowerCase(),
+        ep2Terminal: $("#ep2Terminal").val().toLowerCase()
+      };
 
-      const epValues = {};
-      epFields.forEach(id => {
-        epValues[id] = (epChoices[id].getValue(true)[0] || "").toLowerCase();
+      const filtered = allData.filter(row => {
+        if (filters.routes.length && !filters.routes.includes(row["ROUTE NAME"]?.toLowerCase())) return false;
+        if (filters.ep1Region && !row["ENDPOINT 1 REGION"]?.toLowerCase().includes(filters.ep1Region)) return false;
+        if (filters.ep1Province && !row["ENDPOINT 1 PROVINCE"]?.toLowerCase().includes(filters.ep1Province)) return false;
+        if (filters.ep1LGU && !row["ENDPOINT 1 LGU"]?.toLowerCase().includes(filters.ep1LGU)) return false;
+        if (filters.ep1Barangay && !row["ENDPOINT 1 BARANGAY"]?.toLowerCase().includes(filters.ep1Barangay)) return false;
+        if (filters.ep1Terminal && !row["ENDPOINT 1 TERMINAL"]?.toLowerCase().includes(filters.ep1Terminal)) return false;
+        if (filters.ep2Region && !row["ENDPOINT 2 REGION"]?.toLowerCase().includes(filters.ep2Region)) return false;
+        if (filters.ep2Province && !row["ENDPOINT 2 PROVINCE"]?.toLowerCase().includes(filters.ep2Province)) return false;
+        if (filters.ep2LGU && !row["ENDPOINT 2 LGU"]?.toLowerCase().includes(filters.ep2LGU)) return false;
+        if (filters.ep2Barangay && !row["ENDPOINT 2 BARANGAY"]?.toLowerCase().includes(filters.ep2Barangay)) return false;
+        if (filters.ep2Terminal && !row["ENDPOINT 2 TERMINAL"]?.toLowerCase().includes(filters.ep2Terminal)) return false;
+        return true;
       });
 
-      drawRoutes(row => {
-        let routeMatch = !selectedRoutes.length || selectedRoutes.includes(row["ROUTE NAME"]?.toLowerCase());
-
-        function matchesAny(val, cols) {
-          if (!val) return true;
-          return cols.some(col => row[col]?.toLowerCase() === val);
-        }
-
-        let epMatch = matchesAny(epValues.ep1Region, ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"]) &&
-                      matchesAny(epValues.ep1Province, ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"]) &&
-                      matchesAny(epValues.ep1LGU, ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"]) &&
-                      matchesAny(epValues.ep1Barangay, ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"]) &&
-                      matchesAny(epValues.ep1Terminal, ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"]) &&
-                      matchesAny(epValues.ep2Region, ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"]) &&
-                      matchesAny(epValues.ep2Province, ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"]) &&
-                      matchesAny(epValues.ep2LGU, ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"]) &&
-                      matchesAny(epValues.ep2Barangay, ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"]) &&
-                      matchesAny(epValues.ep2Terminal, ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"]);
-
-        return routeMatch && epMatch;
-      });
+      drawRoutes(filtered);
     }
 
     function resetFilters() {
-      routeChoices.clearStore();
-      epFields.forEach(id => epChoices[id].clearStore());
-      drawRoutes();
+      $(".search-container input").val("");
+      selectedRoutes.length = 0;
+      $("#routeTags").empty();
+      clearMap();
+      drawRoutes(allData);
+    }
+
+    function addRouteTag(route) {
+      if (!selectedRoutes.includes(route)) {
+        selectedRoutes.push(route);
+        $("#routeTags").append(`<span class="tag">${route} <button onclick="removeRouteTag('${route}')">&times;</button></span>`);
+      }
+      $("#routeNameInput").val("");
+    }
+
+    function removeRouteTag(route) {
+      const idx = selectedRoutes.indexOf(route);
+      if (idx > -1) selectedRoutes.splice(idx, 1);
+      $("#routeTags").find(`span:contains('${route}')`).remove();
     }
 
     fetch(csvUrl)
@@ -171,29 +201,29 @@
           skipEmptyLines: true,
           complete: (results) => {
             allData.push(...results.data);
-            drawRoutes();
+            drawRoutes(allData);
 
-            // Populate suggestions dynamically
-            const routeNames = [...new Set(results.data.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
-            routeChoices.setChoices(routeNames.map(name => ({ value: name, label: name })), 'value', 'label', true);
+            const routeNames = [...new Set(allData.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
+            $("#routeNameInput").autocomplete({
+              source: routeNames,
+              minLength: 1,
+              select: function(event, ui) {
+                addRouteTag(ui.item.value);
+                return false;
+              }
+            });
 
-            function setSuggestions(id, cols) {
-              const values = new Set();
-              results.data.forEach(r => cols.forEach(col => { if (r[col]) values.add(r[col]); }));
-              epChoices[id].setChoices([...values].sort().map(v => ({ value: v, label: v })), 'value', 'label', true);
-            }
+            const epFields = [
+              ["#ep1Region","ENDPOINT 1 REGION"], ["#ep1Province","ENDPOINT 1 PROVINCE"], ["#ep1LGU","ENDPOINT 1 LGU"],
+              ["#ep1Barangay","ENDPOINT 1 BARANGAY"], ["#ep1Terminal","ENDPOINT 1 TERMINAL"],
+              ["#ep2Region","ENDPOINT 2 REGION"], ["#ep2Province","ENDPOINT 2 PROVINCE"], ["#ep2LGU","ENDPOINT 2 LGU"],
+              ["#ep2Barangay","ENDPOINT 2 BARANGAY"], ["#ep2Terminal","ENDPOINT 2 TERMINAL"]
+            ];
 
-            setSuggestions("ep1Region", ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"]);
-            setSuggestions("ep1Province", ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"]);
-            setSuggestions("ep1LGU", ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"]);
-            setSuggestions("ep1Barangay", ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"]);
-            setSuggestions("ep1Terminal", ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"]);
-
-            setSuggestions("ep2Region", ["ENDPOINT 1 REGION", "ENDPOINT 2 REGION"]);
-            setSuggestions("ep2Province", ["ENDPOINT 1 PROVINCE", "ENDPOINT 2 PROVINCE"]);
-            setSuggestions("ep2LGU", ["ENDPOINT 1 LGU", "ENDPOINT 2 LGU"]);
-            setSuggestions("ep2Barangay", ["ENDPOINT 1 BARANGAY", "ENDPOINT 2 BARANGAY"]);
-            setSuggestions("ep2Terminal", ["ENDPOINT 1 TERMINAL", "ENDPOINT 2 TERMINAL"]);
+            epFields.forEach(([selector, col]) => {
+              const values = [...new Set(allData.map(r => r[col]).filter(Boolean))].sort();
+              $(selector).autocomplete({ source: values, minLength: 1 });
+            });
           }
         });
       });
