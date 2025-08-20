@@ -82,7 +82,7 @@
 
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    // Map input IDs to real sheet headers
+    // Map inputs to sheet headers
     const endpointMap = {
       ep1Region: "ENDPOINT 1 REGION",
       ep1Province: "ENDPOINT 1 PROVINCE",
@@ -96,7 +96,6 @@
       ep2Terminal: "ENDPOINT 2 TERMINAL",
     };
 
-    // Random dark colors
     function getRandomDarkColor() {
       const hue = Math.floor(Math.random() * 360);
       const saturation = 70 + Math.random() * 30;
@@ -126,7 +125,6 @@
     function applyFilters() {
       const selectedRoutes = $('#routeName').val() || [];
 
-      // collect endpoint filters
       const filters = {};
       for (let id in endpointMap) {
         filters[id] = document.getElementById(id).value.toLowerCase();
@@ -137,12 +135,10 @@
       allData.forEach((row, index) => {
         let show = true;
 
-        // Route Name filter
         if (selectedRoutes.length > 0 && !selectedRoutes.includes(row["ROUTE NAME"])) {
           show = false;
         }
 
-        // Endpoint filters
         for (let id in filters) {
           if (filters[id]) {
             const col = endpointMap[id];
@@ -228,7 +224,6 @@
       });
     }
 
-    // Load CSV
     fetch(csvUrl)
       .then(res => res.text())
       .then(csv => {
@@ -239,7 +234,6 @@
             allData.push(...results.data);
             drawAllRoutes();
 
-            // Populate Route Name multi-select
             const routeNames = [...new Set(results.data.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
             routeNames.forEach(name => {
               const opt = new Option(name, name, false, false);
