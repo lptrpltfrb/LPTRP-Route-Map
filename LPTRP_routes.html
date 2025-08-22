@@ -5,175 +5,232 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" />
 
   <style>
-    html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
-    #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
-
-    /* Floating search panel */
+    body, html { margin: 0; padding: 0; height: 100%; }
+    #map { width: 1200px; height: 750px; margin: auto; }
     .search-container {
       position: absolute;
-      left: 12px;
-      top: 12px;
-      width: 340px;
-      max-height: 720px;
-      overflow: auto;
-      background: #fff;
+      top: 10px;
+      left: 10px;
+      background: white;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      z-index: 2000;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 13px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+      max-width: 350px;
+      font-family: sans-serif;
+      overflow-y: auto;
+      max-height: 90%;
     }
-    .search-section { margin-bottom: 10px; }
-    .search-section h4 { margin: 6px 0; font-size: 14px; }
-    .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px; border:1px solid #ddd; border-radius:4px; background:#fff; }
-    .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px; display:inline-flex; gap:6px; align-items:center; font-size:12px; }
-    .chip button { background:transparent; border:0; color:#fff; cursor:pointer; font-weight:bold; }
-    .btn { width:100%; padding:8px; border-radius:6px; border:0; cursor:pointer; margin-top:8px; font-size:14px; }
-    .btn.apply { background:#2f78a0; color:#fff; }
-    .btn.clear { background:#efefef; color:#222; }
-
-    /* Input + focus fix */
-    input[type="text"], .small-input {
-      width:100%;
-      padding:6px 8px;
-      border:1px solid #ccc;
-      border-radius:4px;
-      box-sizing:border-box;
-      font-size:13px;
-      outline: none; /* remove ugly line */
+    .search-container label { font-weight: bold; display: block; margin-top: 10px; }
+    .search-container input,
+    .search-container select {
+      width: 100%;
+      padding: 4px;
+      margin-top: 4px;
+      margin-bottom: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      outline: none; /* remove ugly reflection line */
     }
-    input[type="text"]:focus, .small-input:focus {
-      border-color:#2f78a0;
+    .search-container input:focus,
+    .search-container select:focus {
+      border-color: #2f78a0;
       box-shadow: 0 0 3px rgba(47,120,160,0.4);
     }
-
-    /* Suggestions */
-    .suggestions { position: relative; }
-    .suggestions-list {
-      position: absolute; left:0; right:0; top:42px;
-      max-height:180px; overflow:auto;
-      background:#fff; border:1px solid #ccc; border-radius:4px;
-      z-index:2100; box-shadow:0 6px 14px rgba(0,0,0,.12);
-    }
-    .suggestions-list div { padding:6px 8px; cursor:pointer; }
-    .suggestions-list div:hover { background:#f0f8ff; }
-
-    /* North arrow */
-    .north-arrow {
-      position: absolute;
-      right: 18px; top: 18px;
-      z-index: 2000;
-      width: 40px; height: 40px;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="%23000"><path d="M50 5 L70 70 L50 55 L30 70 Z"/></g><text x="50" y="95" font-size="12" text-anchor="middle" fill="%23000">N</text></svg>') no-repeat center/contain;
-      pointer-events: none; opacity: .95;
+    .search-container button {
+      width: 100%;
+      margin-top: 8px;
+      padding: 6px;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="north-arrow" title="North"></div>
 
-  <div class="search-container" id="searchPanel">
-    <div class="search-section">
-      <h4>Search by Route Name</h4>
-      <div class="chips" id="routeChips"></div>
-      <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
-        <div class="suggestions-list" id="routeSuggestions" style="display:none"></div>
-      </div>
-    </div>
+  <div class="search-container">
+    <label for="routeName">Search by Route Name</label>
+    <select id="routeName" multiple="multiple"></select>
 
-    <div class="search-section">
-      <h4>Search by Endpoints</h4>
-      <label style="font-size:12px;margin-top:6px">Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      <hr style="border:none;border-top:1px solid #eee;margin:10px 0">
-      <label style="font-size:12px;margin-top:6px">Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label style="font-size:12px;margin-top:6px">Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
-    </div>
+    <label>Search by Endpoints</label>
+    <label>Endpoint 1</label>
+    <input id="ep1Region" placeholder="Region" />
+    <input id="ep1Province" placeholder="Province" />
+    <input id="ep1LGU" placeholder="LGU" />
+    <input id="ep1Barangay" placeholder="Barangay" />
+    <input id="ep1Terminal" placeholder="Terminal" />
 
-    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
-    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
+    <label>Endpoint 2</label>
+    <input id="ep2Region" placeholder="Region" />
+    <input id="ep2Province" placeholder="Province" />
+    <input id="ep2LGU" placeholder="LGU" />
+    <input id="ep2Barangay" placeholder="Barangay" />
+    <input id="ep2Terminal" placeholder="Terminal" />
+
+    <button onclick="applyFilters()">🔍 Apply Filters</button>
+    <button onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
 
-  <!-- Leaflet + PapaParse -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.full.min.js"></script>
 
   <script>
+    const map = L.map('map').setView([13, 122], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const routeLayers = [];
+    const allData = [];
+    let highlightedLayer = null;
+
     const csvUrl = "YOUR_GOOGLE_SHEET_CSV_URL";
 
-    const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
+    // Generate random dark colors
+    function getRandomDarkColor() {
+      const hue = Math.floor(Math.random() * 360);
+      const saturation = 70 + Math.random() * 30; 
+      const lightness = 20 + Math.random() * 20; 
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
 
-    function normalize(s){ if(!s)return''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
-    function nLower(s){ return normalize(s).toLowerCase(); }
-    function colorFromString(str){ let hash=0; for(let i=0;i<str.length;i++){hash=(hash<<5)-hash+str.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
+    function clearMap() {
+      routeLayers.forEach(layer => map.removeLayer(layer));
+      routeLayers.length = 0;
+    }
 
-    const map=L.map('map',{preferCanvas:true}).setView([13,122],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
-    L.control.scale({position:'bottomleft',metric:true}).addTo(map);
-
-    let allData=[],routeLayers=[],selectedRouteNames=[];
-
-    function clearRouteLayers(){ for(const l of routeLayers) map.removeLayer(l); routeLayers=[]; }
-
-    function popupHtml(r){ return `<b>${normalize(r["ROUTE NAME"])}</b><br>DENO: ${normalize(r["DENO"])}<br>CLASS: ${normalize(r["Class"])}<br>ROUTE CLASS: ${normalize(r["ROUTE CLASSIFICATION (if LPTRP)"])}<br>NAU: ${normalize(r["NO. OF AUTHORIZED UNITS"])}`; }
-
-    function drawRowOnMap(r){
-      let geo=r["GEO PATH"]; if(!geo)return;
-      try{var coords=JSON.parse(geo);}catch(e){return;}
-      const segments=Array.isArray(coords[0][0])?coords:[coords];
-      const color=colorFromString(r["ROUTE NAME"]||r["DENO"]);
-      for(const seg of segments){
-        const latlngs=seg.map(c=>[+c[1],+c[0]]);
-        const pl=L.polyline(latlngs,{color,weight:4,opacity:.95});
-        pl.options.baseColor=color;
-        pl.bindPopup(popupHtml(r));
-        // Highlight logic
-        pl.on('mouseover',()=>{pl.setStyle({color:'yellow',weight:7,opacity:1});pl.bringToFront();});
-        pl.on('mouseout',()=>{pl.setStyle({color:pl.options.baseColor,weight:4,opacity:.95});});
-        pl.on('click',()=>{
-          routeLayers.forEach(l=>l.setStyle({color:l.options.baseColor,weight:4,opacity:.95}));
-          pl.setStyle({color:'yellow',weight:7,opacity:1});
-          pl.bringToFront();
-          map.fitBounds(pl.getBounds(),{padding:[40,40]});
-        });
-        pl.addTo(map); routeLayers.push(pl);
+    function resetHighlight() {
+      if (highlightedLayer) {
+        highlightedLayer.setStyle({ weight: 3, color: highlightedLayer.originalColor });
+        highlightedLayer = null;
       }
     }
 
-    function fitMapToRouteLayers(){ if(routeLayers.length===0)return; map.fitBounds(L.featureGroup(routeLayers).getBounds(),{padding:[40,40]}); }
+    function highlightRoute(layer) {
+      resetHighlight();
+      highlightedLayer = layer;
+      layer.setStyle({ weight: 6, color: "yellow" });
+      layer.bringToFront(); // ensure always visible
+      map.fitBounds(layer.getBounds());
+    }
 
-    function applyFilters(){ /* same as before */ resetLayers(); }
-    function resetFilters(){ selectedRouteNames=[]; clearRouteLayers(); allData.forEach(drawRowOnMap); fitMapToRouteLayers(); }
-    function resetLayers(){ clearRouteLayers(); allData.forEach(drawRowOnMap); fitMapToRouteLayers(); }
+    function addRoute(row, index) {
+      const geo = row["GEO PATH"];
+      if (!geo) return;
+      try {
+        const coords = JSON.parse(geo);
+        const paths = Array.isArray(coords[0][0]) ? coords : [coords];
 
-    fetch(csvUrl).then(r=>r.text()).then(txt=>{
-      Papa.parse(txt,{header:true,skipEmptyLines:true,complete:res=>{
-        allData=res.data; allData.forEach(drawRowOnMap); fitMapToRouteLayers();
-      }});
-    });
+        paths.forEach(segment => {
+          const latlngs = segment.map(c => [c[1], c[0]]);
+          const poly = L.polyline(latlngs, {
+            color: getRandomDarkColor(),
+            weight: 3
+          }).addTo(map);
+
+          poly.originalColor = poly.options.color;
+          poly.bindPopup(
+            `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
+            `<div>DENO: ${row["DENO"] || ""}</div>` +
+            `<div>CLASS: ${row["CLASS"] || ""}</div>` +
+            `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
+            `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
+          );
+
+          // Highlight on hover
+          poly.on("mouseover", () => {
+            poly.setStyle({ weight: 6, color: "yellow" });
+            poly.bringToFront();
+          });
+          poly.on("mouseout", () => {
+            if (highlightedLayer !== poly) {
+              poly.setStyle({ weight: 3, color: poly.originalColor });
+            }
+          });
+
+          // Highlight on click
+          poly.on("click", () => highlightRoute(poly));
+
+          routeLayers.push(poly);
+        });
+      } catch (e) {
+        console.warn("GEO PATH error on row", index+2, e);
+      }
+    }
+
+    function applyFilters() {
+      const selectedRoutes = $('#routeName').val() || [];
+      const filters = {
+        ep1Region: document.getElementById("ep1Region").value.toLowerCase(),
+        ep1Province: document.getElementById("ep1Province").value.toLowerCase(),
+        ep1LGU: document.getElementById("ep1LGU").value.toLowerCase(),
+        ep1Barangay: document.getElementById("ep1Barangay").value.toLowerCase(),
+        ep1Terminal: document.getElementById("ep1Terminal").value.toLowerCase(),
+        ep2Region: document.getElementById("ep2Region").value.toLowerCase(),
+        ep2Province: document.getElementById("ep2Province").value.toLowerCase(),
+        ep2LGU: document.getElementById("ep2LGU").value.toLowerCase(),
+        ep2Barangay: document.getElementById("ep2Barangay").value.toLowerCase(),
+        ep2Terminal: document.getElementById("ep2Terminal").value.toLowerCase(),
+      };
+
+      clearMap();
+
+      allData.forEach((row, index) => {
+        let show = true;
+
+        if (selectedRoutes.length > 0 && !selectedRoutes.includes(row["ROUTE NAME"])) {
+          show = false;
+        }
+
+        Object.keys(filters).forEach(key => {
+          if (filters[key] && !(row[key.replace(/([A-Z])/g, " $1").trim().toUpperCase()] || "").toLowerCase().includes(filters[key])) {
+            show = false;
+          }
+        });
+
+        if (show) addRoute(row, index);
+      });
+    }
+
+    function resetFilters() {
+      $('#routeName').val(null).trigger('change');
+      document.querySelectorAll(".search-container input").forEach(el => el.value = "");
+      clearMap();
+      drawAllRoutes();
+    }
+
+    function drawAllRoutes() {
+      clearMap();
+      allData.forEach(addRoute);
+    }
+
+    // Load CSV
+    fetch(csvUrl)
+      .then(res => res.text())
+      .then(csv => {
+        Papa.parse(csv, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            allData.push(...results.data);
+            drawAllRoutes();
+
+            // Populate Route Name multi-select
+            const routeNames = [...new Set(results.data.map(r => r["ROUTE NAME"]).filter(Boolean))].sort();
+            routeNames.forEach(name => {
+              const opt = new Option(name, name, false, false);
+              document.getElementById("routeName").appendChild(opt);
+            });
+            $('#routeName').select2({ placeholder: "Select Route(s)", allowClear: true });
+          }
+        });
+      });
   </script>
 </body>
 </html>
