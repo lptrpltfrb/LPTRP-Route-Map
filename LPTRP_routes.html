@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" /> 
 
   <style>
     body, html { margin: 0; padding: 0; height: 100%; }
@@ -22,8 +22,10 @@
       z-index: 1000;
       max-width: 350px;
       font-family: sans-serif;
+      overflow-y: auto;
+      max-height: 90%;
     }
-    .search-container label { font-weight: bold; display: block; margin-top: 8px; }
+    .search-container label { font-weight: bold; display: block; margin-top: 10px; }
     .search-container input,
     .search-container select {
       width: 100%;
@@ -33,7 +35,7 @@
     }
     .search-container button {
       width: 100%;
-      margin-top: 6px;
+      margin-top: 8px;
       padding: 6px;
       font-size: 14px;
     }
@@ -82,24 +84,10 @@
 
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    // Map inputs to sheet headers
-    const endpointMap = {
-      ep1Region: "ENDPOINT 1 REGION",
-      ep1Province: "ENDPOINT 1 PROVINCE",
-      ep1LGU: "ENDPOINT 1 LGU",
-      ep1Barangay: "ENDPOINT 1 BARANGAY",
-      ep1Terminal: "ENDPOINT 1 TERMINAL",
-      ep2Region: "ENDPOINT 2 REGION",
-      ep2Province: "ENDPOINT 2 PROVINCE",
-      ep2LGU: "ENDPOINT 2 LGU",
-      ep2Barangay: "ENDPOINT 2 BARANGAY",
-      ep2Terminal: "ENDPOINT 2 TERMINAL",
-    };
-
     function getRandomDarkColor() {
       const hue = Math.floor(Math.random() * 360);
-      const saturation = 70 + Math.random() * 30;
-      const lightness = 20 + Math.random() * 20;
+      const saturation = 70 + Math.random() * 30; 
+      const lightness = 20 + Math.random() * 20; 
       return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     }
 
@@ -122,13 +110,45 @@
       map.fitBounds(layer.getBounds());
     }
 
+    function styleRoute(poly, row) {
+      poly.originalColor = poly.options.color;
+      poly.bindPopup(
+        `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
+        `<div>DENO: ${row["DENO"] || ""}</div>` +
+        `<div>CLASS: ${row["CLASS"] || ""}</div>` +
+        `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
+        `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
+      );
+
+      poly.on("click", () => highlightRoute(poly));
+
+      // hover effect
+      poly.on("mouseover", () => {
+        if (poly !== highlightedLayer) {
+          poly.setStyle({ weight: 6, color: "yellow" });
+        }
+      });
+      poly.on("mouseout", () => {
+        if (poly !== highlightedLayer) {
+          poly.setStyle({ weight: 3, color: poly.originalColor });
+        }
+      });
+    }
+
     function applyFilters() {
       const selectedRoutes = $('#routeName').val() || [];
-
-      const filters = {};
-      for (let id in endpointMap) {
-        filters[id] = document.getElementById(id).value.toLowerCase();
-      }
+      const filters = {
+        ep1Region: document.getElementById("ep1Region").value.toLowerCase(),
+        ep1Province: document.getElementById("ep1Province").value.toLowerCase(),
+        ep1LGU: document.getElementById("ep1LGU").value.toLowerCase(),
+        ep1Barangay: document.getElementById("ep1Barangay").value.toLowerCase(),
+        ep1Terminal: document.getElementById("ep1Terminal").value.toLowerCase(),
+        ep2Region: document.getElementById("ep2Region").value.toLowerCase(),
+        ep2Province: document.getElementById("ep2Province").value.toLowerCase(),
+        ep2LGU: document.getElementById("ep2LGU").value.toLowerCase(),
+        ep2Barangay: document.getElementById("ep2Barangay").value.toLowerCase(),
+        ep2Terminal: document.getElementById("ep2Terminal").value.toLowerCase(),
+      };
 
       clearMap();
 
@@ -139,16 +159,11 @@
           show = false;
         }
 
-        for (let id in filters) {
-          if (filters[id]) {
-            const col = endpointMap[id];
-            const cell = (row[col] || "").toLowerCase();
-            if (!cell.includes(filters[id])) {
-              show = false;
-              break;
-            }
+        Object.keys(filters).forEach(key => {
+          if (filters[key] && !(row[key.replace(/([A-Z])/g, " $1").trim().toUpperCase()] || "").toLowerCase().includes(filters[key])) {
+            show = false;
           }
-        }
+        });
 
         if (!show) return;
 
@@ -166,16 +181,7 @@
               weight: 3
             }).addTo(map);
 
-            poly.originalColor = poly.options.color;
-            poly.bindPopup(
-              `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
-              `<div>DENO: ${row["DENO"] || ""}</div>` +
-              `<div>CLASS: ${row["CLASS"] || ""}</div>` +
-              `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
-              `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
-            );
-
-            poly.on("click", () => highlightRoute(poly));
+            styleRoute(poly, row);
             routeLayers.push(poly);
           });
         } catch (e) {
@@ -208,16 +214,7 @@
               weight: 3
             }).addTo(map);
 
-            poly.originalColor = poly.options.color;
-            poly.bindPopup(
-              `<div style="font-size: 16px; font-weight: bold;">${row["ROUTE NAME"] || ""}</div>` +
-              `<div>DENO: ${row["DENO"] || ""}</div>` +
-              `<div>CLASS: ${row["CLASS"] || ""}</div>` +
-              `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
-              `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
-            );
-
-            poly.on("click", () => highlightRoute(poly));
+            styleRoute(poly, row);
             routeLayers.push(poly);
           });
         } catch {}
