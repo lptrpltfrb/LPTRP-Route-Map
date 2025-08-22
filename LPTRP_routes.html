@@ -11,6 +11,7 @@
   <style>
     body, html { margin: 0; padding: 0; height: 100%; }
     #map { width: 1200px; height: 750px; margin: auto; }
+
     .search-container {
       position: absolute;
       top: 10px;
@@ -31,7 +32,7 @@
       width: 100%;
       padding: 6px 8px;
       margin-top: 4px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       box-sizing: border-box;
     }
     .search-container button {
@@ -39,13 +40,20 @@
       margin-top: 8px;
       padding: 8px;
       font-size: 14px;
-      box-sizing: border-box;
     }
-    /* Make Select2 behave like a normal input with room to type */
-    .select2-container { width: 100% !important; }
-    .select2-selection--multiple { min-height: 40px; }
-    .select2-selection__rendered { display: flex; flex-wrap: wrap; gap: 4px; }
-    .select2-search__field { width: 100% !important; }
+
+    /* Select2 tweaks so typing is comfy and chips don't squeeze */
+    .select2-container--default .select2-selection--multiple {
+      min-height: 38px;
+      padding-bottom: 4px;
+      border-radius: 6px;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__rendered {
+      display: block;
+      padding: 2px 6px;
+      overflow-x: hidden;
+      white-space: normal;
+    }
   </style>
 </head>
 <body>
@@ -58,33 +66,39 @@
     <label>Search by Endpoints</label>
 
     <label>Endpoint 1</label>
-    <input id="ep1Region" placeholder="Region" list="ep1RegionList" />
-    <input id="ep1Province" placeholder="Province" list="ep1ProvinceList" />
-    <input id="ep1LGU" placeholder="LGU" list="ep1LGUList" />
-    <input id="ep1Barangay" placeholder="Barangay" list="ep1BarangayList" />
-    <input id="ep1Terminal" placeholder="Terminal" list="ep1TerminalList" />
+    <input id="ep1Region" placeholder="Region" list="dl_ep1Region" />
+    <datalist id="dl_ep1Region"></datalist>
+
+    <input id="ep1Province" placeholder="Province" list="dl_ep1Province" />
+    <datalist id="dl_ep1Province"></datalist>
+
+    <input id="ep1LGU" placeholder="LGU" list="dl_ep1LGU" />
+    <datalist id="dl_ep1LGU"></datalist>
+
+    <input id="ep1Barangay" placeholder="Barangay" list="dl_ep1Barangay" />
+    <datalist id="dl_ep1Barangay"></datalist>
+
+    <input id="ep1Terminal" placeholder="Terminal" list="dl_ep1Terminal" />
+    <datalist id="dl_ep1Terminal"></datalist>
 
     <label>Endpoint 2</label>
-    <input id="ep2Region" placeholder="Region" list="ep2RegionList" />
-    <input id="ep2Province" placeholder="Province" list="ep2ProvinceList" />
-    <input id="ep2LGU" placeholder="LGU" list="ep2LGUList" />
-    <input id="ep2Barangay" placeholder="Barangay" list="ep2BarangayList" />
-    <input id="ep2Terminal" placeholder="Terminal" list="ep2TerminalList" />
+    <input id="ep2Region" placeholder="Region" list="dl_ep2Region" />
+    <datalist id="dl_ep2Region"></datalist>
+
+    <input id="ep2Province" placeholder="Province" list="dl_ep2Province" />
+    <datalist id="dl_ep2Province"></datalist>
+
+    <input id="ep2LGU" placeholder="LGU" list="dl_ep2LGU" />
+    <datalist id="dl_ep2LGU"></datalist>
+
+    <input id="ep2Barangay" placeholder="Barangay" list="dl_ep2Barangay" />
+    <datalist id="dl_ep2Barangay"></datalist>
+
+    <input id="ep2Terminal" placeholder="Terminal" list="dl_ep2Terminal" />
+    <datalist id="dl_ep2Terminal"></datalist>
 
     <button onclick="applyFilters()">🔍 Apply Filters</button>
     <button onclick="resetFilters()">♻️ Clear Filters</button>
-
-    <!-- DATALISTS (endpoint suggestions) -->
-    <datalist id="ep1RegionList"></datalist>
-    <datalist id="ep1ProvinceList"></datalist>
-    <datalist id="ep1LGUList"></datalist>
-    <datalist id="ep1BarangayList"></datalist>
-    <datalist id="ep1TerminalList"></datalist>
-    <datalist id="ep2RegionList"></datalist>
-    <datalist id="ep2ProvinceList"></datalist>
-    <datalist id="ep2LGUList"></datalist>
-    <datalist id="ep2BarangayList"></datalist>
-    <datalist id="ep2TerminalList"></datalist>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -99,33 +113,32 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    // --- State ---
     const routeLayers = [];
     const allData = [];
     let highlightedLayer = null;
 
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    // Exact column mapping (robust)
+    // Explicit mapping from inputs to sheet column names (avoid brittle guessing)
     const COLS = {
-      ep1Region: "ENDPOINT 1 REGION",
+      ep1Region:   "ENDPOINT 1 REGION",
       ep1Province: "ENDPOINT 1 PROVINCE",
-      ep1LGU: "ENDPOINT 1 LGU",
+      ep1LGU:      "ENDPOINT 1 LGU",
       ep1Barangay: "ENDPOINT 1 BARANGAY",
       ep1Terminal: "ENDPOINT 1 TERMINAL",
-      ep2Region: "ENDPOINT 2 REGION",
+      ep2Region:   "ENDPOINT 2 REGION",
       ep2Province: "ENDPOINT 2 PROVINCE",
-      ep2LGU: "ENDPOINT 2 LGU",
+      ep2LGU:      "ENDPOINT 2 LGU",
       ep2Barangay: "ENDPOINT 2 BARANGAY",
-      ep2Terminal: "ENDPOINT 2 TERMINAL",
-      routeName: "ROUTE NAME",
-      geo: "GEO PATH"
+      ep2Terminal: "ENDPOINT 2 TERMINAL"
     };
 
-    // Random dark color for base lines
+    // --- Utilities ---
     function getRandomDarkColor() {
       const hue = Math.floor(Math.random() * 360);
-      const saturation = 70 + Math.random() * 30;
-      const lightness = 20 + Math.random() * 20;
+      const saturation = 70 + Math.random() * 30;  // 70–100
+      const lightness = 20 + Math.random() * 20;   // 20–40
       return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     }
 
@@ -145,140 +158,183 @@
       resetHighlight();
       highlightedLayer = layer;
       layer.setStyle({ weight: 6, color: "yellow" });
-      layer.bringToFront();
       map.fitBounds(layer.getBounds());
     }
 
-    function styleRoute(poly, row) {
-      poly.originalColor = poly.options.color;
-      poly.bindPopup(
-        `<div style="font-size: 16px; font-weight: bold;">${row[COLS.routeName] || ""}</div>` +
-        `<div>DENO: ${row["DENO"] || ""}</div>` +
-        `<div>CLASS: ${row["CLASS"] || ""}</div>` +
-        `<div>ROUTE CLASS: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}</div>` +
-        `<div>NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}</div>`
-      );
-
-      poly.on("click", () => highlightRoute(poly));
-
-      poly.on("mouseover", () => {
-        if (poly !== highlightedLayer) poly.setStyle({ weight: 6, color: "yellow" });
-      });
-      poly.on("mouseout", () => {
-        if (poly !== highlightedLayer) poly.setStyle({ weight: 3, color: poly.originalColor });
-      });
+    function safeStr(v) {
+      return (v ?? "").toString().trim();
     }
 
-    function drawRows(rows) {
-      rows.forEach((row, index) => {
-        const geo = row[COLS.geo];
+    function toLower(v) {
+      return safeStr(v).toLowerCase();
+    }
+
+    // --- Filtering ---
+    function applyFilters() {
+      const selectedRoutes = $('#routeName').val() || [];
+
+      const filters = {};
+      for (const key in COLS) {
+        filters[key] = toLower(document.getElementById(key).value);
+      }
+
+      clearMap();
+      resetHighlight();
+
+      allData.forEach((row, index) => {
+        let show = true;
+
+        // Route Name OR logic (if any selected)
+        if (selectedRoutes.length > 0 && !selectedRoutes.includes(safeStr(row["ROUTE NAME"]))) {
+          show = false;
+        }
+
+        // Endpoint filters (AND logic across filled fields)
+        for (const key in COLS) {
+          const colName = COLS[key];
+          const needle = filters[key];
+          if (needle) {
+            const hay = toLower(row[colName]);
+            if (!hay.includes(needle)) { show = false; break; }
+          }
+        }
+
+        if (!show) return;
+
+        const geo = row["GEO PATH"];
         if (!geo) return;
+
         try {
           const coords = JSON.parse(geo);
           const paths = Array.isArray(coords[0]?.[0]) ? coords : [coords];
+
           paths.forEach(segment => {
             const latlngs = segment.map(c => [c[1], c[0]]);
-            const poly = L.polyline(latlngs, { color: getRandomDarkColor(), weight: 3 }).addTo(map);
-            styleRoute(poly, row);
+            const poly = L.polyline(latlngs, {
+              color: getRandomDarkColor(),
+              weight: 3
+            }).addTo(map);
+
+            poly.originalColor = poly.options.color;
+
+            poly.bindPopup(
+              `<div style="font-size:16px;font-weight:bold;">${safeStr(row["ROUTE NAME"])}</div>` +
+              `<div>DENO: ${safeStr(row["DENO"])}</div>` +
+              `<div>CLASS: ${safeStr(row["CLASS"])}</div>` +
+              `<div>ROUTE CLASS: ${safeStr(row["ROUTE CLASSIFICATION (if LPTRP)"])}</div>` +
+              `<div>NAU: ${safeStr(row["NO. OF AUTHORIZED UNITS"])}</div>`
+            );
+
+            // Hover + click highlight
+            poly.on("mouseover", () => {
+              if (poly !== highlightedLayer) poly.setStyle({ weight: 6, color: "yellow" });
+            });
+            poly.on("mouseout", () => {
+              if (poly !== highlightedLayer) poly.setStyle({ weight: 3, color: poly.originalColor });
+            });
+            poly.on("click", () => highlightRoute(poly));
+
             routeLayers.push(poly);
           });
         } catch (e) {
-          console.warn("GEO PATH error on a row:", e);
+          console.warn("GEO PATH error on row", index + 2, e);
         }
       });
-    }
-
-    function applyFilters() {
-      resetHighlight();
-      const selectedRoutes = $('#routeName').val() || [];
-
-      // Gather endpoint filters (lowercased, trimmed)
-      const filters = {};
-      Object.keys(COLS).forEach(k => {
-        if (k.startsWith('ep')) {
-          const v = (document.getElementById(k)?.value || "").trim().toLowerCase();
-          filters[k] = v;
-        }
-      });
-
-      clearMap();
-
-      const rows = allData.filter(row => {
-        // Route Name (multi-select OR)
-        if (selectedRoutes.length > 0 && !selectedRoutes.includes(row[COLS.routeName])) {
-          return false;
-        }
-
-        // Endpoints (single-input includes matching, case-insensitive)
-        for (const key of Object.keys(filters)) {
-          const val = filters[key];
-          if (!val) continue; // blank = ignore
-          const cell = (row[COLS[key]] || "").toString().trim().toLowerCase();
-          if (!cell.includes(val)) return false;
-        }
-
-        return true;
-      });
-
-      drawRows(rows);
     }
 
     function resetFilters() {
-      resetHighlight();
       $('#routeName').val(null).trigger('change');
       document.querySelectorAll(".search-container input").forEach(el => el.value = "");
+      resetHighlight();
       clearMap();
-      drawRows(allData);
+      drawAllRoutes();
     }
 
-    function uniqueSorted(values) {
-      return [...new Set(values.filter(Boolean).map(v => v.toString().trim()))]
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    }
+    function drawAllRoutes() {
+      clearMap();
+      allData.forEach((row, index) => {
+        const geo = row["GEO PATH"];
+        if (!geo) return;
 
-    function fillDatalist(listId, values) {
-      const dl = document.getElementById(listId);
-      dl.innerHTML = "";
-      values.forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        dl.appendChild(opt);
+        try {
+          const coords = JSON.parse(geo);
+          const paths = Array.isArray(coords[0]?.[0]) ? coords : [coords];
+
+          paths.forEach(segment => {
+            const latlngs = segment.map(c => [c[1], c[0]]);
+            const poly = L.polyline(latlngs, {
+              color: getRandomDarkColor(),
+              weight: 3
+            }).addTo(map);
+
+            poly.originalColor = poly.options.color;
+
+            poly.bindPopup(
+              `<div style="font-size:16px;font-weight:bold;">${safeStr(row["ROUTE NAME"])}</div>` +
+              `<div>DENO: ${safeStr(row["DENO"])}</div>` +
+              `<div>CLASS: ${safeStr(row["CLASS"])}</div>` +
+              `<div>ROUTE CLASS: ${safeStr(row["ROUTE CLASSIFICATION (if LPTRP)"])}</div>` +
+              `<div>NAU: ${safeStr(row["NO. OF AUTHORIZED UNITS"])}</div>`
+            );
+
+            poly.on("mouseover", () => {
+              if (poly !== highlightedLayer) poly.setStyle({ weight: 6, color: "yellow" });
+            });
+            poly.on("mouseout", () => {
+              if (poly !== highlightedLayer) poly.setStyle({ weight: 3, color: poly.originalColor });
+            });
+            poly.on("click", () => highlightRoute(poly));
+
+            routeLayers.push(poly);
+          });
+        } catch {}
       });
     }
 
-    function populateSuggestions() {
-      // Route names (Select2 options)
-      const routeNames = uniqueSorted(allData.map(r => r[COLS.routeName]));
+    // --- Suggestions (Route Name + Endpoint datalists) ---
+    function populateSuggestions(rows) {
+      // Route names (unique, sorted)
+      const routeNames = [...new Set(rows.map(r => safeStr(r["ROUTE NAME"])).filter(Boolean))].sort((a,b) => a.localeCompare(b));
       const routeSel = document.getElementById("routeName");
-      routeSel.innerHTML = "";
       routeNames.forEach(name => {
         routeSel.appendChild(new Option(name, name, false, false));
       });
-
-      // Initialize/refresh select2 (search-only after 1 char)
       $('#routeName').select2({
-        placeholder: "Type to search route(s)…",
+        placeholder: "Type to search route(s)",
         allowClear: true,
         width: '100%',
         closeOnSelect: false,
-        minimumInputLength: 1
+        minimumInputLength: 1, // don't dump the entire list until the user types
+        dropdownAutoWidth: true
       });
 
-      // Endpoint datalists (each column separately)
-      fillDatalist("ep1RegionList",   uniqueSorted(allData.map(r => r[COLS.ep1Region]   )));
-      fillDatalist("ep1ProvinceList", uniqueSorted(allData.map(r => r[COLS.ep1Province] )));
-      fillDatalist("ep1LGUList",      uniqueSorted(allData.map(r => r[COLS.ep1LGU]      )));
-      fillDatalist("ep1BarangayList", uniqueSorted(allData.map(r => r[COLS.ep1Barangay] )));
-      fillDatalist("ep1TerminalList", uniqueSorted(allData.map(r => r[COLS.ep1Terminal] )));
+      // Build endpoint value sets
+      const uniques = {};
+      for (const key in COLS) uniques[key] = new Set();
 
-      fillDatalist("ep2RegionList",   uniqueSorted(allData.map(r => r[COLS.ep2Region]   )));
-      fillDatalist("ep2ProvinceList", uniqueSorted(allData.map(r => r[COLS.ep2Province] )));
-      fillDatalist("ep2LGUList",      uniqueSorted(allData.map(r => r[COLS.ep2LGU]      )));
-      fillDatalist("ep2BarangayList", uniqueSorted(allData.map(r => r[COLS.ep2Barangay] )));
-      fillDatalist("ep2TerminalList", uniqueSorted(allData.map(r => r[COLS.ep2Terminal] )));
+      rows.forEach(r => {
+        for (const key in COLS) {
+          const val = safeStr(r[COLS[key]]);
+          if (val) uniques[key].add(val);
+        }
+      });
+
+      // Push to datalists (alphabetically sorted)
+      for (const key in COLS) {
+        const listId = "dl_" + key;
+        const dl = document.getElementById(listId);
+        if (!dl) continue;
+        const arr = [...uniques[key]].sort((a,b) => a.localeCompare(b));
+        dl.innerHTML = "";
+        arr.forEach(v => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          dl.appendChild(opt);
+        });
+      }
     }
 
-    // Load CSV → draw all → build suggestions
+    // --- Load data ---
     fetch(csvUrl)
       .then(res => res.text())
       .then(csv => {
@@ -287,8 +343,8 @@
           skipEmptyLines: true,
           complete: (results) => {
             allData.push(...results.data);
-            drawRows(allData);
-            populateSuggestions();
+            populateSuggestions(results.data);
+            drawAllRoutes();
           }
         });
       });
