@@ -31,6 +31,7 @@
     .search-section h4 { margin: 6px 0; font-size: 14px; }
     .compact-row { display:flex; gap:6px; align-items:center; }
 
+    /* Inputs: remove harsh focus line, add subtle glow */
     input[type="text"], .small-input {
       width:100%;
       padding:6px 8px;
@@ -54,6 +55,7 @@
     .btn.clear { background:#efefef; color:#222; }
 
     .suggestions { position: relative; }
+    /* Hide suggestion lists by default to avoid that thin “line” */
     .suggestions-list {
       position: absolute;
       left:0;
@@ -103,27 +105,29 @@
 
     <div class="search-section">
       <h4>Search by Endpoints</h4>
+      <!-- Endpoint 1 -->
       <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
       <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
       <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
       <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
       <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
       <hr>
+      <!-- Endpoint 2 -->
       <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
       <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
       <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
       <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
       <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
@@ -133,53 +137,162 @@
   <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- For nearest-point / overlap detection -->
+  <script src="https://unpkg.com/leaflet-geometryutil"></script>
 
   <script>
+    // CSV LINK
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
     const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
+    const HOVER_TOLERANCE_METERS = 50; // how close counts as "overlapping"
     function normalize(s){ if(!s) return ''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
     function nLower(s){ return normalize(s).toLowerCase(); }
     function colorFromString(str){ const s=normalize(str||''); let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));}
 
     const map = L.map('map', { preferCanvas: true }).setView([13,122],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
     let allData=[], routeLayers=[], selectedRouteNames=[];
-    let clickedLayer=null;
+    let clickedGroup=null; // {name, layers:[]}
+    const routeIndex = new Map(); // routeName -> [layers]
 
-    function clearRouteLayers(){routeLayers.forEach(l=>map.removeLayer(l));routeLayers=[];clickedLayer=null;}
-    function tryParseGeoPath(geo){if(!geo)return null;try{return JSON.parse(normalize(geo));}catch(e){return null;}}
+    // Shared tooltip for hover counts
+    const hoverTooltip = L.tooltip({permanent:false, direction:'top', opacity:0.9});
+
+    function clearRouteLayers(){
+      routeLayers.forEach(l=>map.removeLayer(l));
+      routeLayers=[];
+      routeIndex.clear();
+      clickedGroup=null;
+      map.closePopup();
+      if(map.hasLayer(hoverTooltip)) map.removeLayer(hoverTooltip);
+    }
+    function tryParseGeoPath(geo){ if(!geo) return null; try{return JSON.parse(normalize(geo));}catch(e){return null;} }
 
     function drawRowOnMap(row){
-      const geo=row["GEO PATH"]; const parsed=tryParseGeoPath(geo); if(!parsed)return;
+      const parsed=tryParseGeoPath(row["GEO PATH"]); if(!parsed) return;
       const segments=(Array.isArray(parsed)&&Array.isArray(parsed[0])&&Array.isArray(parsed[0][0]))?parsed:[parsed];
       const routeName=normalize(row["ROUTE NAME"]||''); const baseColor=colorFromString(routeName||(row["DENO"]||''));
-      for(const seg of segments){try{
-        const latlngs=seg.map(c=>[+c[1],+c[0]]);
-        const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
-        pl.bindPopup(popupHtml(row),{maxWidth:300});
-        pl.options.baseColor=baseColor;
 
-        pl.on('mouseover',()=>{ if(pl!==clickedLayer){pl.setStyle({color:'yellow',weight:7,opacity:1});} pl.bringToFront(); });
-        pl.on('mouseout',()=>{ if(pl!==clickedLayer){pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});} });
-        pl.on('click',()=>{ if(clickedLayer&&clickedLayer!==pl){clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});}
-          clickedLayer=pl;pl.setStyle({color:'yellow',weight:7,opacity:1});pl.bringToFront();map.fitBounds(pl.getBounds(),{padding:[40,40]}); });
+      for(const seg of segments){
+        try{
+          const latlngs=seg.map(c=>[+c[1],+c[0]]);
+          const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
+          // store metadata
+          pl.options.baseColor=baseColor;
+          pl.options.routeName=routeName;
+          pl.metaRow=row;
 
-        routeLayers.push(pl);
-      }catch(e){}}
+          // index by route name (so we can highlight entire route)
+          if(!routeIndex.has(routeName)) routeIndex.set(routeName, []);
+          routeIndex.get(routeName).push(pl);
+
+          // Hover behavior
+          pl.on('mouseover', e=>{
+            // temp highlight just this segment
+            if(!isInClickedGroup(pl)) pl.setStyle({color:'yellow',weight:7,opacity:1});
+            pl.bringToFront();
+            showHoverCount(e.latlng);
+          });
+          pl.on('mousemove', e=>{
+            showHoverCount(e.latlng);
+          });
+          pl.on('mouseout', ()=>{
+            if(!isInClickedGroup(pl)) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
+            if(map.hasLayer(hoverTooltip)) map.removeLayer(hoverTooltip);
+          });
+
+          // Click: show list of overlapping routes (distinct names)
+          pl.on('click', e=>{
+            const names = nearbyRouteNames(e.latlng);
+            const listHtml = names.map(n=>{
+              const encoded = encodeURIComponent(n);
+              return `<li><a href="#" data-route="${encoded}" onclick="__selectRoute(decodeURIComponent(this.getAttribute('data-route')));return false;">${escapeHtml(n)}</a></li>`;
+            }).join('');
+            const popupHtml = `
+              <div style="min-width:260px;max-width:340px">
+                <div style="font-weight:700;margin-bottom:6px">${names.length} route(s) here</div>
+                <ul style="margin:0 0 8px 18px;padding:0;">${listHtml}</ul>
+                <div id="routePopupInfo" style="font-size:12px;color:#333;">Click a route above to see details.</div>
+              </div>`;
+            L.popup({maxWidth:360,closeOnClick:false,autoClose:true})
+              .setLatLng(e.latlng)
+              .setContent(popupHtml)
+              .openOn(map);
+          });
+
+          routeLayers.push(pl);
+        }catch(e){}
+      }
     }
+
+    // Helpers for hover & click
+    function isInClickedGroup(layer){
+      return clickedGroup && clickedGroup.layers.includes(layer);
+    }
+
+    function showHoverCount(latlng){
+      const names = nearbyRouteNames(latlng);
+      hoverTooltip.setLatLng(latlng).setContent(`${names.size} route(s) here`);
+      if(!map.hasLayer(hoverTooltip)) hoverTooltip.addTo(map);
+    }
+
+    function nearbyRouteNames(latlng){
+      const nameSet = new Set();
+      for(const l of routeLayers){
+        if(!map.hasLayer(l)) continue;
+        const closest = L.GeometryUtil.closest(map, l, latlng);
+        if(closest && latlng.distanceTo(closest) <= HOVER_TOLERANCE_METERS){
+          const n = l.options.routeName || '(unnamed)';
+          nameSet.add(n);
+        }
+      }
+      return nameSet;
+    }
+
+    // Called from popup list <a>
+    window.__selectRoute = function(routeName){
+      // reset previous selection
+      if(clickedGroup){
+        for(const l of clickedGroup.layers){
+          l.setStyle({color:l.options.baseColor,weight:4,opacity:0.95});
+        }
+      }
+      const layers = routeIndex.get(routeName) || [];
+      clickedGroup = {name: routeName, layers};
+
+      // highlight all segments of this route
+      for(const l of layers){
+        l.setStyle({color:'yellow',weight:7,opacity:1});
+        l.bringToFront();
+      }
+      if(layers.length){
+        const fg = L.featureGroup(layers);
+        map.fitBounds(fg.getBounds(), {padding:[40,40]});
+      }
+
+      // show details in the same popup (use first segment's row)
+      const row = layers[0]?.metaRow;
+      const infoDiv = document.getElementById('routePopupInfo');
+      if(infoDiv && row){
+        infoDiv.innerHTML = popupHtml(row);
+      }
+    };
 
     function popupHtml(row){
-      return `<div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
-      <div><strong>DENO:</strong> ${normalize(row["DENO"]||'')}</div>
-      <div><strong>CLASS:</strong> ${normalize(row["Class"]||'')}</div>
-      <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
-      <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>`;
+      return `<div style="font-size:14px;line-height:1.35">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px">${escapeHtml(normalize(row["ROUTE NAME"]||''))}</div>
+        <div><strong>DENO:</strong> ${escapeHtml(normalize(row["DENO"]||''))}</div>
+        <div><strong>Class:</strong> ${escapeHtml(normalize(row["Class"]||''))}</div>
+        <div><strong>Route Class:</strong> ${escapeHtml(normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||''))}</div>
+        <div><strong>NAU:</strong> ${escapeHtml(normalize(row["NO. OF AUTHORIZED UNITS"]||''))}</div>
+      </div>`;
     }
 
-    /* --- autocomplete + filters (unchanged from working version) --- */
+    /* --- autocomplete + filters (unchanged from your working version) --- */
     const suggestions={routeNames:[],ep1Region:[],ep1Province:[],ep1LGU:[],ep1Barangay:[],ep1Terminal:[],ep2Region:[],ep2Province:[],ep2LGU:[],ep2Barangay:[],ep2Terminal:[]};
     function uniqueSorted(arr){return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
     function makeAutocomplete(inputEl,suggestionArray,containerEl,onPick){
@@ -187,10 +300,28 @@
       inputEl.addEventListener('focus',function(){const q=nLower(this.value);renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);});
       inputEl.addEventListener('blur',()=>setTimeout(()=>containerEl.style.display='none',180));
     }
-    function renderSuggestions(containerEl,list,onPick){if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}containerEl.innerHTML='';for(const v of list){const d=document.createElement('div');d.textContent=v;d.onclick=()=>{onPick(v);containerEl.style.display='none';};containerEl.appendChild(d);}containerEl.style.display='block';}
+    function renderSuggestions(containerEl,list,onPick){
+      if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}
+      containerEl.innerHTML='';
+      for(const v of list){
+        const d=document.createElement('div');
+        d.textContent=v;
+        d.onclick=()=>{onPick(v);containerEl.style.display='none';};
+        containerEl.appendChild(d);
+      }
+      containerEl.style.display='block';
+    }
     function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n))return;selectedRouteNames.push(n);renderChips();}
     function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name));renderChips();}
-    function renderChips(){const c=document.getElementById('routeChips');c.innerHTML='';for(const n of selectedRouteNames){const ch=document.createElement('div');ch.className='chip';const t=document.createElement('span');t.textContent=n;const b=document.createElement('button');b.innerHTML='&times;';b.onclick=()=>removeRouteChip(n);ch.appendChild(t);ch.appendChild(b);c.appendChild(ch);}}
+    function renderChips(){
+      const c=document.getElementById('routeChips');c.innerHTML='';
+      for(const n of selectedRouteNames){
+        const ch=document.createElement('div');ch.className='chip';
+        const t=document.createElement('span');t.textContent=n;
+        const b=document.createElement('button');b.innerHTML='&times;';b.onclick=()=>removeRouteChip(n);
+        ch.appendChild(t);ch.appendChild(b);c.appendChild(ch);
+      }
+    }
 
     function applyFilters(){
       const rSelected=selectedRouteNames.map(n=>n.toLowerCase());
@@ -226,41 +357,68 @@
       fitMapToRouteLayers();
     }
 
-    function resetFilters(){selectedRouteNames=[];renderChips();document.querySelectorAll('.search-container input').forEach(i=>i.value='');clearRouteLayers();allData.forEach(drawRowOnMap);fitMapToRouteLayers();}
-    function fitMapToRouteLayers(){if(routeLayers.length===0)return;map.fitBounds(L.featureGroup(routeLayers).getBounds(),{padding:[40,40]});}
+    function resetFilters(){
+      selectedRouteNames=[];renderChips();
+      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
+      clearRouteLayers();
+      allData.forEach(drawRowOnMap);
+      fitMapToRouteLayers();
+    }
+    function fitMapToRouteLayers(){
+      if(routeLayers.length===0) return;
+      map.fitBounds(L.featureGroup(routeLayers).getBounds(),{padding:[40,40]});
+    }
 
+    // Load data + wire suggestions
     fetch(csvUrl).then(r=>r.text()).then(csvText=>{
-      Papa.parse(csvText,{header:true,skipEmptyLines:true,complete:results=>{
-        allData=results.data;
-        suggestions.routeNames=uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
-        suggestions.ep1Region=uniqueSorted(allData.map(r=>r["ENDPOINT 1 REGION"]));
-        suggestions.ep1Province=uniqueSorted(allData.map(r=>r["ENDPOINT 1 PROVINCE"]));
-        suggestions.ep1LGU=uniqueSorted(allData.map(r=>r["ENDPOINT 1 LGU"]));
-        suggestions.ep1Barangay=uniqueSorted(allData.map(r=>r["ENDPOINT 1 BARANGAY"]));
-        suggestions.ep1Terminal=uniqueSorted(allData.map(r=>r["ENDPOINT 1 TERMINAL"]));
-        suggestions.ep2Region=uniqueSorted(allData.map(r=>r["ENDPOINT 2 REGION"]));
-        suggestions.ep2Province=uniqueSorted(allData.map(r=>r["ENDPOINT 2 PROVINCE"]));
-        suggestions.ep2LGU=uniqueSorted(allData.map(r=>r["ENDPOINT 2 LGU"]));
-        suggestions.ep2Barangay=uniqueSorted(allData.map(r=>r["ENDPOINT 2 BARANGAY"]));
-        suggestions.ep2Terminal=uniqueSorted(allData.map(r=>r["ENDPOINT 2 TERMINAL"]));
+      Papa.parse(csvText,{
+        header:true,skipEmptyLines:true,
+        complete:results=>{
+          allData=results.data;
 
-        makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),val=>{document.getElementById('routeInput').value='';addRouteChip(val);});
-        document.getElementById('routeInput').addEventListener('keydown',(ev)=>{if(ev.key==='Enter'){ev.preventDefault();const q=ev.target.value.trim();if(!q)return;const exact=suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase());addRouteChip(exact||q);ev.target.value='';}});
+          suggestions.routeNames=uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
+          suggestions.ep1Region=uniqueSorted(allData.map(r=>r["ENDPOINT 1 REGION"]));
+          suggestions.ep1Province=uniqueSorted(allData.map(r=>r["ENDPOINT 1 PROVINCE"]));
+          suggestions.ep1LGU=uniqueSorted(allData.map(r=>r["ENDPOINT 1 LGU"]));
+          suggestions.ep1Barangay=uniqueSorted(allData.map(r=>r["ENDPOINT 1 BARANGAY"]));
+          suggestions.ep1Terminal=uniqueSorted(allData.map(r=>r["ENDPOINT 1 TERMINAL"]));
+          suggestions.ep2Region=uniqueSorted(allData.map(r=>r["ENDPOINT 2 REGION"]));
+          suggestions.ep2Province=uniqueSorted(allData.map(r=>r["ENDPOINT 2 PROVINCE"]));
+          suggestions.ep2LGU=uniqueSorted(allData.map(r=>r["ENDPOINT 2 LGU"]));
+          suggestions.ep2Barangay=uniqueSorted(allData.map(r=>r["ENDPOINT 2 BARANGAY"]));
+          suggestions.ep2Terminal=uniqueSorted(allData.map(r=>r["ENDPOINT 2 TERMINAL"]));
 
-        makeAutocomplete(document.getElementById('ep1Region'),suggestions.ep1Region,document.getElementById('ep1RegionSuggestions'),val=>{document.getElementById('ep1Region').value=val;});
-        makeAutocomplete(document.getElementById('ep1Province'),suggestions.ep1Province,document.getElementById('ep1ProvinceSuggestions'),val=>{document.getElementById('ep1Province').value=val;});
-        makeAutocomplete(document.getElementById('ep1LGU'),suggestions.ep1LGU,document.getElementById('ep1LGUSuggestions'),val=>{document.getElementById('ep1LGU').value=val;});
-        makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.ep1Barangay,document.getElementById('ep1BarangaySuggestions'),val=>{document.getElementById('ep1Barangay').value=val;});
-        makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.ep1Terminal,document.getElementById('ep1TerminalSuggestions'),val=>{document.getElementById('ep1Terminal').value=val;});
-        makeAutocomplete(document.getElementById('ep2Region'),suggestions.ep2Region,document.getElementById('ep2RegionSuggestions'),val=>{document.getElementById('ep2Region').value=val;});
-        makeAutocomplete(document.getElementById('ep2Province'),suggestions.ep2Province,document.getElementById('ep2ProvinceSuggestions'),val=>{document.getElementById('ep2Province').value=val;});
-        makeAutocomplete(document.getElementById('ep2LGU'),suggestions.ep2LGU,document.getElementById('ep2LGUSuggestions'),val=>{document.getElementById('ep2LGU').value=val;});
-        makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.ep2Barangay,document.getElementById('ep2BarangaySuggestions'),val=>{document.getElementById('ep2Barangay').value=val;});
-        makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.ep2Terminal,document.getElementById('ep2TerminalSuggestions'),val=>{document.getElementById('ep2Terminal').value=val;});
+          makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),val=>{document.getElementById('routeInput').value='';addRouteChip(val);});
+          // Enter to add route quickly
+          document.getElementById('routeInput').addEventListener('keydown',(ev)=>{
+            if(ev.key==='Enter'){
+              ev.preventDefault();
+              const q=ev.target.value.trim();
+              if(!q) return;
+              const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase());
+              addRouteChip(exact||q);
+              ev.target.value='';
+            }
+          });
 
-        allData.forEach(drawRowOnMap);
-        fitMapToRouteLayers();
-      }});
+          // Endpoint autocompletes
+          makeAutocomplete(document.getElementById('ep1Region'),suggestions.ep1Region,document.getElementById('ep1RegionSuggestions'),val=>{document.getElementById('ep1Region').value=val;});
+          makeAutocomplete(document.getElementById('ep1Province'),suggestions.ep1Province,document.getElementById('ep1ProvinceSuggestions'),val=>{document.getElementById('ep1Province').value=val;});
+          makeAutocomplete(document.getElementById('ep1LGU'),suggestions.ep1LGU,document.getElementById('ep1LGUSuggestions'),val=>{document.getElementById('ep1LGU').value=val;});
+          makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.ep1Barangay,document.getElementById('ep1BarangaySuggestions'),val=>{document.getElementById('ep1Barangay').value=val;});
+          makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.ep1Terminal,document.getElementById('ep1TerminalSuggestions'),val=>{document.getElementById('ep1Terminal').value=val;});
+
+          makeAutocomplete(document.getElementById('ep2Region'),suggestions.ep2Region,document.getElementById('ep2RegionSuggestions'),val=>{document.getElementById('ep2Region').value=val;});
+          makeAutocomplete(document.getElementById('ep2Province'),suggestions.ep2Province,document.getElementById('ep2ProvinceSuggestions'),val=>{document.getElementById('ep2Province').value=val;});
+          makeAutocomplete(document.getElementById('ep2LGU'),suggestions.ep2LGU,document.getElementById('ep2LGUSuggestions'),val=>{document.getElementById('ep2LGU').value=val;});
+          makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.ep2Barangay,document.getElementById('ep2BarangaySuggestions'),val=>{document.getElementById('ep2Barangay').value=val;});
+          makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.ep2Terminal,document.getElementById('ep2TerminalSuggestions'),val=>{document.getElementById('ep2Terminal').value=val;});
+
+          // initial draw
+          allData.forEach(drawRowOnMap);
+          fitMapToRouteLayers();
+        }
+      });
     });
   </script>
 </body>
