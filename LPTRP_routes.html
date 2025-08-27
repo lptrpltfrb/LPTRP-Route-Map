@@ -79,7 +79,6 @@
   <div class="north-arrow" title="North"></div>
 
   <div class="search-container" id="searchPanel">
-    <!-- Search sections (same as your working script) -->
     <div class="search-section">
       <h4>Search by Route Name</h4>
       <div class="chips" id="routeChips"></div>
@@ -88,31 +87,30 @@
         <div class="suggestions-list" id="routeSuggestions" style="display:none"></div>
       </div>
     </div>
+
     <div class="search-section">
       <h4>Search by Endpoints</h4>
-      <!-- Endpoint 1 -->
       <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
       <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
       <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
       <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
       <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
+      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
       <hr>
-      <!-- Endpoint 2 -->
       <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
       <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
       <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
       <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
       <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
+      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
@@ -136,7 +134,7 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
-    let allData=[], routeLayers=[];
+    let allData=[], routeLayers=[], selectedRouteNames=[];
 
     function clearRouteLayers(){ routeLayers.forEach(l=>map.removeLayer(l)); routeLayers=[]; }
     function tryParseGeoPath(geo){ if(!geo) return null; try{return JSON.parse(normalize(geo));}catch(e){return null;} }
@@ -145,43 +143,42 @@
       const geo=row["GEO PATH"]; const parsed=tryParseGeoPath(geo); if(!parsed) return;
       const segments=(Array.isArray(parsed)&&Array.isArray(parsed[0])&&Array.isArray(parsed[0][0]))?parsed:[parsed];
       const routeName=normalize(row["ROUTE NAME"]||''); const baseColor=colorFromString(routeName||(row["DENO"]||''));
+      for(const seg of segments){ try{
+        const latlngs=seg.map(c=>[+c[1],+c[0]]);
+        const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
+        pl.bindPopup(popupHtml(row),{maxWidth:300});
+        pl.options.baseColor=baseColor;
+        pl.options.routeName=routeName;
 
-      for(const seg of segments){
-        try{
-          const latlngs=seg.map(c=>[+c[1],+c[0]]);
-          const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
-          pl.bindPopup(popupHtml(row),{maxWidth:300});
-          pl.options.baseColor=baseColor;
-          pl.options.routeName=routeName;
+        pl.on('mouseover', e=>{
+          bringToFront(pl);
+          pl.setStyle({color:'yellow',weight:6,opacity:1});
+          const nearby=getNearbyRoutes(e.latlng);
+          pl.bindTooltip(nearby.length+" route(s) here",{permanent:false}).openTooltip(e.latlng);
+        });
+        pl.on('mouseout', ()=>pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95}));
 
-          pl.on('mouseover', e=>{
-            bringToFront(pl);
-            pl.setStyle({color:'yellow',weight:6,opacity:1});
-            const nearby=getNearbyRoutes(e.latlng);
-            pl.bindTooltip(nearby.length+" route(s) here",{permanent:false}).openTooltip(e.latlng);
-          });
-          pl.on('mouseout', ()=>pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95}));
-
-          pl.on('click', e=>{
-            bringToFront(pl);
-            pl.setStyle({color:'yellow',weight:7,opacity:1});
-            const nearby=getNearbyRoutes(e.latlng);
-            const list=nearby.map(r=>`<a href='#' onclick="highlightSpecific('${r.options.routeName}')">${r.options.routeName}</a>`).join("<br>");
-            L.popup().setLatLng(e.latlng).setContent("<b>Routes here:</b><br>"+list).openOn(map);
-          });
-
-          routeLayers.push(pl);
-        }catch(e){}
-      }
+        pl.on('click', e=>{
+          bringToFront(pl);
+          pl.setStyle({color:'yellow',weight:7,opacity:1});
+          const nearby=getNearbyRoutes(e.latlng);
+          const list=nearby.map(r=>r.options.routeName).join("<br>");
+          L.popup().setLatLng(e.latlng).setContent("<b>Routes here:</b><br>"+list).openOn(map);
+          map.fitBounds(pl.getBounds(),{padding:[40,40]});
+        });
+        routeLayers.push(pl);
+      }catch(e){} }
     }
 
-    function bringToFront(layer){ if(layer.bringToFront) layer.bringToFront(); }
+    function bringToFront(layer){
+      if(layer.bringToFront) layer.bringToFront();
+    }
 
     function getNearbyRoutes(latlng){
       const nearby=[];
       for(const l of routeLayers){
         const closest=L.GeometryUtil.closest(map,l,latlng);
-        if(closest && latlng.distanceTo(closest)<30){ // within 30 meters
+        if(closest && latlng.distanceTo(closest)<50){ // within 50 meters
           nearby.push(l);
         }
       }
@@ -196,21 +193,9 @@
       <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>`;
     }
 
-    // highlight a chosen route by name from popup list
-    function highlightSpecific(name){
-      for(const l of routeLayers){
-        if(l.options.routeName===name){
-          bringToFront(l);
-          l.setStyle({color:'yellow',weight:7,opacity:1});
-          map.fitBounds(l.getBounds(),{padding:[40,40]});
-        }else{
-          l.setStyle({color:l.options.baseColor,weight:4,opacity:0.95});
-        }
-      }
-    }
-
-    // ---- keep your working filter logic below ----
-
+    // ---- autocomplete & filters (same as before, omitted here for brevity, keep your working version) ----
+    // You can keep the filter logic exactly as in your last stable script.
+    
     fetch(csvUrl).then(r=>r.text()).then(csvText=>{
       Papa.parse(csvText,{header:true,skipEmptyLines:true,complete:results=>{
         allData=results.data;
