@@ -5,11 +5,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
   <style>
     html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
     #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
 
+    /* Filter box style restored from previous working script */
     .search-container {
       position: absolute;
       left: 12px;
@@ -86,166 +89,217 @@
   </style>
 </head>
 <body>
-<div id="map"></div>
-<div class="north-arrow" title="North"></div>
+  <div id="map"></div>
+  <div class="north-arrow" title="North"></div>
 
-<div class="search-container" id="searchPanel">
-  <div class="search-section">
-    <h4>Search by Route Name</h4>
-    <div class="chips" id="routeChips"></div>
-    <div class="suggestions" style="margin-top:8px;">
-      <input id="routeInput" type="text" placeholder="Type route name" class="small-input" autocomplete="off" />
-      <div class="suggestions-list" id="routeSuggestions"></div>
+  <div class="search-container" id="searchPanel">
+    <div class="search-section">
+      <h4>Search by Route Name</h4>
+      <div class="chips" id="routeChips"></div>
+      <div class="suggestions" style="margin-top:8px;">
+        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
+        <div class="suggestions-list" id="routeSuggestions"></div>
+      </div>
     </div>
+
+    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
+    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
-  <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
-  <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- Leaflet + PapaParse -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
-<script>
-const csvUrl="https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?output=csv";
+  <script>
+  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?output=csv";
 
-const PALETTE=['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
-function normalize(s){if(!s)return'';return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim();}
-function nLower(s){return normalize(s).toLowerCase();}
-function colorFromString(str){ const s=normalize(str||''); let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
+  const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
+  function normalize(s){ if(!s) return ''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
+  function nLower(s){ return normalize(s).toLowerCase(); }
+  function colorFromString(str){ const s=normalize(str||''); let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
 
-const map=L.map('map',{preferCanvas:true}).setView([13,122],6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18, attribution:'© OpenStreetMap'}).addTo(map);
-L.control.scale({position:'bottomleft',metric:true}).addTo(map);
+  const map = L.map('map', { preferCanvas: true }).setView([13,122],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+  L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
-let allData=[], routeLayers=[], selectedRouteNames=[];
-let hoverPopup = L.popup({closeOnClick:false, autoClose:false});
-let clickedRoute=null;
-let clickListPopup=null;
+  let allData=[], routeLayers=[], selectedRouteNames=[], hoveredRoutesPopup=null;
+  let clickedLayer = null;
 
-function clearRouteLayers(){
-  routeLayers.forEach(l=>map.removeLayer(l));
-  routeLayers=[];
-  clickedRoute=null;
-  if(clickListPopup){map.removeLayer(clickListPopup); clickListPopup=null;}
-}
+  function clearRouteLayers(){
+    routeLayers.forEach(l=>map.removeLayer(l));
+    routeLayers=[];
+    clickedLayer = null;
+  }
 
-function tryParseGeoPath(geo){if(!geo) return null; try{return JSON.parse(normalize(geo));}catch(e){return null;} }
+  function tryParseGeoPath(geo){ if(!geo) return null; try{return JSON.parse(normalize(geo));}catch(e){return null;} }
 
-function drawRowOnMap(row){
-  const geo=row["GEO PATH"]; const parsed=tryParseGeoPath(geo); if(!parsed) return;
-  const segments=(Array.isArray(parsed)&&Array.isArray(parsed[0])&&Array.isArray(parsed[0][0]))?parsed:[parsed];
-  const routeName=normalize(row["ROUTE NAME"]||''); const baseColor=colorFromString(routeName||(row["DENO"]||''));
-  for(const seg of segments){ try{
-    const latlngs=seg.map(c=>[+c[1],+c[0]]);
-    const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
-    pl.routeData=row;
-    pl.options.baseColor=baseColor;
+  function drawRowOnMap(row){
+    const geo=row["GEO PATH"]; const parsed=tryParseGeoPath(geo); if(!parsed) return;
+    const segments=(Array.isArray(parsed)&&Array.isArray(parsed[0])&&Array.isArray(parsed[0][0]))?parsed:[parsed];
+    const routeName=normalize(row["ROUTE NAME"]||''); const baseColor=colorFromString(routeName||(row["DENO"]||''));
+    for(const seg of segments){ try{
+      const latlngs=seg.map(c=>[+c[1],+c[0]]);
+      const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
+      pl.routeData=row;
+      pl.options.baseColor=baseColor;
 
-    pl.on('mouseover',()=>{
-      if(pl !== clickedRoute) pl.setStyle({color:'yellow',weight:7,opacity:1});
-      let overlapping=routeLayers.filter(r=>r.getBounds().intersects(pl.getBounds()));
-      hoverPopup.setLatLng(latlngs[0]).setContent(overlapping.length + " route(s) here").openOn(map);
-    });
-
-    pl.on('mouseout',()=>{
-      if(pl !== clickedRoute) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
-      map.closePopup(hoverPopup);
-    });
-
-    pl.on('click',(e)=>{
-      if(clickListPopup) map.removeLayer(clickListPopup);
-      let overlapping=routeLayers.filter(r=>r.getBounds().intersects(pl.getBounds()));
-      let content = '<b>Routes on this point:</b><br>';
-      overlapping.forEach(r=>{
-        content+='<a href="#" onclick="highlightRoute('+routeLayers.indexOf(r)+');return false;">'+normalize(r.routeData["ROUTE NAME"])+'</a><br>';
+      pl.on('mouseover',e=>{
+        const nearbyRoutes = routeLayers.filter(l=>isNearLine(e.latlng,l));
+        nearbyRoutes.forEach(lr=>{ if(lr!==clickedLayer) lr.setStyle({color:'yellow',weight:7,opacity:1}); });
+        if(hoveredRoutesPopup) map.removeLayer(hoveredRoutesPopup);
+        hoveredRoutesPopup = L.popup({closeButton:false,autoClose:false,offset:[0,-10]})
+          .setLatLng(e.latlng)
+          .setContent(nearbyRoutes.map(lr=>normalize(lr.routeData["ROUTE NAME"])).filter((v,i,a)=>a.indexOf(v)===i).length + " unique route(s)")
+          .openOn(map);
       });
-      clickListPopup=L.popup({closeOnClick:false, autoClose:false})
-        .setLatLng(e.latlng).setContent(content).openOn(map);
+
+      pl.on('mouseout',()=>{ 
+        if(pl !== clickedLayer) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
+        if(hoveredRoutesPopup) map.removeLayer(hoveredRoutesPopup);
+      });
+
+      pl.on('click',e=>{
+        const nearbyRoutes = routeLayers.filter(l=>isNearLine(e.latlng,l));
+        showRouteListPopup(e.latlng,nearbyRoutes);
+      });
+
+      routeLayers.push(pl);
+    }catch(e){} }
+  }
+
+  function isNearLine(latlng, polyline, tolerance=0.0005){
+    const pts = polyline.getLatLngs();
+    for(let i=0;i<pts.length-1;i++){
+      if(pointToSegmentDistance(latlng,pts[i],pts[i+1])<=tolerance) return true;
+    }
+    return false;
+  }
+
+  function pointToSegmentDistance(p, p1, p2){
+    const x=p.lat, y=p.lng;
+    const x1=p1.lat, y1=p1.lng, x2=p2.lat, y2=p2.lng;
+    const A=x-x1,B=y-y1,C=x2-x1,D=y2-y1;
+    const dot = A*C + B*D;
+    const len_sq = C*C + D*D;
+    let param = len_sq!==0? dot/len_sq : -1;
+    let xx,yy;
+    if(param<0){xx=x1;yy=y1;} else if(param>1){xx=x2;yy=y2;} else {xx=x1+param*C; yy=y1+param*D;}
+    const dx=x-xx, dy=y-yy;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  let routeListPopup = null;
+  function showRouteListPopup(latlng, routes){
+    if(routeListPopup) map.removeLayer(routeListPopup);
+    const html = routes.map(r=>{
+      const name=normalize(r.routeData["ROUTE NAME"]);
+      return `<div style="cursor:pointer;color:#0b3d91;font-weight:bold;" onclick="highlightRoute('${name}')">${name}</div>`;
+    }).join('');
+    routeListPopup = L.popup({autoClose:false,closeOnClick:false,maxWidth:300})
+      .setLatLng(latlng)
+      .setContent(html)
+      .openOn(map);
+  }
+
+  function highlightRoute(name){
+    routeLayers.forEach(l=>{
+      if(l.routeData["ROUTE NAME"]===name){
+        if(clickedLayer && clickedLayer!==l){
+          clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
+        }
+        clickedLayer=l;
+        l.setStyle({color:'red',weight:7,opacity:1});
+        map.fitBounds(l.getBounds(),{padding:[40,40]});
+        L.popup({autoClose:true,maxWidth:300})
+          .setLatLng(l.getBounds().getCenter())
+          .setContent(`<div style="font-weight:bold">${normalize(l.routeData["ROUTE NAME"])}</div>
+          <div><strong>DENO:</strong> ${normalize(l.routeData["DENO"]||'')}</div>
+          <div><strong>CLASS:</strong> ${normalize(l.routeData["Class"]||'')}</div>
+          <div><strong>ROUTE CLASS:</strong> ${normalize(l.routeData["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
+          <div><strong>NAU:</strong> ${normalize(l.routeData["NO. OF AUTHORIZED UNITS"]||'')}</div>`)
+          .openOn(map);
+      }
     });
+  }
 
-    routeLayers.push(pl);
-  }catch(e){console.log(e);} }
-}
-
-function highlightRoute(idx){
-  if(clickedRoute) clickedRoute.setStyle({color:clickedRoute.options.baseColor,weight:4,opacity:0.95});
-  clickedRoute=routeLayers[idx];
-  clickedRoute.setStyle({color:'red',weight:8,opacity:1});
-  clickedRoute.bringToFront();
-  L.popup({closeOnClick:true})
-    .setLatLng(clickedRoute.getLatLngs()[0][0])
-    .setContent('<b>'+normalize(clickedRoute.routeData["ROUTE NAME"])+'</b><br>'+
-      'DENO: '+normalize(clickedRoute.routeData["DENO"]||'')+'<br>'+
-      'CLASS: '+normalize(clickedRoute.routeData["Class"]||'')+'<br>'+
-      'ROUTE CLASS: '+normalize(clickedRoute.routeData["ROUTE CLASSIFICATION (if LPTRP)"]||'')+'<br>'+
-      'NAU: '+normalize(clickedRoute.routeData["NO. OF AUTHORIZED UNITS"]||''))
-    .openOn(map);
-}
-
-function popupHtml(row){return '<b>'+normalize(row["ROUTE NAME"]||'')+'</b>';}
-
-const suggestions={routeNames:[]};
-function uniqueSorted(arr){return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
-function makeAutocomplete(inputEl,suggestionArray,containerEl,onPick){
-  inputEl.addEventListener('input',function(){
-    const q=nLower(this.value);
-    renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);
+  map.on('click',()=>{ 
+    if(clickedLayer) clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
+    clickedLayer=null;
+    if(routeListPopup) map.removeLayer(routeListPopup);
+    if(hoveredRoutesPopup) map.removeLayer(hoveredRoutesPopup);
   });
-  inputEl.addEventListener('focus',function(){
-    const q=nLower(this.value);
-    renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);
-  });
-  inputEl.addEventListener('blur',()=>setTimeout(()=>containerEl.style.display='none',180));
-}
-function renderSuggestions(containerEl,list,onPick){
-  if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}
-  containerEl.innerHTML='';
-  for(const v of list){
-    const d=document.createElement('div');
-    d.textContent=v;
-    d.onclick=()=>{onPick(v);containerEl.style.display='none';};
-    containerEl.appendChild(d);
-  }
-  containerEl.style.display='block';
-}
-function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n))return;selectedRouteNames.push(n);renderChips();}
-function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name));renderChips();}
-function renderChips(){
-  const c=document.getElementById('routeChips');c.innerHTML='';
-  for(const n of selectedRouteNames){
-    const ch=document.createElement('div');ch.className='chip';
-    const t=document.createElement('span');t.textContent=n;
-    const b=document.createElement('button');b.innerHTML='&times;';b.onclick=()=>removeRouteChip(n);
-    ch.appendChild(t); ch.appendChild(b); c.appendChild(ch);
-  }
-}
 
-function applyFilters(){
-  const rSelected=selectedRouteNames.map(n=>n.toLowerCase());
-  clearRouteLayers();
-  for(const row of allData){
-    const rnNorm=nLower(row["ROUTE NAME"]||'');
-    if(rSelected.length===0 || rSelected.includes(rnNorm)) drawRowOnMap(row);
+  // --- Filter box autocomplete ---
+  let suggestions={routeNames:[]};
+  function uniqueSorted(arr){return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
+  function makeAutocomplete(inputEl,suggestionArray,containerEl,onPick){
+    inputEl.addEventListener('input',function(){
+      const q=nLower(this.value);
+      renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);
+    });
+    inputEl.addEventListener('focus',function(){
+      const q=nLower(this.value);
+      renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);
+    });
+    inputEl.addEventListener('blur',()=>setTimeout(()=>containerEl.style.display='none',180));
   }
-}
+  function renderSuggestions(containerEl,list,onPick){
+    if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}
+    containerEl.innerHTML='';
+    for(const v of list){
+      const d=document.createElement('div');
+      d.textContent=v;
+      d.onclick=()=>{onPick(v);containerEl.style.display='none';};
+      containerEl.appendChild(d);
+    }
+    containerEl.style.display='block';
+  }
 
-function resetFilters(){
-  selectedRouteNames=[]; renderChips();
-  document.querySelectorAll('.search-container input').forEach(i=>i.value='');
-  clearRouteLayers();
-  allData.forEach(drawRowOnMap);
-}
+  function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n))return;selectedRouteNames.push(n);renderChips();}
+  function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name));renderChips();}
+  function renderChips(){
+    const c=document.getElementById('routeChips');c.innerHTML='';
+    for(const n of selectedRouteNames){
+      const ch=document.createElement('div');ch.className='chip';
+      const t=document.createElement('span');t.textContent=n;
+      const b=document.createElement('button');b.innerHTML='&times;';b.onclick=()=>removeRouteChip(n);
+      ch.appendChild(t);ch.appendChild(b);c.appendChild(ch);
+    }
+  }
 
-fetch(csvUrl).then(r=>r.text()).then(csvText=>{
-  Papa.parse(csvText,{header:true,skipEmptyLines:true,complete:results=>{
-    allData=results.data;
-    suggestions.routeNames=uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
-    makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),val=>{document.getElementById('routeInput').value='';addRouteChip(val);});
+  function applyFilters(){
+    const rSelected=selectedRouteNames.map(n=>n.toLowerCase());
+    clearRouteLayers();
+    for(const row of allData){
+      const rnNorm=nLower(row["ROUTE NAME"]||'');
+      if(rSelected.length===0||rSelected.includes(rnNorm)) drawRowOnMap(row);
+    }
+  }
+  function resetFilters(){
+    selectedRouteNames=[];renderChips();
+    document.getElementById('routeInput').value='';
+    clearRouteLayers();
     allData.forEach(drawRowOnMap);
-  }});
-});
+  }
 
-map.on('click',()=>{ if(clickedRoute) clickedRoute.setStyle({color:clickedRoute.options.baseColor,weight:4,opacity:0.95}); clickedRoute=null; if(clickListPopup) map.removeLayer(clickListPopup); clickListPopup=null; });
-</script>
+  fetch(csvUrl).then(r=>r.text()).then(csvText=>{
+    Papa.parse(csvText,{header:true,skipEmptyLines:true,complete:results=>{
+      allData=results.data;
+      suggestions.routeNames=uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
+      makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),val=>{document.getElementById('routeInput').value='';addRouteChip(val);});
+      document.getElementById('routeInput').addEventListener('keydown',ev=>{
+        if(ev.key==='Enter'){
+          ev.preventDefault();
+          const q=ev.target.value.trim();
+          if(!q) return;
+          const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase());
+          addRouteChip(exact||q);
+          ev.target.value='';
+        }
+      });
+      allData.forEach(drawRowOnMap);
+    }});
+  });
+  </script>
 </body>
 </html>
