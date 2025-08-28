@@ -5,14 +5,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
     html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
     #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
 
-    /* Filter box style restored from previous working script */
+    /* --- RESTORED PREVIOUS WORKING FILTER BOX --- */
     .search-container {
       position: absolute;
       left: 12px;
@@ -106,7 +105,6 @@
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
 
-  <!-- Leaflet + PapaParse -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
@@ -122,13 +120,13 @@
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
   L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
-  let allData=[], routeLayers=[], selectedRouteNames=[], hoveredRoutesPopup=null;
-  let clickedLayer = null;
+  let allData=[], routeLayers=[], selectedRouteNames=[], hoveredPopup=null;
+  let clickedLayer = null, routeListPopup=null;
 
   function clearRouteLayers(){
     routeLayers.forEach(l=>map.removeLayer(l));
     routeLayers=[];
-    clickedLayer = null;
+    clickedLayer=null;
   }
 
   function tryParseGeoPath(geo){ if(!geo) return null; try{return JSON.parse(normalize(geo));}catch(e){return null;} }
@@ -140,31 +138,30 @@
     for(const seg of segments){ try{
       const latlngs=seg.map(c=>[+c[1],+c[0]]);
       const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
-      pl.routeData=row;
-      pl.options.baseColor=baseColor;
+      pl.routeData=row; pl.options.baseColor=baseColor;
 
       pl.on('mouseover',e=>{
-        const nearbyRoutes = routeLayers.filter(l=>isNearLine(e.latlng,l));
-        nearbyRoutes.forEach(lr=>{ if(lr!==clickedLayer) lr.setStyle({color:'yellow',weight:7,opacity:1}); });
-        if(hoveredRoutesPopup) map.removeLayer(hoveredRoutesPopup);
-        hoveredRoutesPopup = L.popup({closeButton:false,autoClose:false,offset:[0,-10]})
+        const nearby = routeLayers.filter(l=>isNearLine(e.latlng,l));
+        nearby.forEach(lr=>{ if(lr!==clickedLayer) lr.setStyle({color:'yellow',weight:7,opacity:1}); });
+        if(hoveredPopup) map.removeLayer(hoveredPopup);
+        hoveredPopup=L.popup({closeButton:false,autoClose:false,offset:[0,-10]})
           .setLatLng(e.latlng)
-          .setContent(nearbyRoutes.map(lr=>normalize(lr.routeData["ROUTE NAME"])).filter((v,i,a)=>a.indexOf(v)===i).length + " unique route(s)")
+          .setContent(nearby.length + " route(s)")
           .openOn(map);
       });
 
       pl.on('mouseout',()=>{ 
         if(pl !== clickedLayer) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
-        if(hoveredRoutesPopup) map.removeLayer(hoveredRoutesPopup);
+        if(hoveredPopup) map.removeLayer(hoveredPopup);
       });
 
       pl.on('click',e=>{
-        const nearbyRoutes = routeLayers.filter(l=>isNearLine(e.latlng,l));
-        showRouteListPopup(e.latlng,nearbyRoutes);
+        const nearby = routeLayers.filter(l=>isNearLine(e.latlng,l));
+        showRouteListPopup(e.latlng,nearby);
       });
 
       routeLayers.push(pl);
-    }catch(e){} }
+    }catch(e){console.error(e);} }
   }
 
   function isNearLine(latlng, polyline, tolerance=0.0005){
@@ -176,26 +173,23 @@
   }
 
   function pointToSegmentDistance(p, p1, p2){
-    const x=p.lat, y=p.lng;
-    const x1=p1.lat, y1=p1.lng, x2=p2.lat, y2=p2.lng;
+    const x=p.lat, y=p.lng, x1=p1.lat, y1=p1.lng, x2=p2.lat, y2=p2.lng;
     const A=x-x1,B=y-y1,C=x2-x1,D=y2-y1;
-    const dot = A*C + B*D;
-    const len_sq = C*C + D*D;
-    let param = len_sq!==0? dot/len_sq : -1;
+    const dot=A*C+B*D, len_sq=C*C+D*D;
+    const param=(len_sq!==0)?dot/len_sq:-1;
     let xx,yy;
-    if(param<0){xx=x1;yy=y1;} else if(param>1){xx=x2;yy=y2;} else {xx=x1+param*C; yy=y1+param*D;}
-    const dx=x-xx, dy=y-yy;
-    return Math.sqrt(dx*dx + dy*dy);
+    if(param<0){xx=x1;yy=y1;} else if(param>1){xx=x2;yy=y2;} else {xx=x1+param*C;yy=y1+param*D;}
+    const dx=x-xx,dy=y-yy;
+    return Math.sqrt(dx*dx+dy*dy);
   }
 
-  let routeListPopup = null;
-  function showRouteListPopup(latlng, routes){
+  function showRouteListPopup(latlng,routes){
     if(routeListPopup) map.removeLayer(routeListPopup);
     const html = routes.map(r=>{
       const name=normalize(r.routeData["ROUTE NAME"]);
       return `<div style="cursor:pointer;color:#0b3d91;font-weight:bold;" onclick="highlightRoute('${name}')">${name}</div>`;
     }).join('');
-    routeListPopup = L.popup({autoClose:false,closeOnClick:false,maxWidth:300})
+    routeListPopup=L.popup({autoClose:false,closeOnClick:false,maxWidth:300})
       .setLatLng(latlng)
       .setContent(html)
       .openOn(map);
@@ -204,9 +198,7 @@
   function highlightRoute(name){
     routeLayers.forEach(l=>{
       if(l.routeData["ROUTE NAME"]===name){
-        if(clickedLayer && clickedLayer!==l){
-          clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
-        }
+        if(clickedLayer && clickedLayer!==l) clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
         clickedLayer=l;
         l.setStyle({color:'red',weight:7,opacity:1});
         map.fitBounds(l.getBounds(),{padding:[40,40]});
@@ -226,10 +218,10 @@
     if(clickedLayer) clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
     clickedLayer=null;
     if(routeListPopup) map.removeLayer(routeListPopup);
-    if(hoveredRoutesPopup) map.removeLayer(hoveredRoutesPopup);
+    if(hoveredPopup) map.removeLayer(hoveredPopup);
   });
 
-  // --- Filter box autocomplete ---
+  // --- Filter autocomplete ---
   let suggestions={routeNames:[]};
   function uniqueSorted(arr){return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
   function makeAutocomplete(inputEl,suggestionArray,containerEl,onPick){
@@ -244,19 +236,18 @@
     inputEl.addEventListener('blur',()=>setTimeout(()=>containerEl.style.display='none',180));
   }
   function renderSuggestions(containerEl,list,onPick){
-    if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}
+    if(!list.length){containerEl.style.display='none'; containerEl.innerHTML=''; return;}
     containerEl.innerHTML='';
     for(const v of list){
-      const d=document.createElement('div');
-      d.textContent=v;
-      d.onclick=()=>{onPick(v);containerEl.style.display='none';};
+      const d=document.createElement('div'); d.textContent=v; d.onclick=()=>{onPick(v); containerEl.style.display='none';};
       containerEl.appendChild(d);
     }
     containerEl.style.display='block';
   }
 
-  function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n))return;selectedRouteNames.push(n);renderChips();}
-  function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name));renderChips();}
+  let selectedRouteNames=[];
+  function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips();}
+  function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name)); renderChips();}
   function renderChips(){
     const c=document.getElementById('routeChips');c.innerHTML='';
     for(const n of selectedRouteNames){
@@ -276,7 +267,7 @@
     }
   }
   function resetFilters(){
-    selectedRouteNames=[];renderChips();
+    selectedRouteNames=[]; renderChips();
     document.getElementById('routeInput').value='';
     clearRouteLayers();
     allData.forEach(drawRowOnMap);
@@ -286,16 +277,9 @@
     Papa.parse(csvText,{header:true,skipEmptyLines:true,complete:results=>{
       allData=results.data;
       suggestions.routeNames=uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
-      makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),val=>{document.getElementById('routeInput').value='';addRouteChip(val);});
+      makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),val=>{document.getElementById('routeInput').value=''; addRouteChip(val);});
       document.getElementById('routeInput').addEventListener('keydown',ev=>{
-        if(ev.key==='Enter'){
-          ev.preventDefault();
-          const q=ev.target.value.trim();
-          if(!q) return;
-          const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase());
-          addRouteChip(exact||q);
-          ev.target.value='';
-        }
+        if(ev.key==='Enter'){ev.preventDefault(); const q=ev.target.value.trim(); if(!q) return; const exact=suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value='';}
       });
       allData.forEach(drawRowOnMap);
     }});
