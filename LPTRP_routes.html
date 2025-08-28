@@ -1,179 +1,158 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Transport Routes Map</title>
   <meta charset="utf-8" />
+  <title>Transport Routes</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-  <!-- PapaParse for CSV -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
   <style>
-    body { margin:0; padding:0; }
-    #map { width:1170px; height:800px; }
-
+    #map { width: 1170px; height: 800px; }
     .search-box {
-      position:absolute; top:10px; left:10px; 
-      background:white; padding:10px;
-      z-index:1000; border-radius:8px; 
-      max-width:300px; box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-size: 13px;
+      width: 280px;
     }
-    .route-list-popup {
-      max-height:150px;
-      overflow-y:auto;
-      margin:0;
-      padding:0;
-      list-style:none;
+    .search-box input {
+      width: 100%;
+      padding: 6px;
+      margin: 3px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
-    .route-list-popup li {
-      cursor:pointer;
-      padding:3px 5px;
+    .popup-list {
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 13px;
     }
-    .route-list-popup li:hover {
-      background:#f0f0f0;
+    .popup-list div {
+      cursor: pointer;
+      padding: 4px;
     }
+    .popup-list div:hover { background: #f0f0f0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="search-box">
-    <h4>Search by Route Name</h4>
-    <input type="text" id="routeSearch" placeholder="Type route name..." style="width:100%; margin-bottom:8px;">
-    
-    <h4>Search by Endpoints</h4>
-    <select id="pointA" style="width:100%; margin-bottom:5px;">
-      <option value="">Point A</option>
-    </select>
-    <select id="pointB" style="width:100%; margin-bottom:5px;">
-      <option value="">Point B (Optional)</option>
-    </select>
-    <select id="via" style="width:100%; margin-bottom:5px;">
-      <option value="">Via (Optional)</option>
-    </select>
-    <button onclick="applyFilters()">Apply Filters</button>
-  </div>
 
-<script>
-const map = L.map('map').setView([12.8797, 121.7740], 6); // Philippines center
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    // === Map Initialization ===
+    var map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(map);
 
-let allRoutes = [];
-let routeLayers = [];
-let highlightedRoutes = [];
-let hoverPopup = null;
-let listPopup = null;
-let detailPopup = null;
+    // Layers + State
+    var allRoutes = [];
+    var activeHighlight = null;
+    var activePopup = null;
 
-// Load CSV from Google Sheets
-Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv", {
-  download: true,
-  header: true,
-  complete: function(results) {
-    results.data.forEach(row => {
-      if (!row["GEO PATH"]) return;
-      try {
-        const coords = JSON.parse(row["GEO PATH"]);
-        const polyline = L.polyline(coords, {color: randomColor(), weight: 3}).addTo(map);
-        polyline.routeData = {
-          name: row["ROUTE NAME"],
-          deno: row["DENO"],
-          class: row["Class"],
-          routeClass: row["ROUTE CLASSIFICATION (if LPTRP)"],
-          nau: row["NO. OF AUTHORIZED UNITS"]
-        };
-        allRoutes.push(polyline);
-        routeLayers.push(polyline);
-      } catch(e) {
-        console.warn("Invalid GEO PATH", row["ROUTE NAME"]);
+    // === Fetch CSV from Google Sheets ===
+    var sheetUrl = "https://docs.google.com/spreadsheets/d/1CyoUxFDCCgDArR1iTMZJG02RTke8QoTzL7HhHwcwk6k/pub?gid=0&single=true&output=csv";
+
+    Papa.parse(sheetUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        results.data.forEach(function(row) {
+          if (row["GEO PATH"]) {
+            try {
+              var coords = JSON.parse(row["GEO PATH"]);
+              var latlngs = coords.map(c => [c[1], c[0]]);
+
+              var poly = L.polyline(latlngs, {
+                color: getRandomColor(),
+                weight: 3,
+                opacity: 0.8
+              }).addTo(map);
+
+              poly.routeData = row;
+              allRoutes.push(poly);
+
+              // Hover: count overlaps
+              poly.on('mouseover', function(e) {
+                var overlapping = getOverlappingRoutes(e.latlng);
+                this.setStyle({weight: 6});
+                var popup = L.popup({offset:[0,-10], closeButton:false})
+                  .setLatLng(e.latlng)
+                  .setContent("<b>"+overlapping.length+" route(s) here</b>")
+                  .openOn(map);
+              });
+              poly.on('mouseout', function() {
+                this.setStyle({weight: 3});
+                map.closePopup();
+              });
+
+              // Click: list routes
+              poly.on('click', function(e) {
+                if (activePopup) map.closePopup(activePopup);
+                if (activeHighlight) activeHighlight.setStyle({opacity:0.8, weight:3});
+
+                var overlapping = getOverlappingRoutes(e.latlng);
+                var listHtml = "<div class='popup-list'>";
+                overlapping.forEach(function(r,i){
+                  listHtml += "<div onclick=\"showRouteDetails("+allRoutes.indexOf(r)+", ["+e.latlng.lat+","+e.latlng.lng+"])\">"+r.routeData["ROUTE NAME"]+"</div>";
+                });
+                listHtml += "</div>";
+
+                activePopup = L.popup({closeOnClick:false, autoClose:false})
+                  .setLatLng(e.latlng)
+                  .setContent(listHtml)
+                  .openOn(map);
+              });
+
+            } catch(err) { console.error("Bad GEO PATH", row["GEO PATH"]); }
+          }
+        });
       }
     });
-  }
-});
 
-// Random color
-function randomColor() {
-  return '#'+Math.floor(Math.random()*16777215).toString(16);
-}
-
-// Hover detect overlaps
-map.on('mousemove', function(e){
-  let overlapping = [];
-  allRoutes.forEach(r => {
-    if (L.GeometryUtil.isPointOnLine(map, e.latlng, r)) {
-      overlapping.push(r);
+    // === Helpers ===
+    function getOverlappingRoutes(latlng) {
+      var tol = 0.001;
+      return allRoutes.filter(function(r){
+        return r.getLatLngs().some(function(seg){
+          return seg.some(function(p){
+            return Math.abs(p.lat-latlng.lat)<tol && Math.abs(p.lng-latlng.lng)<tol;
+          });
+        });
+      });
     }
-  });
-  if (hoverPopup) map.removeLayer(hoverPopup);
-  if (overlapping.length > 0) {
-    overlapping.forEach(r => r.setStyle({weight:5}));
-    highlightedRoutes = overlapping;
-    hoverPopup = L.popup({closeButton:false, autoClose:true})
-      .setLatLng(e.latlng)
-      .setContent(overlapping.length+" routes overlap here")
-      .openOn(map);
-  } else {
-    highlightedRoutes.forEach(r => r.setStyle({weight:3}));
-    highlightedRoutes = [];
-    if (hoverPopup) map.removeLayer(hoverPopup);
-  }
-});
 
-// Click: show route list
-map.on('click', function(e){
-  clearHighlights();
-  let overlapping = [];
-  allRoutes.forEach(r => {
-    if (L.GeometryUtil.isPointOnLine(map, e.latlng, r)) {
-      overlapping.push(r);
+    function showRouteDetails(index, latlng) {
+      if (activeHighlight) activeHighlight.setStyle({opacity:0.8, weight:3});
+      var r = allRoutes[index];
+      r.setStyle({color:"red", weight:6, opacity:1});
+      activeHighlight = r;
+
+      var d = r.routeData;
+      var html = "<b>"+d["ROUTE NAME"]+"</b><br/>"+
+                 "DENO: "+d["DENO"]+"<br/>"+
+                 "Class: "+d["Class"]+"<br/>"+
+                 "Route Class: "+d["ROUTE CLASSIFICATION (if LPTRP)"]+"<br/>"+
+                 "NAU: "+d["NO. OF AUTHORIZED UNITS"];
+
+      L.popup({autoClose:true})
+        .setLatLng(latlng)
+        .setContent(html)
+        .openOn(map);
     }
-  });
-  if (overlapping.length > 0) {
-    let listHtml = "<ul class='route-list-popup'>";
-    overlapping.forEach((r,i)=>{
-      listHtml += `<li onclick="showRouteDetails(${routeLayers.indexOf(r)}, [${e.latlng.lat}, ${e.latlng.lng}])">${r.routeData.name}</li>`;
+
+    function getRandomColor() {
+      return '#'+Math.floor(Math.random()*16777215).toString(16);
+    }
+
+    // Clear highlights when clicking empty map
+    map.on('click', function(e){
+      if (activeHighlight) activeHighlight.setStyle({opacity:0.8, weight:3});
+      activeHighlight = null;
+      map.closePopup();
     });
-    listHtml += "</ul>";
-    listPopup = L.popup().setLatLng(e.latlng).setContent(listHtml).openOn(map);
-  } else {
-    map.closePopup();
-  }
-});
-
-// Show route details
-function showRouteDetails(index, latlng){
-  clearHighlights();
-  const r = routeLayers[index];
-  r.setStyle({color:'red', weight:6});
-  detailPopup = L.popup()
-    .setLatLng(latlng)
-    .setContent(
-      "<b>"+r.routeData.name+"</b><br>"+
-      "DENO: "+r.routeData.deno+"<br>"+
-      "Class: "+r.routeData.class+"<br>"+
-      "Route Class: "+r.routeData.routeClass+"<br>"+
-      "NAU: "+r.routeData.nau
-    )
-    .openOn(map);
-}
-
-// Clear highlights
-function clearHighlights(){
-  allRoutes.forEach(r => r.setStyle({color: r.options.color, weight:3}));
-  if (detailPopup) map.closePopup(detailPopup);
-}
-
-// Placeholder for filters
-function applyFilters(){
-  alert("Filters coming soon...");
-}
-</script>
-<script src="https://unpkg.com/leaflet-geometryutil"></script>
+  </script>
 </body>
 </html>
-
