@@ -3,130 +3,142 @@
 <head>
   <meta charset="utf-8" />
   <title>Route Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { margin:0; padding:0; }
-    #map { width: 100%; height: 100vh; }
-    .info-panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      padding: 10px;
-      max-height: 90vh;
-      overflow-y: auto;
-      font-family: Arial, sans-serif;
-      display: none;
-      width: 320px;
+    #map {
+      width: 1170px;
+      height: 800px;
     }
-    .info-header { font-weight: bold; margin-bottom: 5px; }
-    .route-item { cursor: pointer; padding: 4px; border-bottom: 1px solid #ddd; }
-    .route-item:hover { background: #f0f0f0; }
-    .route-list, .route-details {
-      display: inline-block;
-      vertical-align: top;
-      width: 48%;
+    .custom-popup {
+      display: flex;
+      gap: 15px; /* space between list and details */
+      min-width: 400px;
     }
-    .route-list { border-right: 1px solid #ccc; margin-right: 2%; }
+    .route-list {
+      flex: 1;
+      border-right: 1px solid #ccc;
+      padding-right: 10px;
+    }
+    .route-list ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .route-list li {
+      cursor: pointer;
+      padding: 3px;
+    }
+    .route-list li:hover {
+      background: #eee;
+    }
+    .route-details {
+      flex: 1;
+      padding-left: 10px;
+    }
+    .route-details table {
+      width: 100%;
+    }
+    .route-details td {
+      padding: 2px 5px;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="infoPanel" class="info-panel">
-    <div class="info-header">Routes</div>
-    <div style="display:flex; gap:5px;">
-      <div class="route-list" id="routeList"></div>
-      <div class="route-details" id="routeDetails"></div>
-    </div>
-  </div>
-  <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    const map = L.map('map').setView([12.8797, 121.7740], 6);
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    const map = L.map('map').setView([12.8797, 121.7740], 6); // Philippines center
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      maxZoom: 18,
+      attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    let routes = [];
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    // Parse CSV and draw routes
+    let routes = [];
+    let popup = L.popup();
+
     Papa.parse(csvUrl, {
       download: true,
       header: true,
       complete: function(results) {
         results.data.forEach(row => {
-          if (row["GEO PATH"]) {
-            try {
-              let coords = JSON.parse(row["GEO PATH"]);
-              let polyline = L.polyline(coords, {
-                color: getRandomColor(),
-                weight: 3
-              }).addTo(map);
-              polyline.featureData = {
-                "Route Name": row["ROUTE NAME"],
-                "DENO": row["DENO"],
-                "Class": row["Class"],
-                "Route Class": row["ROUTE CLASSIFICATION (if LPTRP)"],
-                "NAU": row["NO. OF AUTHORIZED UNITS"]
-              };
-              routes.push(polyline);
-            } catch (e) {
-              console.error("Bad GEO PATH:", row["GEO PATH"]);
-            }
+          if (!row["GEO PATH"]) return;
+          try {
+            let coords = JSON.parse(row["GEO PATH"]);
+            let latlngs = coords.map(c => [c[1], c[0]]);
+
+            let color = "#" + Math.floor(Math.random()*16777215).toString(16);
+
+            let polyline = L.polyline(latlngs, {color: color}).addTo(map);
+            routes.push({ row, polyline });
+          } catch (e) {
+            console.error("Invalid GEO PATH:", row["GEO PATH"]);
           }
         });
       }
     });
 
-    // Hover: show number of overlapping routes
-    map.on('mousemove', function(e) {
-      let overlaps = routes.filter(r => leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], r).length > 0);
-      if (overlaps.length > 0) {
-        map.getContainer().style.cursor = 'pointer';
-      } else {
-        map.getContainer().style.cursor = '';
-      }
-    });
-
-    // Click: show list
-    map.on('click', function(e) {
-      let clickedRoutes = routes.filter(r => r.getBounds().contains(e.latlng));
-      const panel = document.getElementById("infoPanel");
-      const listDiv = document.getElementById("routeList");
-      const detailsDiv = document.getElementById("routeDetails");
-
-      if (clickedRoutes.length > 0) {
-        panel.style.display = "block";
-        listDiv.innerHTML = "";
-        detailsDiv.innerHTML = "";
-        clickedRoutes.forEach((r, i) => {
-          let div = document.createElement("div");
-          div.className = "route-item";
-          div.innerText = r.featureData["Route Name"];
-          div.onclick = () => {
-            detailsDiv.innerHTML = `
-              <b>Route Name:</b> ${r.featureData["Route Name"]}<br/>
-              <b>DENO:</b> ${r.featureData["DENO"]}<br/>
-              <b>Class:</b> ${r.featureData["Class"]}<br/>
-              <b>Route Class:</b> ${r.featureData["Route Class"]}<br/>
-              <b>NAU:</b> ${r.featureData["NAU"]}
-            `;
-            r.setStyle({weight: 5});
-          };
-          listDiv.appendChild(div);
-        });
-      } else {
-        panel.style.display = "none";
-      }
-    });
-
-    function getRandomColor() {
-      return '#' + Math.floor(Math.random()*16777215).toString(16);
+    function getRoutesAtLatLng(latlng) {
+      return routes.filter(r => {
+        return r.polyline.getBounds().contains(latlng);
+      });
     }
+
+    map.on('mousemove', function(e) {
+      let found = getRoutesAtLatLng(e.latlng);
+      if (found.length > 0) {
+        map.getContainer().style.cursor = "pointer";
+      } else {
+        map.getContainer().style.cursor = "";
+      }
+    });
+
+    map.on('click', function(e) {
+      let found = getRoutesAtLatLng(e.latlng);
+      if (found.length === 0) {
+        map.closePopup(popup);
+        return;
+      }
+
+      let listHtml = "<ul>";
+      found.forEach((f, idx) => {
+        listHtml += `<li onclick="showRouteDetails(${idx})">${f.row['ROUTE NAME']}</li>`;
+      });
+      listHtml += "</ul>";
+
+      let detailsHtml = "<p>Select a route to see details</p>";
+
+      let content = `
+        <div class="custom-popup">
+          <div class="route-list">${listHtml}</div>
+          <div class="route-details" id="route-details">${detailsHtml}</div>
+        </div>
+      `;
+
+      popup.setLatLng(e.latlng).setContent(content).openOn(map);
+
+      window.showRouteDetails = function(idx) {
+        let f = found[idx];
+        let d = f.row;
+        document.getElementById("route-details").innerHTML = `
+          <table>
+            <tr><td><b>Route Name:</b></td><td>${d['ROUTE NAME']}</td></tr>
+            <tr><td><b>DENO:</b></td><td>${d['DENO']}</td></tr>
+            <tr><td><b>Class:</b></td><td>${d['Class']}</td></tr>
+            <tr><td><b>Classification:</b></td><td>${d['ROUTE CLASSIFICATION (if LPTRP)']}</td></tr>
+            <tr><td><b>NAU:</b></td><td>${d['NO. OF AUTHORIZED UNITS']}</td></tr>
+          </table>
+        `;
+
+        // highlight route
+        routes.forEach(r => r.polyline.setStyle({weight: 3}));
+        f.polyline.setStyle({weight: 6});
+      };
+    });
   </script>
 </body>
 </html>
