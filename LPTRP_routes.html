@@ -1,230 +1,169 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LPTRP Route Map</title>
   <meta charset="utf-8" />
+  <title>LTFRB Route Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
   <style>
-    html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
-    #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
-
-    .search-container {
-      position: absolute; left: 12px; top: 12px;
-      width: 340px; max-height: 720px; overflow: auto;
-      background: #fff; padding: 10px;
-      border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      z-index: 2000; font-family: Arial, Helvetica, sans-serif; font-size: 13px;
+    body { margin:0; padding:0; }
+    #map { width:1170px; height:800px; }
+    .custom-ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      max-width: 250px;
     }
-    .search-section { margin-bottom: 10px; }
-    .search-section h4 { margin: 6px 0; font-size: 14px; }
-    input[type="text"], .small-input {
-      width:100%; padding:6px 8px;
-      border:1px solid #ccc; border-radius:4px;
-      box-sizing:border-box; font-size:13px;
-      outline:none; background:#fff;
+    .route-highlight {
+      weight: 6;
+      color: yellow;
     }
-    input[type="text"]:focus, .small-input:focus {
-      border-color:#2f78a0; box-shadow:0 0 4px rgba(47,120,160,0.4);
-    }
-
-    .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px;
-      border:1px solid #ddd; border-radius:4px; background:#fff; }
-    .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px;
-      display:inline-flex; gap:6px; align-items:center; font-size:12px; }
-    .chip button { background:transparent; border:0; color:#fff; cursor:pointer; font-weight:bold; }
-
-    .btn { width:100%; padding:8px; border-radius:6px; border:0; cursor:pointer;
-      margin-top:8px; font-size:14px; }
-    .btn.apply { background:#2f78a0; color:#fff; }
-    .btn.clear { background:#efefef; color:#222; }
-
-    .suggestions { position: relative; }
-    .suggestions-list {
-      position: absolute; left:0; right:0; top:42px;
-      max-height:180px; overflow:auto;
-      background:#fff; border:1px solid #ccc; border-radius:4px;
-      z-index:2100; box-shadow:0 6px 14px rgba(0,0,0,.12);
-      display:none;
-    }
-    .suggestions-list div { padding:6px 8px; cursor:pointer; }
-    .suggestions-list div:hover { background:#f0f8ff; }
-
-    .north-arrow {
-      position: absolute; right: 18px; top: 18px;
-      z-index: 2000; width: 40px; height: 40px;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="%23000"><path d="M50 5 L70 70 L50 55 L30 70 Z"/></g><text x="50" y="95" font-size="12" text-anchor="middle" fill="%23000">N</text></svg>') no-repeat center/contain;
-      pointer-events: none; opacity: .95;
-    }
-
-    /* Floating box for overlapping routes */
-    #routeListBox {
-      position: absolute; bottom: 20px; left: 20px;
-      width: 300px; max-height: 300px; overflow-y: auto;
-      background: #fff; border: 1px solid #aaa; border-radius: 6px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      padding: 8px; z-index: 3000; display:none;
-      font-family: Arial, sans-serif; font-size: 13px;
-    }
-    #routeListBox h4 { margin: 4px 0 6px; font-size: 14px; }
-    #routeList { list-style:none; padding:0; margin:0; }
-    #routeList li {
-      padding:4px 6px; border-bottom:1px solid #ddd; cursor:pointer;
-    }
-    #routeList li:hover { background:#f0f8ff; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="north-arrow" title="North"></div>
-
-  <div id="routeListBox">
-    <h4>Routes at this point</h4>
-    <ul id="routeList"></ul>
+  <div class="custom-ui">
+    <h4>Route Map</h4>
+    <p>Hover to see route count<br>Click to list overlapping routes</p>
+    <div id="routeList"></div>
   </div>
 
-  <div class="search-container" id="searchPanel">
-    <!-- Search UI same as your version -->
-    <div class="search-section">
-      <h4>Search by Route Name</h4>
-      <div class="chips" id="routeChips"></div>
-      <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name" class="small-input" autocomplete="off" />
-        <div class="suggestions-list" id="routeSuggestions"></div>
-      </div>
-    </div>
-    <div class="search-section">
-      <h4>Search by Endpoints</h4>
-      <!-- endpoint inputs (same as before) -->
-      <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      <hr>
-      <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
-    </div>
-    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
-    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
-  </div>
-
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    const csvUrl="https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    // Published Google Sheet CSV link
+    const csvUrl = "https://docs.google.com/spreadsheets/d/1CyoUxFDCCgDArR1iTMZJG02RTke8QoTzL7HhHwcwk6k/gviz/tq?tqx=out:csv&sheet=MASTERLIST";
 
-    const PALETTE=['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
-    function normalize(s){if(!s)return'';return String(s).replace(/\s+/g,' ').trim();}
-    function nLower(s){return normalize(s).toLowerCase();}
-    function colorFromString(str){const s=normalize(str||'');let hash=0;for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;}return PALETTE[Math.abs(hash)%PALETTE.length];}
+    const map = L.map('map').setView([12.8797, 121.7740], 6); // Philippines center
 
-    const map=L.map('map').setView([13,122],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
-    L.control.scale().addTo(map);
+    // Basemap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-    let allData=[],routeLayers=[],selectedRouteNames=[];
-    let clickedLayer=null;
+    // Store routes
+    let routes = [];
 
-    function tryParseGeoPath(g){if(!g)return null;try{return JSON.parse(g);}catch(e){return null;}}
+    // Layer group
+    const routesLayer = L.layerGroup().addTo(map);
 
-    function drawRowOnMap(row){
-      const geo=row["GEO PATH"];const parsed=tryParseGeoPath(geo);if(!parsed)return;
-      const segments=(Array.isArray(parsed)&&Array.isArray(parsed[0])&&Array.isArray(parsed[0][0]))?parsed:[parsed];
-      const routeName=normalize(row["ROUTE NAME"]||'');const baseColor=colorFromString(routeName);
-      for(const seg of segments){
-        const latlngs=seg.map(c=>[+c[1],+c[0]]);
-        const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.9}).addTo(map);
-        pl.routeData=row;pl.options.baseColor=baseColor;
-        routeLayers.push(pl);
+    // Fetch CSV
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        results.data.forEach(row => {
+          if (row["GEO PATH"]) {
+            try {
+              const coords = JSON.parse(row["GEO PATH"]);
+              const polyline = L.polyline(coords, {
+                color: getRandomColor(),
+                weight: 3,
+                opacity: 0.7
+              }).addTo(routesLayer);
 
-        // Hover event: count overlaps + temp highlight
-        pl.on('mouseover',e=>{
-          const count=getRoutesAtPoint(e.latlng).length;
-          pl.setStyle({color:'yellow',weight:7,opacity:1});pl.bringToFront();
-          map.getContainer().style.cursor='pointer';
-          pl.bindTooltip(count+" route(s) here",{permanent:false}).openTooltip(e.latlng);
-        });
-        pl.on('mouseout',()=>{
-          if(pl!==clickedLayer){pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.9});}
-          map.closeTooltip();
-          map.getContainer().style.cursor='';
-        });
+              polyline.routeData = {
+                name: row["ROUTE NAME"] || "Unnamed",
+                deno: row["DENO"] || "",
+                class: row["Class"] || "",
+                routeClass: row["ROUTE CLASSIFICATION (if LPTRP)"] || "",
+                nau: row["NO. OF AUTHORIZED UNITS"] || ""
+              };
 
-        // Click: show overlapping list
-        pl.on('click',e=>{
-          const routes=getRoutesAtPoint(e.latlng);
-          showRouteList(routes,e.latlng);
+              polyline.on("mouseover", function() {
+                this.setStyle({ weight: 6, opacity: 1 });
+              });
+              polyline.on("mouseout", function() {
+                this.setStyle({ weight: 3, opacity: 0.7 });
+              });
+
+              routes.push(polyline);
+            } catch(e) {
+              console.warn("Invalid GEO PATH", row["GEO PATH"]);
+            }
+          }
         });
       }
-    }
-
-    function getRoutesAtPoint(latlng){
-      const tol=0.0003; // tolerance ~30m
-      return routeLayers.filter(pl=>{
-        return pl.getLatLngs().flat().some(ll=>Math.abs(ll.lat-latlng.lat)<tol&&Math.abs(ll.lng-latlng.lng)<tol);
-      });
-    }
-
-    function showRouteList(routes,latlng){
-      const listBox=document.getElementById('routeListBox');
-      const ul=document.getElementById('routeList');ul.innerHTML='';
-      routes.forEach((pl,i)=>{
-        const li=document.createElement('li');li.textContent=normalize(pl.routeData["ROUTE NAME"]||'');
-        li.onclick=()=>{highlightRoute(pl);pl.openPopup(latlng);};
-        ul.appendChild(li);
-      });
-      listBox.style.display=routes.length?'block':'none';
-    }
-
-    function highlightRoute(pl){
-      if(clickedLayer&&clickedLayer!==pl){
-        clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.9});
-      }
-      clickedLayer=pl;
-      pl.setStyle({color:'yellow',weight:7,opacity:1});
-      pl.bringToFront();
-      map.fitBounds(pl.getBounds(),{padding:[40,40]});
-    }
-
-    function popupHtml(row){
-      return `<div style="font-weight:bold">${normalize(row["ROUTE NAME"]||'')}</div>
-        <div>DENO: ${normalize(row["DENO"]||'')}</div>
-        <div>Class: ${normalize(row["Class"]||'')}</div>
-        <div>Route Class: ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
-        <div>NAU: ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>`;
-    }
-
-    function clearRouteLayers(){routeLayers.forEach(l=>map.removeLayer(l));routeLayers=[];clickedLayer=null;}
-
-    function applyFilters(){ /* unchanged: keep your working filters */ resetFilters(); }
-
-    function resetFilters(){clearRouteLayers();allData.forEach(drawRowOnMap);}
-
-    // Load data
-    fetch(csvUrl).then(r=>r.text()).then(txt=>{
-      Papa.parse(txt,{header:true,complete:res=>{
-        allData=res.data;allData.forEach(drawRowOnMap);
-      }});
     });
+
+    // On map click – list overlapping routes
+    map.on("click", function(e) {
+      const clickedRoutes = [];
+      routes.forEach(r => {
+        if (isPointNearPolyline(e.latlng, r)) {
+          clickedRoutes.push(r);
+        }
+      });
+
+      let html = "<strong>Routes here:</strong><ul>";
+      clickedRoutes.forEach((r, i) => {
+        html += `<li><a href="#" onclick="highlightRoute(${routes.indexOf(r)})">${r.routeData.name}</a></li>`;
+      });
+      html += "</ul>";
+      document.getElementById("routeList").innerHTML = html || "No routes here.";
+    });
+
+    // Highlight specific route
+    window.highlightRoute = function(index) {
+      const route = routes[index];
+      if (!route) return;
+
+      routesLayer.eachLayer(l => {
+        l.setStyle({ color: "#ccc", weight: 2, opacity: 0.3 });
+      });
+
+      route.setStyle({ color: "red", weight: 6, opacity: 1 });
+      map.fitBounds(route.getBounds());
+
+      const d = route.routeData;
+      L.popup()
+        .setLatLng(route.getBounds().getCenter())
+        .setContent(`<b>${d.name}</b><br>
+          DENO: ${d.deno}<br>
+          Class: ${d.class}<br>
+          Route Class: ${d.routeClass}<br>
+          NAU: ${d.nau}`)
+        .openOn(map);
+    };
+
+    // Check if clicked point is near polyline
+    function isPointNearPolyline(latlng, polyline, tolerance = 0.01) {
+      const latlngs = polyline.getLatLngs();
+      for (let i=0; i<latlngs.length-1; i++) {
+        const p1 = latlngs[i], p2 = latlngs[i+1];
+        const dist = distanceToSegment(latlng, p1, p2);
+        if (dist < tolerance) return true;
+      }
+      return false;
+    }
+
+    // Distance from point to segment
+    function distanceToSegment(p, v, w) {
+      const l2 = Math.pow(v.lat - w.lat, 2) + Math.pow(v.lng - w.lng, 2);
+      if (l2 === 0) return map.distance(p, v);
+      let t = ((p.lat - v.lat) * (w.lat - v.lat) + (p.lng - v.lng) * (w.lng - v.lng)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return map.distance(p, {
+        lat: v.lat + t * (w.lat - v.lat),
+        lng: v.lng + t * (w.lng - v.lng)
+      });
+    }
+
+    // Random color
+    function getRandomColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
+    }
   </script>
 </body>
 </html>
