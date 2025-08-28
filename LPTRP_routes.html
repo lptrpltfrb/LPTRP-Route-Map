@@ -1,179 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>LTFRB Routes Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="UTF-8">
+  <title>LTFRB Route Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
-    #map { width: 100%; height: 800px; }
+    body { margin:0; padding:0; }
+    #map { width:1170px; height:800px; }
 
+    /* Filter box */
     .filter-box {
       position: absolute;
       top: 10px;
       left: 10px;
-      z-index: 1000;
       background: white;
-      padding: 10px;
-      border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      padding: 12px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      width: 250px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      z-index: 1000;
     }
-
-    .route-tooltip {
-      background: rgba(0,0,0,0.7);
-      color: white;
-      padding: 3px 6px;
-      border-radius: 4px;
-      font-size: 12px;
-      pointer-events: none;
-    }
-
-    .popup-list {
+    .route-list {
       max-height: 150px;
       overflow-y: auto;
+      margin-top: 8px;
+      border-top: 1px solid #ccc;
+      padding-top: 6px;
     }
-
-    .popup-list div {
-      padding: 4px;
+    .route-item {
       cursor: pointer;
+      padding: 3px;
+      border-radius: 4px;
     }
-
-    .popup-list div:hover {
-      background: #eee;
+    .route-item:hover {
+      background: #f0f0f0;
+    }
+    .hover-info {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #333;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="filter-box">
-    <label for="routeFilter">Filter by Route Name:</label>
-    <input type="text" id="routeFilter" placeholder="Type route name...">
+    <b>Route Info</b>
+    <div class="hover-info">Hover count: 0</div>
+    <div class="route-list"></div>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/1T3SpinHD44M7dnQun_XHpRIfPWSQeGOGgaXc4zrTykY/pub?output=csv";
     const map = L.map('map').setView([12.8797, 121.7740], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    const hoverInfo = document.querySelector('.hover-info');
+    const routeList = document.querySelector('.route-list');
+
     let routes = [];
-    let highlightedLayer = null;
-    let tooltip = L.tooltip({ permanent: false, direction: "top", className: "route-tooltip" });
 
-    // Random color generator
-    function randomColor() {
-      return '#' + Math.floor(Math.random()*16777215).toString(16);
-    }
-
-    // Load data
-    Papa.parse(sheetUrl, {
+    // Fetch CSV
+    Papa.parse("YOUR_CSV_URL_HERE", {
       download: true,
       header: true,
       complete: function(results) {
         results.data.forEach(row => {
-          if (row["GEO PATH"]) {
-            try {
-              const coords = JSON.parse(row["GEO PATH"]);
-              const polyline = L.polyline(coords, { color: randomColor(), weight: 3 }).addTo(map);
-              polyline.routeData = row;
+          if (!row["GEO PATH"]) return;
+          try {
+            const coords = JSON.parse(row["GEO PATH"]);
+            const color = '#'+Math.floor(Math.random()*16777215).toString(16);
 
-              polyline.on("mouseover", function(e) {
-                let overlapping = getOverlappingRoutes(e.latlng);
-                if (overlapping.length > 0) {
-                  tooltip.setContent(overlapping.length + " route(s) here");
-                  tooltip.setLatLng(e.latlng);
-                  tooltip.addTo(map);
-                  this.setStyle({ weight: 6 });
-                }
-              });
+            const polyline = L.polyline(coords, { color: color, weight: 3 }).addTo(map);
 
-              polyline.on("mouseout", function() {
-                map.removeLayer(tooltip);
-                this.setStyle({ weight: 3 });
-              });
+            polyline.routeData = {
+              "Route Name": row["ROUTE NAME"] || "N/A",
+              "DENO": row["DENO"] || "N/A",
+              "Class": row["Class"] || "N/A",
+              "Route Class": row["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A",
+              "NAU": row["NO. OF AUTHORIZED UNITS"] || "N/A"
+            };
 
-              polyline.on("click", function(e) {
-                let overlapping = getOverlappingRoutes(e.latlng);
-                showRouteListPopup(overlapping, e.latlng);
-              });
-
-              routes.push(polyline);
-            } catch (err) {
-              console.error("Invalid GEO PATH", err);
-            }
+            routes.push(polyline);
+          } catch (e) {
+            console.warn("Invalid GEO PATH", row["GEO PATH"]);
           }
         });
       }
     });
 
-    // Find overlapping routes at a point
-    function getOverlappingRoutes(latlng) {
-      return routes.filter(r => {
-        return L.Polyline.prototype.isPointOnLine ? 
-               r.isPointOnLine(latlng, 5) : // if extended method exists
-               r.getLatLngs().some(p => map.latLngToLayerPoint(p).distanceTo(map.latLngToLayerPoint(latlng)) < 5);
-      });
-    }
-
-    // Show popup with overlapping route list
-    function showRouteListPopup(routeList, latlng) {
-      if (routeList.length === 0) return;
-
-      let content = '<div class="popup-list">';
-      routeList.forEach((r, i) => {
-        content += `<div data-index="${i}">${r.routeData["ROUTE NAME"] || "Unnamed Route"}</div>`;
-      });
-      content += '</div>';
-
-      let popup = L.popup()
-        .setLatLng(latlng)
-        .setContent(content)
-        .openOn(map);
-
-      document.querySelectorAll(".popup-list div").forEach((el, i) => {
-        el.addEventListener("click", () => {
-          highlightRoute(routeList[i]);
-          showRouteDetails(routeList[i], latlng);
-        });
-      });
-    }
-
-    // Highlight one route
-    function highlightRoute(routeLayer) {
-      if (highlightedLayer) highlightedLayer.setStyle({ weight: 3 });
-      highlightedLayer = routeLayer;
-      routeLayer.setStyle({ weight: 7, color: "red" });
-    }
-
-    // Show route details
-    function showRouteDetails(routeLayer, latlng) {
-      const d = routeLayer.routeData;
-      const html = `
-        <b>${d["ROUTE NAME"] || "Unnamed"}</b><br>
-        DENO: ${d["DENO"] || "-"}<br>
-        Class: ${d["Class"] || "-"}<br>
-        Route Class: ${d["ROUTE CLASSIFICATION (if LPTRP)"] || "-"}<br>
-        NAU: ${d["NO. OF AUTHORIZED UNITS"] || "-"}
-      `;
-      L.popup().setLatLng(latlng).setContent(html).openOn(map);
-    }
-
-    // Filter function
-    document.getElementById("routeFilter").addEventListener("input", function() {
-      const val = this.value.toLowerCase();
+    // Hover & Click events on map
+    map.on("mousemove", function(e) {
+      let count = 0;
       routes.forEach(r => {
-        const name = (r.routeData["ROUTE NAME"] || "").toLowerCase();
-        if (name.includes(val)) {
-          if (!map.hasLayer(r)) r.addTo(map);
+        if (L.GeometryUtil.isPointOnLine(map, e.latlng, r)) {
+          count++;
+          r.setStyle({ weight: 5 });
         } else {
-          if (map.hasLayer(r)) map.removeLayer(r);
+          r.setStyle({ weight: 3 });
         }
       });
+      hoverInfo.textContent = "Hover count: " + count;
     });
+
+    map.on("click", function(e) {
+      routeList.innerHTML = "";
+      let overlapping = routes.filter(r => L.GeometryUtil.isPointOnLine(map, e.latlng, r));
+
+      overlapping.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "route-item";
+        div.textContent = r.routeData["Route Name"];
+        div.onclick = () => {
+          routes.forEach(rt => rt.setStyle({ color: "#999", weight: 2 }));
+          r.setStyle({ color: "red", weight: 6 });
+
+          alert(
+            "Route Name: " + r.routeData["Route Name"] + "\n" +
+            "DENO: " + r.routeData["DENO"] + "\n" +
+            "Class: " + r.routeData["Class"] + "\n" +
+            "Route Class: " + r.routeData["Route Class"] + "\n" +
+            "NAU: " + r.routeData["NAU"]
+          );
+        };
+        routeList.appendChild(div);
+      });
+    });
+
   </script>
+  <script src="https://unpkg.com/leaflet-geometryutil"></script>
 </body>
 </html>
