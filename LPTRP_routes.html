@@ -71,7 +71,7 @@ let listPopup = null;
 let detailPopup = null;
 
 // Load CSV from Google Sheets
-Papa.parse("YOUR_PUBLISHED_SHEET_CSV_URL", {
+Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv", {
   download: true,
   header: true,
   complete: function(results) {
@@ -176,3 +176,4 @@ function applyFilters(){
 <script src="https://unpkg.com/leaflet-geometryutil"></script>
 </body>
 </html>
+
