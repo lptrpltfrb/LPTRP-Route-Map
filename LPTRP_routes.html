@@ -2,257 +2,154 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>LTFRB Route Map</title>
+  <title>Route Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    #map {
-      width: 1170px;
-      height: 800px;
-    }
+    #map { width: 1170px; height: 800px; }
 
-    .search-container {
+    /* Filter/search box */
+    .filter-box {
       position: absolute;
       top: 10px;
       left: 10px;
+      z-index: 1000;
       background: white;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      z-index: 1000;
-      font-family: Arial, sans-serif;
-      width: 260px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      max-height: 250px;
+      overflow-y: auto;
     }
 
-    .search-container h4 {
-      margin: 6px 0;
+    /* Route list (lower right corner) */
+    .route-list {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.8); /* transparent */
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      max-height: 250px;
+      overflow-y: auto;
       font-size: 14px;
     }
 
-    .search-container select,
-    .search-container input {
-      width: 100%;
-      margin-bottom: 8px;
-      padding: 4px;
-      font-size: 13px;
+    /* Transparent popup box */
+    .leaflet-popup-content-wrapper {
+      background: rgba(255, 255, 255, 0.2) !important; /* almost invisible */
+      color: black;
+      border-radius: 8px;
+      box-shadow: none;
     }
-
-    /* Transparent popup details */
-    .custom-popup {
-      background: rgba(255, 255, 255, 0.15) !important; /* very transparent */
-      border: 1px solid rgba(0, 0, 0, 0.25) !important;
-      color: #000 !important;
-      padding: 6px;
-      border-radius: 6px;
-      font-size: 13px;
-    }
-
-    .route-list-popup {
-      background: rgba(255, 255, 255, 0.15) !important;
-      border: 1px solid rgba(0, 0, 0, 0.25) !important;
-      padding: 6px;
-      border-radius: 6px;
-      font-size: 13px;
-    }
-
-    .route-list-popup ul {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .route-list-popup li {
-      cursor: pointer;
-      padding: 3px 5px;
-    }
-
-    .route-list-popup li:hover {
-      background: rgba(0, 0, 0, 0.1);
+    .leaflet-popup-tip {
+      background: rgba(255, 255, 255, 0.2) !important;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="search-container">
-    <h4>Search by Route Name</h4>
-    <select id="routeNameSelect">
+  <div class="filter-box">
+    <strong>Search by Route Name</strong><br>
+    <select id="routeNameFilter">
       <option value="">-- Select Route --</option>
     </select>
-
-    <h4>Search by Endpoints</h4>
-    <select id="pointASelect">
-      <option value="">-- Select Point A --</option>
-    </select>
-    <select id="pointBSelect">
-      <option value="">-- If Applicable (Point B) --</option>
-    </select>
-    <select id="viaSelect">
-      <option value="">-- Optional (via) --</option>
-    </select>
   </div>
+  <div class="route-list" id="routeList"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    const sheetUrl = "YOUR_GOOGLE_SHEET_CSV_URL"; // replace with actual CSV link
 
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    L.control.scale().addTo(map);
-
-    // North arrow
-    const north = L.control({ position: "topright" });
-    north.onAdd = function(map) {
-      const div = L.DomUtil.create("div", "north-arrow");
-      div.innerHTML = '<img src="https://cdn-icons-png.flaticon.com/512/54/54601.png" style="width:30px;">';
-      return div;
-    }
-    north.addTo(map);
-
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTtXU5xCq7PZsmnX9a6lfVXnVvWJdW2-4z1t0hQWx9U9RyU0s0VtJzZq6eHgslZbvrJxYtM9Z-bm7XL/pub?gid=0&single=true&output=csv";
-
+    const routesLayer = L.layerGroup().addTo(map);
     let allRoutes = [];
-    let drawnRoutes = [];
 
-    function randomColor() {
-      return "#" + Math.floor(Math.random()*16777215).toString(16);
-    }
-
-    function drawRoutes(routes) {
-      drawnRoutes.forEach(r => map.removeLayer(r));
-      drawnRoutes = [];
-
-      routes.forEach(route => {
-        if (!route["GEO PATH"]) return;
-        try {
-          const coords = JSON.parse(route["GEO PATH"]);
-          const polyline = L.polyline(coords, {
-            color: randomColor(),
-            weight: 3,
-            opacity: 0.8
-          }).addTo(map);
-
-          polyline.bindPopup(
-            `<b>${route["ROUTE NAME"] || "Unnamed Route"}</b><br>
-             DENO: ${route["DENO"] || "N/A"}<br>
-             Class: ${route["Class"] || "N/A"}<br>
-             Classification: ${route["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A"}<br>
-             NAU: ${route["NO. OF AUTHORIZED UNITS"] || "N/A"}`,
-            { className: "custom-popup" }
-          );
-
-          drawnRoutes.push(polyline);
-        } catch (e) {
-          console.error("Invalid GEO PATH:", route["GEO PATH"]);
-        }
-      });
-    }
-
-    function filterRoutes() {
-      const routeName = document.getElementById("routeNameSelect").value;
-      const pointA = document.getElementById("pointASelect").value;
-      const pointB = document.getElementById("pointBSelect").value;
-      const via = document.getElementById("viaSelect").value;
-
-      let filtered = allRoutes;
-
-      if (routeName) {
-        filtered = filtered.filter(r => r["ROUTE NAME"] === routeName);
-      }
-      if (pointA) {
-        filtered = filtered.filter(r =>
-          r["ENDPOINT 1 REGION"] === pointA ||
-          r["ENDPOINT 1 PROVINCE"] === pointA ||
-          r["ENDPOINT 1 LGU"] === pointA ||
-          r["ENDPOINT 1 BARANGAY"] === pointA ||
-          r["ENDPOINT 1 TERMINAL"] === pointA
-        );
-      }
-      if (pointB) {
-        filtered = filtered.filter(r =>
-          r["ENDPOINT 2 REGION"] === pointB ||
-          r["ENDPOINT 2 PROVINCE"] === pointB ||
-          r["ENDPOINT 2 LGU"] === pointB ||
-          r["ENDPOINT 2 BARANGAY"] === pointB ||
-          r["ENDPOINT 2 TERMINAL"] === pointB
-        );
-      }
-      if (via) {
-        filtered = filtered.filter(r =>
-          r["ROUTE STRUCTURE"] === via ||
-          r["CORRIDOR"] === via
-        );
-      }
-
-      drawRoutes(filtered);
-    }
-
-    function populateDropdowns() {
-      const routeNameSelect = document.getElementById("routeNameSelect");
-      const pointASelect = document.getElementById("pointASelect");
-      const pointBSelect = document.getElementById("pointBSelect");
-      const viaSelect = document.getElementById("viaSelect");
-
-      const routeNames = [...new Set(allRoutes.map(r => r["ROUTE NAME"]).filter(Boolean))];
-      routeNames.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        routeNameSelect.appendChild(opt);
-      });
-
-      const pointAValues = [...new Set(allRoutes.flatMap(r => [
-        r["ENDPOINT 1 REGION"], r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 1 LGU"],
-        r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 1 TERMINAL"]
-      ]).filter(Boolean))];
-
-      pointAValues.forEach(val => {
-        const opt = document.createElement("option");
-        opt.value = val;
-        opt.textContent = val;
-        pointASelect.appendChild(opt);
-      });
-
-      const pointBValues = [...new Set(allRoutes.flatMap(r => [
-        r["ENDPOINT 2 REGION"], r["ENDPOINT 2 PROVINCE"], r["ENDPOINT 2 LGU"],
-        r["ENDPOINT 2 BARANGAY"], r["ENDPOINT 2 TERMINAL"]
-      ]).filter(Boolean))];
-
-      pointBValues.forEach(val => {
-        const opt = document.createElement("option");
-        opt.value = val;
-        opt.textContent = val;
-        pointBSelect.appendChild(opt);
-      });
-
-      const viaValues = [...new Set(allRoutes.flatMap(r => [
-        r["ROUTE STRUCTURE"], r["CORRIDOR"]
-      ]).filter(Boolean))];
-
-      viaValues.forEach(val => {
-        const opt = document.createElement("option");
-        opt.value = val;
-        opt.textContent = val;
-        viaSelect.appendChild(opt);
-      });
-    }
-
+    // Load CSV
     Papa.parse(sheetUrl, {
       download: true,
       header: true,
       complete: function(results) {
-        allRoutes = results.data;
-        populateDropdowns();
-        drawRoutes(allRoutes);
+        const data = results.data;
+        const routeNameFilter = document.getElementById("routeNameFilter");
+
+        data.forEach(row => {
+          if (!row["GEO PATH"]) return;
+          let coords;
+          try {
+            coords = JSON.parse(row["GEO PATH"]);
+          } catch(e) { return; }
+
+          const polyline = L.polyline(coords, {
+            color: getRandomColor(),
+            weight: 3,
+            opacity: 0.7
+          }).addTo(routesLayer);
+
+          const routeInfo = {
+            name: row["ROUTE NAME"] || "Unnamed Route",
+            deno: row["DENO"] || "N/A",
+            nau: row["NO. OF AUTHORIZED UNITS"] || "N/A",
+            class: row["Class"] || "N/A",
+            classification: row["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A",
+            polyline: polyline
+          };
+
+          polyline.bindPopup(
+            `<b>${routeInfo.name}</b><br>
+             DENO: ${routeInfo.deno}<br>
+             Class: ${routeInfo.class}<br>
+             Classification: ${routeInfo.classification}<br>
+             NAU: ${routeInfo.nau}`,
+            { offset: L.point(0, -10) }
+          );
+
+          // Hover highlight
+          polyline.on("mouseover", function() {
+            this.setStyle({ weight: 6, opacity: 1 });
+          });
+          polyline.on("mouseout", function() {
+            this.setStyle({ weight: 3, opacity: 0.7 });
+          });
+
+          allRoutes.push(routeInfo);
+
+          // Add to filter dropdown
+          const option = document.createElement("option");
+          option.value = routeInfo.name;
+          option.textContent = routeInfo.name;
+          routeNameFilter.appendChild(option);
+        });
       }
     });
 
-    document.getElementById("routeNameSelect").addEventListener("change", filterRoutes);
-    document.getElementById("pointASelect").addEventListener("change", filterRoutes);
-    document.getElementById("pointBSelect").addEventListener("change", filterRoutes);
-    document.getElementById("viaSelect").addEventListener("change", filterRoutes);
+    // Random color
+    function getRandomColor() {
+      const letters = "0123456789ABCDEF";
+      let color = "#";
+      for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+
+    // Filter by Route Name
+    document.getElementById("routeNameFilter").addEventListener("change", function() {
+      const selected = this.value;
+      routesLayer.clearLayers();
+      allRoutes.forEach(r => {
+        if (!selected || r.name === selected) {
+          r.polyline.addTo(routesLayer);
+        }
+      });
+    });
   </script>
 </body>
 </html>
