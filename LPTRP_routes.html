@@ -1,192 +1,204 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LTFRB Routes Map</title>
   <meta charset="utf-8" />
+  <title>LTFRB Route Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    #map { width: 1170px; height: 800px; }
+    body { margin:0; padding:0; }
+    #map { width: 100%; height: 800px; }
+
+    /* Filter box */
     .filter-box {
       position: absolute;
       top: 10px;
       left: 10px;
+      z-index: 1000;
       background: white;
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      z-index: 1000;
-      width: 260px;
+      font-family: Arial, sans-serif;
+      width: 250px;
     }
-    .floating-panel {
-      position: absolute;
-      top: 120px;
-      left: 10px;
-      background: white;
-      padding: 8px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      z-index: 1000;
-      width: 260px;
-      max-height: 200px;
-      overflow-y: auto;
-      display: none;
-    }
-    .floating-panel h4 {
+    .filter-box h4 {
       margin: 0 0 5px 0;
       font-size: 14px;
-      font-weight: bold;
     }
-    .floating-panel ul {
-      padding-left: 18px;
-      margin: 0;
+    .filter-box select, .filter-box input {
+      width: 100%;
+      margin-bottom: 5px;
+      padding: 5px;
+      font-size: 13px;
     }
-    .floating-panel li {
-      cursor: pointer;
-      margin-bottom: 4px;
-      color: #0077cc;
+
+    /* Bottom-right route list */
+    .route-list {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 280px;
+      max-height: 250px;
+      overflow-y: auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      padding: 10px;
+      font-size: 13px;
+      z-index: 1000;
     }
-    .floating-panel li:hover {
-      text-decoration: underline;
+    .route-list h4 { margin: 0 0 5px 0; }
+    .route-list ul { padding-left: 15px; margin: 0; }
+    .route-list li { cursor: pointer; margin-bottom: 3px; }
+
+    /* Popup offset & transparency */
+    .custom-popup {
+      background: rgba(255,255,255,0.9);
+      border-radius: 6px;
+      padding: 5px;
+      font-size: 13px;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Filter box (unchanged) -->
+  <!-- Filter UI -->
   <div class="filter-box">
-    <label for="routeFilter">Search Route Name:</label><br>
-    <input type="text" id="routeFilter" list="routeNames" placeholder="Type route name..." style="width:100%">
-    <datalist id="routeNames"></datalist>
+    <h4>Search by Route Name</h4>
+    <input type="text" id="routeNameSearch" placeholder="Type route name...">
+
+    <h4>Search by Endpoints</h4>
+    <select id="pointA"><option value="">--Point A--</option></select>
+    <select id="pointB"><option value="">--Point B--</option></select>
+    <select id="via"><option value="">--Via--</option></select>
   </div>
 
-  <!-- Floating panel for overlapping routes -->
-  <div class="floating-panel" id="routeListPanel">
-    <h4>Routes at this point:</h4>
-    <ul id="routeList"></ul>
+  <!-- Route List Panel -->
+  <div id="routeList" class="route-list" style="display:none;">
+    <h4>Routes at this point</h4>
+    <ul id="routeItems"></ul>
   </div>
 
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
   <script>
     const map = L.map('map').setView([12.8797, 121.7740], 6);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '© OpenStreetMap'
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    const routeLayer = L.layerGroup().addTo(map);
-    const routeListPanel = document.getElementById("routeListPanel");
-    const routeList = document.getElementById("routeList");
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/1CyoUxFDCCgDArR1iTMZJG02RTke8QoTzL7HhHwcwk6k/pub?gid=0&single=true&output=csv";
+
     let allRoutes = [];
-    let highlightedRoute = null;
+    let polylines = [];
 
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    // Random color generator
+    function getRandomColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
+    }
 
-    // Load CSV
-    Papa.parse(csvUrl, {
+    // Load data
+    Papa.parse(sheetUrl, {
       download: true,
       header: true,
       complete: function(results) {
-        const data = results.data;
-        const routeNames = new Set();
-
-        data.forEach(row => {
-          if (!row["GEO PATH"]) return;
-
-          try {
-            const coords = JSON.parse(row["GEO PATH"]);
-            const latlngs = coords.map(c => [c[1], c[0]]);
-            const color = '#' + Math.floor(Math.random()*16777215).toString(16);
-
-            const polyline = L.polyline(latlngs, { color, weight: 3 }).addTo(routeLayer);
-
-            const routeInfo = {
-              name: row["ROUTE NAME"] || "Unnamed Route",
-              deno: row["DENO"] || "N/A",
-              class: row["Class"] || "N/A",
-              classification: row["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A",
-              nau: row["NO. OF AUTHORIZED UNITS"] || "N/A",
-              polyline
-            };
-            allRoutes.push(routeInfo);
-
-            routeNames.add(routeInfo.name);
-
-            // Hover highlight
-            polyline.on("mouseover", () => {
-              if (highlightedRoute) resetHighlight();
-              polyline.setStyle({ color: "yellow", weight: 6 });
-              highlightedRoute = polyline;
-            });
-            polyline.on("mouseout", () => {
-              if (highlightedRoute === polyline) resetHighlight();
-            });
-
-            // Click to show overlapping routes
-            polyline.on("click", (e) => {
-              showOverlappingRoutes(e.latlng);
-            });
-          } catch(e) {
-            console.error("Invalid GEO PATH", row["GEO PATH"]);
-          }
-        });
-
-        // Fill datalist for route search
-        const datalist = document.getElementById("routeNames");
-        routeNames.forEach(name => {
-          const option = document.createElement("option");
-          option.value = name;
-          datalist.appendChild(option);
-        });
+        allRoutes = results.data;
+        drawRoutes(allRoutes);
+        populateFilters(allRoutes);
       }
     });
 
-    // Reset route highlight
-    function resetHighlight() {
-      if (!highlightedRoute) return;
-      highlightedRoute.setStyle({ color: '#3388ff', weight: 3 });
-      highlightedRoute = null;
+    function drawRoutes(data) {
+      data.forEach(row => {
+        if (!row["GEO PATH"]) return;
+        try {
+          const coords = JSON.parse(row["GEO PATH"]);
+          const poly = L.polyline(coords, {
+            color: getRandomColor(),
+            weight: 3,
+            opacity: 0.8
+          }).addTo(map);
+
+          // Hover highlight
+          poly.on("mouseover", function() {
+            this.setStyle({ weight: 6, opacity: 1 });
+          });
+          poly.on("mouseout", function() {
+            this.setStyle({ weight: 3, opacity: 0.8 });
+          });
+
+          // Store route info
+          poly.routeData = row;
+          polylines.push(poly);
+
+          // Click → list of routes at point
+          poly.on("click", function(e) {
+            showRouteList(e.latlng);
+          });
+        } catch(err) { console.error("Invalid GEO PATH", err); }
+      });
     }
 
-    // Show overlapping routes in floating panel
-    function showOverlappingRoutes(latlng) {
-      const nearbyRoutes = allRoutes.filter(r => {
-        return r.polyline.getLatLngs().some(pt => latlng.distanceTo(pt) < 200); // within 200m
+    // Show overlapping routes at clicked point
+    function showRouteList(latlng) {
+      const routesHere = polylines.filter(poly => {
+        return poly.getLatLngs().some(pt => map.latLngToLayerPoint(pt).distanceTo(map.latLngToLayerPoint(latlng)) < 10);
       });
 
-      if (nearbyRoutes.length === 0) {
-        routeListPanel.style.display = "none";
-        return;
+      if (routesHere.length === 0) return;
+
+      const listEl = document.getElementById("routeList");
+      const ul = document.getElementById("routeItems");
+      ul.innerHTML = "";
+
+      routesHere.forEach((poly, i) => {
+        const li = document.createElement("li");
+        li.textContent = poly.routeData["ROUTE NAME"];
+        li.onclick = () => {
+          map.fitBounds(poly.getBounds());
+          const details = `
+            <b>ROUTE NAME:</b> ${poly.routeData["ROUTE NAME"] || "N/A"}<br>
+            <b>DENO:</b> ${poly.routeData["DENO"] || "N/A"}<br>
+            <b>CLASS:</b> ${poly.routeData["Class"] || "N/A"}<br>
+            <b>CLASSIFICATION:</b> ${poly.routeData["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A"}<br>
+            <b>NAU:</b> ${poly.routeData["NO. OF AUTHORIZED UNITS"] || "N/A"}
+          `;
+          L.popup({ className: "custom-popup", autoPan: true, offset: L.point(20, -20) })
+            .setLatLng(poly.getBounds().getCenter())
+            .setContent(details)
+            .openOn(map);
+        };
+        ul.appendChild(li);
+      });
+
+      listEl.style.display = "block";
+    }
+
+    // Populate dropdown filters
+    function populateFilters(data) {
+      const pointA = document.getElementById("pointA");
+      const pointB = document.getElementById("pointB");
+      const via = document.getElementById("via");
+
+      function addUniqueOptions(select, values) {
+        [...new Set(values)].filter(v => v).sort().forEach(v => {
+          const opt = document.createElement("option");
+          opt.value = v; opt.textContent = v;
+          select.appendChild(opt);
+        });
       }
 
-      routeList.innerHTML = "";
-      nearbyRoutes.forEach(r => {
-        const li = document.createElement("li");
-        li.textContent = r.name;
-        li.onclick = () => showRouteDetails(r, latlng);
-        routeList.appendChild(li);
-      });
-
-      routeListPanel.style.display = "block";
-    }
-
-    // Show route details (offset popup above route)
-    function showRouteDetails(route, latlng) {
-      route.polyline.setStyle({ color: "red", weight: 6 });
-      map.panTo(latlng);
-      const offsetLatLng = L.latLng(latlng.lat + 0.01, latlng.lng); // offset popup north
-      L.popup()
-        .setLatLng(offsetLatLng)
-        .setContent(
-          `<b>${route.name}</b><br>
-           DENO: ${route.deno}<br>
-           CLASS: ${route.class}<br>
-           CLASSIFICATION: ${route.classification}<br>
-           NAU: ${route.nau}`
-        )
-        .openOn(map);
+      addUniqueOptions(pointA, data.map(r => r["ENDPOINT 1 LGU"]));
+      addUniqueOptions(pointB, data.map(r => r["ENDPOINT 2 LGU"]));
+      addUniqueOptions(via, data.map(r => r["ROUTE STRUCTURE"]).concat(data.map(r => r["CORRIDOR"])));
     }
   </script>
 </body>
