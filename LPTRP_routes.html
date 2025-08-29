@@ -1,538 +1,151 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LPTRP Route Map</title>
+  <title>LTFRB Route Map</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
-    #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
-
-    .search-container {
+    #map { height: 800px; width: 1170px; }
+    .filter-box {
       position: absolute;
-      left: 12px;
-      top: 12px;
-      width: 340px;
-      max-height: 720px;
-      overflow: auto;
-      background: #fff;
+      top: 10px;
+      left: 10px;
+      background: white;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      z-index: 2000;
-      font-family: Arial, Helvetica, sans-serif;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      z-index: 1000;
+      max-width: 250px;
+    }
+    .route-list {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      z-index: 1000;
+      max-height: 200px;
+      overflow-y: auto;
       font-size: 13px;
     }
-    .search-section { margin-bottom: 10px; }
-    .search-section h4 { margin: 6px 0; font-size: 14px; }
-    .compact-row { display:flex; gap:6px; align-items:center; }
-
-    input[type="text"], .small-input {
-      width:100%;
-      padding:6px 8px;
-      border:1px solid #ccc;
-      border-radius:4px;
-      box-sizing:border-box;
-      font-size:13px;
-      outline:none;
-      background:#fff;
+    .custom-popup {
+      background: rgba(255, 255, 255, 0.15); /* almost invisible */
+      backdrop-filter: blur(3px);
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 13px;
     }
-    input[type="text"]:focus, .small-input:focus {
-      border-color:#2f78a0;
-      box-shadow:0 0 4px rgba(47,120,160,0.4);
+    .custom-popup table {
+      border-collapse: collapse;
+      width: 100%;
     }
-
-    .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px; border:1px solid #ddd; border-radius:4px; background:#fff; }
-    .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px; display:inline-flex; gap:6px; align-items:center; font-size:12px; }
-    .chip button { background:transparent; border:0; color:#fff; cursor:pointer; font-weight:bold; }
-    .btn { width:100%; padding:8px; border-radius:6px; border:0; cursor:pointer; margin-top:8px; font-size:14px; }
-    .btn.apply { background:#2f78a0; color:#fff; }
-    .btn.clear { background:#efefef; color:#222; }
-
-    .suggestions { position: relative; }
-    .suggestions-list {
-      position: absolute;
-      left:0;
-      right:0;
-      top:42px;
-      max-height:180px;
-      overflow:auto;
-      background:#fff;
-      border:1px solid #ccc;
-      border-radius:4px;
-      z-index:2100;
-      box-shadow:0 6px 14px rgba(0,0,0,.12);
-      display:none;
+    .custom-popup td {
+      padding: 2px 4px;
+      vertical-align: top;
     }
-    .suggestions-list div { padding:6px 8px; cursor:pointer; }
-    .suggestions-list div:hover { background:#f0f8ff; }
-
-    .north-arrow {
-      position: absolute;
-      right: 18px;
-      top: 18px;
-      z-index: 2000;
-      width: 40px;
-      height: 40px;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="%23000"><path d="M50 5 L70 70 L50 55 L30 70 Z"/></g><text x="50" y="95" font-size="12" text-anchor="middle" fill="%23000">N</text></svg>') no-repeat center/contain;
-      pointer-events: none;
-      opacity: .95;
+    .custom-popup td.label {
+      font-weight: bold;
+      width: 120px;
     }
-
-    .search-container::-webkit-scrollbar { width:8px; height:8px }
-    .search-container::-webkit-scrollbar-thumb { background:#ddd; border-radius:8px }
-
-    /* small popup for hover count */
-    .hover-count .leaflet-popup-content { margin:6px 8px; font-weight:700; font-size:13px; text-align:center; }
-    .route-list .leaflet-popup-content { max-height: 240px; overflow:auto; }
-    .route-list .route-item { padding:4px 6px; cursor:pointer; border-radius:4px; }
-    .route-list .route-item:hover { background:#f0f8ff; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="north-arrow" title="North"></div>
-
-  <div class="search-container" id="searchPanel">
-    <div class="search-section">
-      <h4>Search by Route Name</h4>
-      <div class="chips" id="routeChips"></div>
-      <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
-        <div class="suggestions-list" id="routeSuggestions"></div>
-      </div>
-    </div>
-
-    <div class="search-section">
-      <h4>Search by Endpoints</h4>
-      <!-- Endpoint 1 -->
-      <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      <hr>
-      <!-- Endpoint 2 -->
-      <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
-    </div>
-
-    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
-    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
+  <div class="filter-box">
+    <label>Filter by Route Name:</label><br>
+    <input type="text" id="routeFilter" placeholder="Type to filter..." style="width: 100%;">
   </div>
+  <div id="routeList" class="route-list" style="display:none;"></div>
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <script>
-    // --- CONFIG ---
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-    const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-    // --- UTILS ---
-    function normalize(s){ if(!s) return ''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
-    function nLower(s){ return normalize(s).toLowerCase(); }
-    function colorFromString(str){ const s=normalize(str||''); let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
-    function uniqueSorted(arr){return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2p6Hzog3xl1RIGit8t5EdHxAhhCz_q0FeI06N_AhMSK_R4MZeTxS1E6m0bUJ_cEUT7hvS55i05GZe/pub?gid=0&single=true&output=csv";
 
-    // Haversine distance in meters
-    function haversine(a,b){
-      const R=6371000;
-      const dLat=(b.lat-a.lat)*Math.PI/180;
-      const dLng=(b.lng-a.lng)*Math.PI/180;
-      const lat1=a.lat*Math.PI/180, lat2=b.lat*Math.PI/180;
-      const sinDLat=Math.sin(dLat/2), sinDLng=Math.sin(dLng/2);
-      const h=sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLng*sinDLng;
-      return 2*R*Math.asin(Math.sqrt(h));
-    }
-    function totalLengthKm(paths){
-      let m=0;
-      for(const seg of paths){
-        for(let i=1;i<seg.length;i++){ m+=haversine(seg[i-1],seg[i]); }
-      }
-      return m/1000;
+    let routes = [];
+    let routeLayers = [];
+
+    function randomColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
     }
 
-    // distance (px) from point P to segment AB in screen space
-    function distPointToSeg(P,A,B){
-      const vx=B.x-A.x, vy=B.y-A.y;
-      const wx=P.x-A.x, wy=P.y-A.y;
-      const c1=vx*wx+vy*wy;
-      if(c1<=0) return Math.hypot(P.x-A.x,P.y-A.y);
-      const c2=vx*vx+vy*vy;
-      if(c2<=c1) return Math.hypot(P.x-B.x,P.y-B.y);
-      const t=c1/c2;
-      const proj={x:A.x+t*vx,y:A.y+t*vy};
-      return Math.hypot(P.x-proj.x,P.y-proj.y);
-    }
-
-    // --- MAP ---
-    const map = L.map('map', { preferCanvas:true }).setView([13,122],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
-    L.control.scale({position:'bottomleft',metric:true}).addTo(map);
-
-    let allData=[], routes=[], visibleLayers=[], selectedRoute=null, selectedLayer=null;
-    let hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count'});
-    let listPopup = null;
-    let detailsPopup = null;
-    let lastHoverIds = new Set();
-
-    // --- FILTER BOX (same as your working layout) ---
-    let selectedRouteNames=[];
-    function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n))return;selectedRouteNames.push(n);renderChips();}
-    function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name));renderChips();}
-    function renderChips(){
-      const c=document.getElementById('routeChips');c.innerHTML='';
-      for(const n of selectedRouteNames){
-        const ch=document.createElement('div');ch.className='chip';
-        const t=document.createElement('span');t.textContent=n;
-        const b=document.createElement('button');b.innerHTML='&times;';b.onclick=()=>removeRouteChip(n);
-        ch.appendChild(t);ch.appendChild(b);c.appendChild(ch);
-      }
-    }
-    function makeAutocomplete(inputEl,suggestionArray,containerEl,onPick){
-      function show(){
-        const q=nLower(inputEl.value);
-        const list=suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200);
-        renderSuggestions(containerEl,list,onPick);
-      }
-      inputEl.addEventListener('input',show);
-      inputEl.addEventListener('focus',show);
-      inputEl.addEventListener('blur',()=>setTimeout(()=>containerEl.style.display='none',150));
-    }
-    function renderSuggestions(containerEl,list,onPick){
-      if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}
-      containerEl.innerHTML='';
-      for(const v of list){
-        const d=document.createElement('div');
-        d.textContent=v;
-        d.onclick=()=>{onPick(v);containerEl.style.display='none';};
-        containerEl.appendChild(d);
-      }
-      containerEl.style.display='block';
-    }
-
-    // --- GEO PATH PARSING ---
-    function tryParseGeoPath(geo){
-      if(!geo) return null;
-      try{
-        const parsed = JSON.parse(normalize(geo));
-        // Return as array of segments of LatLngs
-        if(Array.isArray(parsed) && Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])){
-          // MultiLineString [[ [lng,lat], ... ], [ [lng,lat], ... ]]
-          return parsed.map(seg => seg.map(c=>L.latLng(+c[1],+c[0])));
-        }else if(Array.isArray(parsed) && Array.isArray(parsed[0]) && typeof parsed[0][0]==='number'){
-          // LineString [ [lng,lat], ... ]
-          return [ parsed.map(c=>L.latLng(+c[1],+c[0])) ];
-        }else{
-          return null;
-        }
-      }catch(e){ return null; }
-    }
-
-    function drawRoute(row){
-      const segs = tryParseGeoPath(row["GEO PATH"]);
-      if(!segs || !segs.length) return null;
-      const routeName = normalize(row["ROUTE NAME"]||'');
-      const baseColor = colorFromString(routeName||(row["DENO"]||''));
-      const layer = L.polyline(segs, { color: baseColor, weight: 4, opacity: 0.95 });
-      layer.options.baseColor = baseColor;
-      layer._routeId = routeName || normalize(row["DENO"]||'');
-      layer.addTo(map);
-      return { row, layer, segs, baseColor, id: layer._routeId };
-    }
-
-    function clearMapLayers(){
-      visibleLayers.forEach(l=>map.removeLayer(l));
-      visibleLayers=[];
-    }
-
-    function applyFilters(){
-      const rSelected = selectedRouteNames.map(n=>nLower(n));
-      const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
-      const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
-      const ep1LGUVal=nLower(document.getElementById('ep1LGU').value);
-      const ep1BarangayVal=nLower(document.getElementById('ep1Barangay').value);
-      const ep1TerminalVal=nLower(document.getElementById('ep1Terminal').value);
-      const ep2RegionVal=nLower(document.getElementById('ep2Region').value);
-      const ep2ProvinceVal=nLower(document.getElementById('ep2Province').value);
-      const ep2LGUVal=nLower(document.getElementById('ep2LGU').value);
-      const ep2BarangayVal=nLower(document.getElementById('ep2Barangay').value);
-      const ep2TerminalVal=nLower(document.getElementById('ep2Terminal').value);
-
-      // reset selection/popups
-      clearSelectionAndPopups();
-
-      clearMapLayers();
-      routes.forEach(rt=>{
-        const row = rt.row;
-        const rn=nLower(row["ROUTE NAME"]||'');
-        const matchRoute = rSelected.length===0 || rSelected.includes(rn);
-        const matchEndpoints =
-          (!ep1RegionVal||nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal)) &&
-          (!ep1ProvinceVal||nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal)) &&
-          (!ep1LGUVal||nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal)) &&
-          (!ep1BarangayVal||nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal)) &&
-          (!ep1TerminalVal||nLower(row["ENDPOINT 1 TERMINAL"]||'').includes(ep1TerminalVal)) &&
-          (!ep2RegionVal||nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal)) &&
-          (!ep2ProvinceVal||nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal)) &&
-          (!ep2LGUVal||nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal)) &&
-          (!ep2BarangayVal||nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal)) &&
-          (!ep2TerminalVal||nLower(row["ENDPOINT 2 TERMINAL"]||'').includes(ep2TerminalVal));
-        if(matchRoute && matchEndpoints){
-          rt.layer.addTo(map);
-          visibleLayers.push(rt.layer);
-        }
-      });
-
-      if(visibleLayers.length){
-        const fg=L.featureGroup(visibleLayers);
-        map.fitBounds(fg.getBounds(),{padding:[40,40]});
+    function highlightRoute(layer) {
+      layer.setStyle({ weight: 5, color: '#FFD700' });
+      if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+        layer.bringToFront();
       }
     }
 
-    function resetFilters(){
-      selectedRouteNames=[];renderChips();
-      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
-      clearSelectionAndPopups();
-      clearMapLayers();
-      routes.forEach(rt=>{ rt.layer.addTo(map); visibleLayers.push(rt.layer); });
-      if(visibleLayers.length){
-        const fg=L.featureGroup(visibleLayers);
-        map.fitBounds(fg.getBounds(),{padding:[40,40]});
-      }
+    function resetHighlight(layer, color) {
+      layer.setStyle({ weight: 3, color: color });
     }
 
-    // --- OVERLAP / HOVER LOGIC ---
-    function routesAtPoint(latlng, pxTol=6){
-      const P = map.latLngToLayerPoint(latlng);
-      const found = [];
-      for(const rt of routes){
-        if(!map.hasLayer(rt.layer)) continue;
-        const segs = rt.segs;
-        let near=false;
-        for(const seg of segs){
-          for(let i=1;i<seg.length;i++){
-            const A = map.latLngToLayerPoint(seg[i-1]);
-            const B = map.latLngToLayerPoint(seg[i]);
-            const d = distPointToSeg(P,A,B);
-            if(d<=pxTol){ near=true; break; }
-          }
-          if(near) break;
-        }
-        if(near) found.push(rt);
-      }
-      // unique by ROUTE NAME
-      const byName = new Map();
-      for(const rt of found){
-        const name = normalize(rt.row["ROUTE NAME"]||'');
-        if(!byName.has(name)) byName.set(name, rt);
-      }
-      return Array.from(byName.values());
-    }
-
-    function setHoverHighlights(rtList){
-      const newIds = new Set(rtList.map(r=>r.id));
-      // remove highlight from ones no longer hovered (but keep selected highlighted)
-      for(const rt of routes){
-        if(!map.hasLayer(rt.layer)) continue;
-        if(!newIds.has(rt.id) && (!selectedLayer || rt.layer!==selectedLayer)){
-          rt.layer.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 });
-        }
-      }
-      // highlight hovered (except the selected one which is already highlighted)
-      for(const rt of rtList){
-        if(selectedLayer && rt.layer===selectedLayer) continue;
-        rt.layer.setStyle({ color:'yellow', weight:7, opacity:1 });
-        rt.layer.bringToFront();
-      }
-      lastHoverIds = newIds;
-    }
-
-    function clearSelectionAndPopups(){
-      if(selectedLayer){
-        selectedLayer.setStyle({ color:selectedLayer.options.baseColor, weight:4, opacity:0.95 });
-        selectedLayer = null; selectedRoute=null;
-      }
-      if(listPopup){ map.removeLayer(listPopup); listPopup=null; }
-      if(detailsPopup){ map.removeLayer(detailsPopup); detailsPopup=null; }
-      if(hoverPopup){ map.removeLayer(hoverPopup); }
-      // remove any leftover hover highlights
-      for(const rt of routes){
-        if(map.hasLayer(rt.layer)){
-          rt.layer.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 });
-        }
-      }
-      lastHoverIds.clear && lastHoverIds.clear();
-    }
-
-    map.on('mousemove', (e)=>{
-      const near = routesAtPoint(e.latlng, 6);
-      if(near.length){
-        setHoverHighlights(near);
-        hoverPopup.setLatLng(e.latlng).setContent(String(near.length)).addTo(map);
-      }else{
-        if(hoverPopup) map.removeLayer(hoverPopup);
-        // unhighlight all non-selected
-        for(const rt of routes){
-          if(!selectedLayer || rt.layer!==selectedLayer){
-            rt.layer.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 });
-          }
-        }
-      }
-    });
-
-    map.on('click', (e)=>{
-      const near = routesAtPoint(e.latlng, 6);
-      if(!near.length){
-        clearSelectionAndPopups();
-        return;
-      }
-      // Build list popup
-      const items = near
-        .map(rt=>normalize(rt.row["ROUTE NAME"]||''))
-        .filter(Boolean);
-      const uniqueNames=[...new Set(items)];
-      const listHtml = `
-        <div><b>Routes at this point (${uniqueNames.length})</b></div>
-        <div style="margin-top:6px">
-          ${uniqueNames.map(n=>`<div class="route-item" data-name="${n}">${n}</div>`).join('')}
+    function showRoutePopup(route, latlng, layer) {
+      const popupContent = `
+        <div class="custom-popup">
+          <table>
+            <tr><td class="label">Route Name:</td><td>${route["ROUTE NAME"] || "N/A"}</td></tr>
+            <tr><td class="label">DENO:</td><td>${route["DENO"] || "N/A"}</td></tr>
+            <tr><td class="label">Class:</td><td>${route["Class"] || "N/A"}</td></tr>
+            <tr><td class="label">Classification:</td><td>${route["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A"}</td></tr>
+            <tr><td class="label">NAU:</td><td>${route["NO. OF AUTHORIZED UNITS"] || "N/A"}</td></tr>
+            <tr><td class="label">Route Length:</td><td>${route["ROUTE LENGTH"] || "N/A"} km</td></tr>
+          </table>
         </div>
       `;
-      if(listPopup) map.removeLayer(listPopup);
-      listPopup = L.popup({autoClose:false, closeOnClick:false, className:'route-list'})
-        .setLatLng(e.latlng).setContent(listHtml).addTo(map);
-
-      // prevent clicks inside popup from bubbling to map
-      setTimeout(()=>{
-        const el = listPopup.getElement();
-        if(el){
-          L.DomEvent.disableClickPropagation(el);
-          el.querySelectorAll('.route-item').forEach(div=>{
-            div.addEventListener('click',(ev)=>{
-              const name = ev.currentTarget.getAttribute('data-name');
-              selectRouteByName(name);
-            });
-          });
-        }
-      },0);
-    });
-
-    function selectRouteByName(name){
-      const target = routes.find(rt=>normalize(rt.row["ROUTE NAME"]||'')===normalize(name));
-      if(!target) return;
-
-      // reset previous selection
-      if(selectedLayer){
-        selectedLayer.setStyle({ color:selectedLayer.options.baseColor, weight:4, opacity:0.95 });
-      }
-      selectedRoute = target;
-      selectedLayer = target.layer;
-
-      // highlight selected
-      selectedLayer.setStyle({ color:'yellow', weight:7, opacity:1 });
-      selectedLayer.bringToFront();
-
-      // details popup (center of route bounds)
-      const bounds = selectedLayer.getBounds();
-      const center = bounds.getCenter();
-
-      const lenKm = totalLengthKm(target.segs);
-      const row = target.row;
-      const html = `
-        <div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
-        <div><strong>DENO:</strong> ${normalize(row["DENO"]||'')}</div>
-        <div><strong>CLASS:</strong> ${normalize(row["Class"]||'')}</div>
-        <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
-        <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>
-        <div><strong>ROUTE LENGTH:</strong> ${lenKm.toFixed(2)} km</div>
-      `;
-      if(detailsPopup) map.removeLayer(detailsPopup);
-      detailsPopup = L.popup({autoClose:false, closeOnClick:false}).setLatLng(center).setContent(html).addTo(map);
-
-      // keep listPopup open; fit to selection
-      map.fitBounds(bounds, { padding:[40,40] });
+      layer.bindPopup(popupContent, { autoPan: true, autoPanPadding: [80,80] }).openPopup(latlng);
     }
 
-    // --- LOAD DATA + SUGGESTIONS WIRING ---
-    const suggestions={routeNames:[],epRegion:[],epProvince:[],epLGU:[],epBarangay:[],epTerminal:[]};
+    Papa.parse(sheetUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        routes = results.data;
 
-    fetch(csvUrl).then(r=>r.text()).then(csvText=>{
-      Papa.parse(csvText,{
-        header:true,skipEmptyLines:true,
-        complete:results=>{
-          allData=results.data;
+        routes.forEach(route => {
+          if (route["GEO PATH"]) {
+            try {
+              const coords = JSON.parse(route["GEO PATH"]);
+              const color = randomColor();
+              const polyline = L.polyline(coords, { color: color, weight: 3 }).addTo(map);
 
-          // build suggestions (endpoints suggest from BOTH endpoint 1 & 2)
-          suggestions.routeNames = uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
-          suggestions.epRegion   = uniqueSorted(allData.flatMap(r=>[r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]));
-          suggestions.epProvince = uniqueSorted(allData.flatMap(r=>[r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]));
-          suggestions.epLGU      = uniqueSorted(allData.flatMap(r=>[r["ENDPOINT 1 LGU"], r["ENDPOINT 2 LGU"]]));
-          suggestions.epBarangay = uniqueSorted(allData.flatMap(r=>[r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]));
-          suggestions.epTerminal = uniqueSorted(allData.flatMap(r=>[r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]));
+              polyline.on('mouseover', function(e) {
+                highlightRoute(polyline);
+              });
+              polyline.on('mouseout', function(e) {
+                resetHighlight(polyline, color);
+              });
+              polyline.on('click', function(e) {
+                showRoutePopup(route, e.latlng, polyline);
+              });
 
-          // wire autocompletes
-          makeAutocomplete(
-            document.getElementById('routeInput'),
-            suggestions.routeNames,
-            document.getElementById('routeSuggestions'),
-            val=>{document.getElementById('routeInput').value='';addRouteChip(val);}
-          );
-          // Enter to add quickly
-          document.getElementById('routeInput').addEventListener('keydown',(ev)=>{
-            if(ev.key==='Enter'){
-              ev.preventDefault();
-              const q=ev.target.value.trim();
-              if(!q) return;
-              const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase());
-              addRouteChip(exact||q);
-              ev.target.value='';
+              routeLayers.push({ route: route, layer: polyline });
+            } catch (e) {
+              console.error("Invalid GEO PATH for route:", route["ROUTE NAME"]);
             }
-          });
-
-          // Endpoint autocompletes (both EP1 & EP2 from combined sets)
-          makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val;});
-          makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val;});
-          makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val;});
-          makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.epBarangay, document.getElementById('ep1BarangaySuggestions'), val=>{document.getElementById('ep1Barangay').value=val;});
-          makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.epTerminal, document.getElementById('ep1TerminalSuggestions'), val=>{document.getElementById('ep1Terminal').value=val;});
-
-          makeAutocomplete(document.getElementById('ep2Region'),  suggestions.epRegion,   document.getElementById('ep2RegionSuggestions'),   val=>{document.getElementById('ep2Region').value=val;});
-          makeAutocomplete(document.getElementById('ep2Province'),suggestions.epProvince, document.getElementById('ep2ProvinceSuggestions'), val=>{document.getElementById('ep2Province').value=val;});
-          makeAutocomplete(document.getElementById('ep2LGU'),     suggestions.epLGU,      document.getElementById('ep2LGUSuggestions'),      val=>{document.getElementById('ep2LGU').value=val;});
-          makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;});
-          makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;});
-
-          // draw all routes
-          for(const row of allData){
-            const rt = drawRoute(row);
-            if(rt){ routes.push(rt); visibleLayers.push(rt.layer); }
           }
-          if(visibleLayers.length){
-            const fg=L.featureGroup(visibleLayers);
-            map.fitBounds(fg.getBounds(),{padding:[40,40]});
-          }
+        });
+      }
+    });
+
+    document.getElementById('routeFilter').addEventListener('input', function(e) {
+      const value = e.target.value.toLowerCase();
+      routeLayers.forEach(r => {
+        if (r.route["ROUTE NAME"] && r.route["ROUTE NAME"].toLowerCase().includes(value)) {
+          r.layer.setStyle({ opacity: 1, fillOpacity: 1 });
+        } else {
+          r.layer.setStyle({ opacity: 0.1, fillOpacity: 0.1 });
         }
       });
-    }).catch(err=>console.error(err));
+    });
   </script>
 </body>
 </html>
