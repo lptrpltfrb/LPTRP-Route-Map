@@ -114,14 +114,13 @@
 
     /* details popup - ALMOST INVISIBLE: adjust alpha below */
     .details-popup .leaflet-popup-content-wrapper {
-      background: rgba(255,255,255,0.08);   /* <-- change this alpha to adjust transparency (0.00 - 1.0) */
+      background: rgba(255,255,255,0.08);   /* <- change alpha between 0.00 (invisible) and 1.0 (opaque) */
       border-radius:8px;
       box-shadow: none;
       border: 1px solid rgba(0,0,0,0.06);
       backdrop-filter: blur(3px);
     }
-    .details-popup .leaflet-popup-tip { display:none; } /* optional: hide little triangular tip */
-
+    .details-popup .leaflet-popup-tip { display:none; }
     .details-popup .leaflet-popup-content { font-size:13px; color: #111; opacity: 0.95; }
   </style>
 </head>
@@ -194,7 +193,6 @@
     }
     function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
-    // distance from point to segment in screen pixels
     function distPointToSeg(P,A,B){
       const vx=B.x-A.x, vy=B.y-A.y;
       const wx=P.x-A.x, wy=P.y-A.y;
@@ -219,26 +217,27 @@
     let visibleLayers = [];
     let selectedRoute = null;
 
-    // Popups / panels
     const hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count', autoPan:false});
     let detailsPopup = null;
-
-    // DOM route list panel (lower-right)
     let routeListPanel = null;
+
+    // -----------------------
+    // ROUTE LIST PANEL (lower-right)
+    // -----------------------
     function showRouteListPanel(names){
-      // create panel if not exists
-      if(!routeListPanel){
-        routeListPanel = document.createElement('div');
-        routeListPanel.className = 'route-list-panel';
-        // prevent map from handling clicks inside
-        routeListPanel.addEventListener('click', e => e.stopPropagation());
-        map.getContainer().appendChild(routeListPanel);
-      }
-      // build HTML
+      // clear previous panel first
+      hideRouteListPanel();
+
+      routeListPanel = document.createElement('div');
+      routeListPanel.className = 'route-list-panel';
+      routeListPanel.addEventListener('click', e => e.stopPropagation()); // prevent map clicks
+
       const header = `<div class="header">Routes at this point (${names.length})</div>`;
       const itemsHtml = names.map(n => `<div class="route-item" data-name="${n}">${n}</div>`).join('');
       routeListPanel.innerHTML = header + itemsHtml;
-      // wire clicks
+
+      map.getContainer().appendChild(routeListPanel);
+
       routeListPanel.querySelectorAll('.route-item').forEach(el => {
         el.addEventListener('click', (ev) => {
           const name = ev.currentTarget.getAttribute('data-name');
@@ -254,20 +253,12 @@
     }
 
     // -----------------------
-    // FILTER UI helpers
+    // FILTER helpers
     // -----------------------
     let selectedRouteNames = [];
     function addRouteChip(name){ const n=normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
     function removeRouteChip(name){ selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); renderChips(); }
-    function renderChips(){
-      const c=document.getElementById('routeChips'); c.innerHTML='';
-      for(const n of selectedRouteNames){
-        const ch=document.createElement('div'); ch.className='chip';
-        const t=document.createElement('span'); t.textContent=n;
-        const b=document.createElement('button'); b.innerHTML='&times;'; b.onclick=()=>removeRouteChip(n);
-        ch.appendChild(t); ch.appendChild(b); c.appendChild(ch);
-      }
-    }
+    function renderChips(){ const c=document.getElementById('routeChips'); c.innerHTML=''; for(const n of selectedRouteNames){ const ch=document.createElement('div'); ch.className='chip'; const t=document.createElement('span'); t.textContent=n; const b=document.createElement('button'); b.innerHTML='&times;'; b.onclick=()=>removeRouteChip(n); ch.appendChild(t); ch.appendChild(b); c.appendChild(ch); } }
 
     function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick){
       function show(){
@@ -291,7 +282,7 @@
     }
 
     // -----------------------
-    // GEO PATH parsing and drawing
+    // GEO PATH parse + draw
     // -----------------------
     function tryParseGeoPath(geo){
       if(!geo) return null;
@@ -317,10 +308,10 @@
       const group = L.layerGroup();
       for(const seg of segs){
         const poly = L.polyline(seg, { color: baseColor, weight: 4, opacity: 0.95 });
-        // when user clicks a route segment, stop map click and select this route directly
+        // click on segment should show list for that clicked point (not immediately select top route)
         poly.on('click', (ev) => {
           L.DomEvent.stopPropagation(ev);
-          selectRouteByName(routeName);
+          handlePointClick(ev.latlng);
         });
         poly.addTo(group);
       }
@@ -445,7 +436,6 @@
       try{ if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup); }catch(e){}
       if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
       hideRouteListPanel();
-      // reset all styles
       for(const rt of routes){
         if(map.hasLayer(rt.layerGroup)){
           rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
@@ -469,28 +459,36 @@
       }
     });
 
-    map.on('click', (e)=>{
-      const near = routesAtPoint(e.latlng, 6);
+    // Shared handler for clicks (polyline click and map click)
+    function handlePointClick(latlng){
+      const near = routesAtPoint(latlng, 6);
       if(!near.length){
+        // click on open space: clear everything
         clearSelectionAndPopups();
         return;
       }
-      const uniqueNames = [...new Set(near.map(rt => normalize(rt.row["ROUTE NAME"]||''))).values()].filter(Boolean);
-      // show list panel in lower-right
+      // click on routes: clear previous selection and show list for this point
+      clearSelectionAndPopups();
+      const uniqueNames = [...new Set(near.map(rt => normalize(rt.row["ROUTE NAME"]||'')).filter(Boolean))];
       showRouteListPanel(uniqueNames);
+    }
+
+    // map click uses shared handler
+    map.on('click', (e) => {
+      handlePointClick(e.latlng);
     });
 
     // -----------------------
-    // SELECTION (by name)
+    // SELECTION (by name from list)
     // -----------------------
     function selectRouteByName(name){
       const target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize(name));
       if(!target) return;
 
-      // remove previous details
+      // remove previous details popup (keep list open)
       if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
 
-      // unstyle previous selection
+      // unstyle previous
       if(selectedRoute){
         selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }));
       }
@@ -501,11 +499,12 @@
 
       const row = selectedRoute.row;
 
-      // Use CLASS column exactly as in sheet (uppercase)
+      // CLASS uses header "CLASS" exactly
       const classVal = normalize(row["CLASS"]||'');
-      // Use route length from sheet if present (common variants)
+
+      // ROUTE LENGTH should come from Google Sheet. Try common header variants:
       const lengthFromSheet = normalize(row["ROUTE LENGTH"]) || normalize(row["ROUTE LENGTH (KM)"]) || normalize(row["ROUTE LENGTH KM"]) || normalize(row["ROUTE LENGTH (km)"]) || normalize(row["ROUTE LENGTH (KM) "]) || '';
-      const lengthDisplay = lengthFromSheet ? lengthFromSheet + (lengthFromSheet.match(/[a-zA-Z%]/) ? '' : ' km') : 'N/A';
+      const lengthDisplay = lengthFromSheet ? (lengthFromSheet.match(/[a-zA-Z%]/) ? lengthFromSheet : lengthFromSheet + ' km') : 'N/A';
 
       const html = `
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
@@ -516,7 +515,7 @@
         <div><strong>ROUTE LENGTH:</strong> ${lengthDisplay}</div>
       `;
 
-      // place details popup at center of route bounds with small offset (and previous removed above)
+      // place details popup at center of route bounds
       const fg = L.featureGroup(selectedRoute.layerGroup.getLayers());
       const bounds = fg.getBounds();
       const center = bounds.getCenter();
@@ -533,7 +532,7 @@
     }
 
     // -----------------------
-    // LOAD DATA & wire suggestions
+    // LOAD DATA & wiring
     // -----------------------
     const suggestions = { routeNames:[], epRegion:[], epProvince:[], epLGU:[], epBarangay:[], epTerminal:[] };
 
@@ -543,7 +542,7 @@
         complete: results => {
           allData = results.data;
 
-          // build suggestions (endpoints suggest from BOTH endpoint 1 & 2)
+          // suggestions: endpoints from both endpoint 1 & 2
           suggestions.routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
           suggestions.epRegion   = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]));
           suggestions.epProvince = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]));
@@ -551,7 +550,7 @@
           suggestions.epBarangay = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]));
           suggestions.epTerminal = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]));
 
-          // wire autocompletes (route input adds chips)
+          // wire autocompletes
           makeAutocomplete(
             document.getElementById('routeInput'),
             suggestions.routeNames,
@@ -562,7 +561,6 @@
             if(ev.key === 'Enter'){ ev.preventDefault(); const q = ev.target.value.trim(); if(!q) return; const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value=''; }
           });
 
-          // endpoint autocompletes (both EP1 & EP2 from combined sets)
           makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val;});
           makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val;});
           makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val;});
@@ -575,7 +573,7 @@
           makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;});
           makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;});
 
-          // draw routes and keep visible initially
+          // draw routes
           for(const row of allData){
             const rt = drawRoute(row);
             if(rt){ routes.push(rt); visibleLayers.push(rt.layerGroup); }
