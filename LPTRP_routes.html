@@ -1,314 +1,207 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LPTRP Route Map</title>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
+  <title>LTFRB Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <style>
-    html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
-    #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
-
-    .search-container {
+    body { margin:0; padding:0; }
+    #map { width:1170px; height:800px; }
+    .filter-box {
       position: absolute;
-      left: 12px;
-      top: 12px;
-      width: 340px;
-      max-height: 720px;
-      overflow: auto;
-      background: #fff;
+      top: 10px;
+      left: 10px;
+      background: white;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      z-index: 2000;
-      font-family: Arial, Helvetica, sans-serif;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      z-index: 1000;
+      width: 280px;
+      font-family: Arial, sans-serif;
+    }
+    .filter-box h4 {
+      margin: 6px 0 4px;
+      font-size: 14px;
+    }
+    .filter-box input, .filter-box select {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
       font-size: 13px;
     }
-    .search-section { margin-bottom: 10px; }
-    .search-section h4 { margin: 6px 0; font-size: 14px; }
-    .compact-row { display:flex; gap:6px; align-items:center; }
-
-    input[type="text"], .small-input {
-      width:100%;
-      padding:6px 8px;
-      border:1px solid #ccc;
-      border-radius:4px;
-      box-sizing:border-box;
-      font-size:13px;
-      outline:none;
-      background:#fff;
-    }
-    input[type="text"]:focus, .small-input:focus {
-      border-color:#2f78a0;
-      box-shadow:0 0 4px rgba(47,120,160,0.4);
-    }
-
-    .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px; border:1px solid #ddd; border-radius:4px; background:#fff; }
-    .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px; display:inline-flex; gap:6px; align-items:center; font-size:12px; }
-    .chip button { background:transparent; border:0; color:#fff; cursor:pointer; font-weight:bold; }
-    .btn { width:100%; padding:8px; border-radius:6px; border:0; cursor:pointer; margin-top:8px; font-size:14px; }
-    .btn.apply { background:#2f78a0; color:#fff; }
-    .btn.clear { background:#efefef; color:#222; }
-
-    .suggestions { position: relative; }
-    .suggestions-list {
+    .autocomplete-suggestions {
+      border: 1px solid #ccc;
+      border-top: none;
+      max-height: 120px;
+      overflow-y: auto;
+      background: white;
       position: absolute;
-      left:0;
-      right:0;
-      top:42px;
-      max-height:180px;
-      overflow:auto;
-      background:#fff;
-      border:1px solid #ccc;
-      border-radius:4px;
-      z-index:2100;
-      box-shadow:0 6px 14px rgba(0,0,0,.12);
-      display:none;
-    }
-    .suggestions-list div { padding:6px 8px; cursor:pointer; }
-    .suggestions-list div:hover { background:#f0f8ff; }
-
-    .north-arrow {
-      position: absolute;
-      right: 18px;
-      top: 18px;
       z-index: 2000;
-      width: 40px;
-      height: 40px;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="%23000"><path d="M50 5 L70 70 L50 55 L30 70 Z"/></g><text x="50" y="95" font-size="12" text-anchor="middle" fill="%23000">N</text></svg>') no-repeat center/contain;
-      pointer-events: none;
-      opacity: .95;
+      width: calc(100% - 12px);
     }
-
-    .search-container::-webkit-scrollbar { width:8px; height:8px }
-    .search-container::-webkit-scrollbar-thumb { background:#ddd; border-radius:8px }
+    .autocomplete-suggestions div {
+      padding: 5px;
+      cursor: pointer;
+    }
+    .autocomplete-suggestions div:hover {
+      background: #f0f0f0;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="north-arrow" title="North"></div>
+  <div class="filter-box">
+    <h4>Search by Route Name</h4>
+    <input type="text" id="routeNameInput" placeholder="Type route name..." autocomplete="off">
+    <div id="routeNameSuggestions" class="autocomplete-suggestions"></div>
 
-  <div class="search-container" id="searchPanel">
-    <div class="search-section">
-      <h4>Search by Route Name</h4>
-      <div class="chips" id="routeChips"></div>
-      <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
-        <div class="suggestions-list" id="routeSuggestions"></div>
-      </div>
-    </div>
-
-    <div class="search-section">
-      <h4>Search by Endpoints</h4>
-      <!-- Endpoint 1 -->
-      <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      <hr>
-      <!-- Endpoint 2 -->
-      <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
-    </div>
-
-    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
-    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
+    <h4>Search by Endpoints</h4>
+    <input type="text" id="pointAInput" placeholder="Point A..." autocomplete="off">
+    <div id="pointASuggestions" class="autocomplete-suggestions"></div>
+    <input type="text" id="pointBInput" placeholder="Point B (optional)..." autocomplete="off">
+    <div id="pointBSuggestions" class="autocomplete-suggestions"></div>
+    <input type="text" id="viaInput" placeholder="Via (optional)..." autocomplete="off">
+    <div id="viaSuggestions" class="autocomplete-suggestions"></div>
   </div>
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
   <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
-    function normalize(s){ if(!s) return ''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
-    function nLower(s){ return normalize(s).toLowerCase(); }
-    function colorFromString(str){ const s=normalize(str||''); let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    const map = L.map('map', { preferCanvas: true }).setView([13,122],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
-    L.control.scale({position:'bottomleft',metric:true}).addTo(map);
+    let allRoutes = [];
+    let routeLayers = [];
 
-    let allData=[], routeLayers=[], selectedRouteNames=[], clickedLayer=null;
-
-    function clearRouteLayers(){
-      routeLayers.forEach(l=>map.removeLayer(l));
-      routeLayers=[];
-      clickedLayer=null;
+    function randomColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
     }
-    function tryParseGeoPath(geo){ if(!geo) return null; try{return JSON.parse(normalize(geo));}catch(e){return null;} }
 
-    function drawRowOnMap(row){
-      const geo=row["GEO PATH"]; const parsed=tryParseGeoPath(geo); if(!parsed) return;
-      const segments=(Array.isArray(parsed)&&Array.isArray(parsed[0])&&Array.isArray(parsed[0][0]))?parsed:[parsed];
-      const routeName=normalize(row["ROUTE NAME"]||''); const baseColor=colorFromString(routeName||(row["DENO"]||''));
-      for(const seg of segments){ try{
-        const latlngs=seg.map(c=>[+c[1],+c[0]]);
-        const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
-        pl.options.baseColor=baseColor;
-        pl.options.routeName=routeName;
-        pl.options.row=row;
+    function highlightRoute(layer) {
+      layer.setStyle({ color: 'yellow', weight: 5 });
+      setTimeout(() => {
+        layer.setStyle({ color: layer.options.originalColor, weight: 3 });
+      }, 2000);
+    }
 
-        // Hover highlight + count popup
-        pl.on('mouseover',()=>{ 
-          if (pl !== clickedLayer) pl.setStyle({color:'yellow',weight:7,opacity:1});
-          pl.bringToFront();
-          // Show number of routes at that point
-          const overlapCount = routeLayers.filter(r=>{
-            return r.getBounds().contains(latlngs[0]);
-          }).length;
-          pl.bindTooltip(`Routes here: ${overlapCount}`,{permanent:false,direction:'top'}).openTooltip();
+    function addAutocomplete(inputId, suggestionId, values) {
+      const input = document.getElementById(inputId);
+      const box = document.getElementById(suggestionId);
+
+      input.addEventListener("input", function() {
+        const val = this.value.toLowerCase();
+        box.innerHTML = "";
+        if (!val) return;
+
+        let matches = values.filter(v => v.toLowerCase().includes(val));
+        matches.slice(0, 10).forEach(match => {
+          const div = document.createElement("div");
+          div.textContent = match;
+          div.onclick = function() {
+            input.value = match;
+            box.innerHTML = "";
+            applyFilters();
+          };
+          box.appendChild(div);
         });
-        pl.on('mouseout',()=>{ 
-          if (pl !== clickedLayer) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
-          pl.closeTooltip();
+      });
+    }
+
+    function applyFilters() {
+      const nameVal = document.getElementById("routeNameInput").value.toLowerCase();
+      const pointAVal = document.getElementById("pointAInput").value.toLowerCase();
+      const pointBVal = document.getElementById("pointBInput").value.toLowerCase();
+      const viaVal = document.getElementById("viaInput").value.toLowerCase();
+
+      routeLayers.forEach(layer => map.removeLayer(layer));
+      routeLayers = [];
+
+      allRoutes.forEach(r => {
+        let match = true;
+        if (nameVal && !r["ROUTE NAME"].toLowerCase().includes(nameVal)) match = false;
+        if (pointAVal && !Object.values(r).some(v => v && v.toLowerCase().includes(pointAVal))) match = false;
+        if (pointBVal && !Object.values(r).some(v => v && v.toLowerCase().includes(pointBVal))) match = false;
+        if (viaVal && !Object.values(r).some(v => v && v.toLowerCase().includes(viaVal))) match = false;
+
+        if (match && r._layer) {
+          r._layer.addTo(map);
+          routeLayers.push(r._layer);
+        }
+      });
+    }
+
+    Papa.parse(sheetUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        allRoutes = results.data;
+
+        let routeNames = [...new Set(allRoutes.map(r => r["ROUTE NAME"]).filter(Boolean))];
+        let endpoints = [...new Set(
+          allRoutes.flatMap(r => [
+            r["ENDPOINT 1 REGION"], r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 1 LGU"],
+            r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 1 TERMINAL"],
+            r["ENDPOINT 2 REGION"], r["ENDPOINT 2 PROVINCE"], r["ENDPOINT 2 LGU"],
+            r["ENDPOINT 2 BARANGAY"], r["ENDPOINT 2 TERMINAL"]
+          ]).filter(Boolean)
+        )];
+        let vias = [...new Set(allRoutes.flatMap(r => [r["ROUTE STRUCTURE"], r["CORRIDOR"]]).filter(Boolean))];
+
+        addAutocomplete("routeNameInput", "routeNameSuggestions", routeNames);
+        addAutocomplete("pointAInput", "pointASuggestions", endpoints);
+        addAutocomplete("pointBInput", "pointBSuggestions", endpoints);
+        addAutocomplete("viaInput", "viaSuggestions", vias);
+
+        allRoutes.forEach(route => {
+          if (!route["GEO PATH"]) return;
+          try {
+            const coords = JSON.parse(route["GEO PATH"]);
+            const poly = L.polyline(coords, {
+              color: randomColor(),
+              weight: 3,
+              originalColor: randomColor()
+            }).addTo(map);
+
+            poly.on("mouseover", () => {
+              poly.setStyle({ color: "yellow", weight: 5 });
+            });
+            poly.on("mouseout", () => {
+              poly.setStyle({ color: poly.options.originalColor, weight: 3 });
+            });
+
+            poly.on("click", (e) => {
+              const overlapping = allRoutes.filter(r => {
+                if (!r._layer) return false;
+                return r._layer.getBounds().contains(e.latlng);
+              });
+              let list = "<b>Routes at this point:</b><br>";
+              overlapping.forEach(r => {
+                list += `<div style='cursor:pointer;color:blue' onclick="window.highlight('${r['ROUTE NAME']}')">${r['ROUTE NAME']}</div>`;
+              });
+              L.popup().setLatLng(e.latlng).setContent(list).openOn(map);
+            });
+
+            route._layer = poly;
+            routeLayers.push(poly);
+          } catch(e) { console.log("Bad GEO PATH", e); }
         });
-
-        // Click: show list of routes at point
-        pl.on('click',(e)=>{
-          const clickLatLng=e.latlng;
-          const overlappingRoutes = routeLayers.filter(r=>r.getBounds().contains(clickLatLng));
-          showRouteList(overlappingRoutes,clickLatLng);
-        });
-
-        routeLayers.push(pl);
-      }catch(e){} }
-    }
-
-    function showRouteList(routes,latlng){
-      const content = routes.map(r=>`<div style="cursor:pointer;margin-bottom:4px;" onclick="showRouteDetails('${normalize(r.options.routeName)}')">${normalize(r.options.routeName)}</div>`).join('');
-      if(window.routeListPopup) map.closePopup(window.routeListPopup);
-      window.routeListPopup=L.popup({maxWidth:300,autoClose:false,closeOnClick:false})
-        .setLatLng(latlng)
-        .setContent(`<div style="font-size:14px;font-weight:700;">Routes at this point:</div>${content}`)
-        .openOn(map);
-    }
-
-    function showRouteDetails(routeName){
-      const route = routeLayers.find(r=>normalize(r.options.routeName)===routeName);
-      if(!route) return;
-      if(window.routeDetailsPopup) map.closePopup(window.routeDetailsPopup);
-      clickedLayer && clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
-      clickedLayer=route;
-      route.setStyle({color:'yellow',weight:7,opacity:1}).bringToFront();
-      window.routeDetailsPopup=L.popup({maxWidth:300,autoClose:false,closeOnClick:false})
-        .setLatLng(route.getBounds().getCenter())
-        .setContent(popupHtml(route.options.row))
-        .openOn(map);
-    }
-
-    function popupHtml(row){
-      return `<div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
-      <div><strong>DENO:</strong> ${normalize(row["DENO"]||'')}</div>
-      <div><strong>CLASS:</strong> ${normalize(row["Class"]||'')}</div>
-      <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
-      <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>
-      <div><strong>ROUTE LENGTH:</strong> ${normalize(row["ROUTE LENGTH"]||'')}</div>`;
-    }
-
-    map.on('click',()=>{
-      if(window.routeListPopup) map.closePopup(window.routeListPopup);
-      if(window.routeDetailsPopup) map.closePopup(window.routeDetailsPopup);
-      clickedLayer && clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
-      clickedLayer=null;
+      }
     });
 
-    // --- autocomplete & filtering ---
-    const suggestions={routeNames:[],ep1Region:[],ep1Province:[],ep1LGU:[],ep1Barangay:[],ep1Terminal:[],ep2Region:[],ep2Province:[],ep2LGU:[],ep2Barangay:[],ep2Terminal:[]};
-    function uniqueSorted(arr){return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
-    function makeAutocomplete(inputEl,suggestionArray,containerEl,onPick){
-      inputEl.addEventListener('input',function(){
-        const q=nLower(this.value);
-        renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);
-      });
-      inputEl.addEventListener('focus',function(){
-        const q=nLower(this.value);
-        renderSuggestions(containerEl,suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200),onPick);
-      });
-      inputEl.addEventListener('blur',()=>setTimeout(()=>containerEl.style.display='none',180));
-    }
-    function renderSuggestions(containerEl,list,onPick){
-      if(!list.length){containerEl.style.display='none';containerEl.innerHTML='';return;}
-      containerEl.innerHTML='';
-      for(const v of list){
-        const d=document.createElement('div');
-        d.textContent=v;
-        d.onclick=()=>{onPick(v);containerEl.style.display='none';};
-        containerEl.appendChild(d);
+    window.highlight = function(routeName) {
+      const route = allRoutes.find(r => r["ROUTE NAME"] === routeName);
+      if (route && route._layer) {
+        map.fitBounds(route._layer.getBounds());
+        highlightRoute(route._layer);
+        route._layer.bindPopup(
+          `<b>${route["ROUTE NAME"]}</b><br>DENO: ${route["DENO"]}<br>Class: ${route["Class"]}<br>Route Class: ${route["ROUTE CLASSIFICATION (if LPTRP)"]}<br>NAU: ${route["NO. OF AUTHORIZED UNITS"]}`
+        ).openPopup();
       }
-      containerEl.style.display='block';
-    }
-
-    let selectedRouteNames=[];
-    function addRouteChip(name){const n=normalize(name);if(!n||selectedRouteNames.includes(n))return;selectedRouteNames.push(n);renderChips();}
-    function removeRouteChip(name){selectedRouteNames=selectedRouteNames.filter(x=>x!==normalize(name));renderChips();}
-    function renderChips(){
-      const c=document.getElementById('routeChips');c.innerHTML='';
-      for(const n of selectedRouteNames){
-        const ch=document.createElement('div');ch.className='chip';
-        const t=document.createElement('span');t.textContent=n;
-        const b=document.createElement('button');b.innerHTML='✕';b.onclick=()=>removeRouteChip(n);
-        ch.appendChild(t);ch.appendChild(b);c.appendChild(ch);
-      }
-    }
-
-    function applyFilters(){
-      clearRouteLayers();
-      const filterNames=selectedRouteNames.map(n=>nLower(n));
-      const filtered=allData.filter(r=>!filterNames.length || filterNames.includes(nLower(r["ROUTE NAME"])));
-      filtered.forEach(drawRowOnMap);
-    }
-    function resetFilters(){selectedRouteNames=[];renderChips();applyFilters();}
-
-    // --- load CSV ---
-    Papa.parse(csvUrl, {download:true,header:true,skipEmptyLines:true,complete:function(results){
-      allData=results.data;
-      // populate suggestion arrays
-      suggestions.routeNames=uniqueSorted(allData.map(r=>r["ROUTE NAME"]));
-      suggestions.ep1Region=uniqueSorted(allData.map(r=>r["ENDPOINT 1 REGION"]));
-      suggestions.ep1Province=uniqueSorted(allData.map(r=>r["ENDPOINT 1 PROVINCE"]));
-      suggestions.ep1LGU=uniqueSorted(allData.map(r=>r["ENDPOINT 1 LGU"]));
-      suggestions.ep1Barangay=uniqueSorted(allData.map(r=>r["ENDPOINT 1 BARANGAY"]));
-      suggestions.ep1Terminal=uniqueSorted(allData.map(r=>r["ENDPOINT 1 TERMINAL"]));
-      suggestions.ep2Region=uniqueSorted(allData.map(r=>r["ENDPOINT 2 REGION"]));
-      suggestions.ep2Province=uniqueSorted(allData.map(r=>r["ENDPOINT 2 PROVINCE"]));
-      suggestions.ep2LGU=uniqueSorted(allData.map(r=>r["ENDPOINT 2 LGU"]));
-      suggestions.ep2Barangay=uniqueSorted(allData.map(r=>r["ENDPOINT 2 BARANGAY"]));
-      suggestions.ep2Terminal=uniqueSorted(allData.map(r=>r["ENDPOINT 2 TERMINAL"]));
-
-      makeAutocomplete(document.getElementById('routeInput'),suggestions.routeNames,document.getElementById('routeSuggestions'),addRouteChip);
-      makeAutocomplete(document.getElementById('ep1Region'),suggestions.ep1Region,document.getElementById('ep1RegionSuggestions'),v=>document.getElementById('ep1Region').value=v);
-      makeAutocomplete(document.getElementById('ep1Province'),suggestions.ep1Province,document.getElementById('ep1ProvinceSuggestions'),v=>document.getElementById('ep1Province').value=v);
-      makeAutocomplete(document.getElementById('ep1LGU'),suggestions.ep1LGU,document.getElementById('ep1LGUSuggestions'),v=>document.getElementById('ep1LGU').value=v);
-      makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.ep1Barangay,document.getElementById('ep1BarangaySuggestions'),v=>document.getElementById('ep1Barangay').value=v);
-      makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.ep1Terminal,document.getElementById('ep1TerminalSuggestions'),v=>document.getElementById('ep1Terminal').value=v);
-      makeAutocomplete(document.getElementById('ep2Region'),suggestions.ep2Region,document.getElementById('ep2RegionSuggestions'),v=>document.getElementById('ep2Region').value=v);
-      makeAutocomplete(document.getElementById('ep2Province'),suggestions.ep2Province,document.getElementById('ep2ProvinceSuggestions'),v=>document.getElementById('ep2Province').value=v);
-      makeAutocomplete(document.getElementById('ep2LGU'),suggestions.ep2LGU,document.getElementById('ep2LGUSuggestions'),v=>document.getElementById('ep2LGU').value=v);
-      makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.ep2Barangay,document.getElementById('ep2BarangaySuggestions'),v=>document.getElementById('ep2Barangay').value=v);
-      makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.ep2Terminal,document.getElementById('ep2TerminalSuggestions'),v=>document.getElementById('ep2Terminal').value=v);
-
-      applyFilters();
-    }});
+    };
   </script>
 </body>
 </html>
