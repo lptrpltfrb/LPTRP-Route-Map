@@ -14,163 +14,198 @@
     body{margin:0;padding:0;font-family:Arial,sans-serif;}
     #map{width:1170px;height:800px;}
 
-    /* Filter box */
+    /* Filter box styling */
     .filter-box{
       position:absolute;
       top:10px;
       left:10px;
-      width:280px;
+      width:300px;
       background:#fff;
       padding:10px;
       border-radius:8px;
       box-shadow:0 2px 6px rgba(0,0,0,0.3);
       z-index:1000;
+      overflow:auto;
+      max-height:780px;
     }
     .filter-box h4{margin:4px 0;font-size:14px;}
     .filter-box label{font-size:12px;margin-top:6px;display:block;}
-    .filter-box input{width:100%;padding:4px 6px;margin-bottom:4px;border:1px solid #ccc;border-radius:4px;font-size:12px;}
+    .filter-box input{width:100%;padding:4px 6px;margin-bottom:4px;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box;}
     .filter-box button{width:100%;padding:6px;margin-top:6px;border:none;border-radius:4px;background:#2f78a0;color:#fff;cursor:pointer;font-size:13px;}
   </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="filter-box">
-    <h4>Search by Route Name</h4>
-    <input id="routeName" placeholder="Type route name..."/>
-    <h4>Search by Endpoints</h4>
-    <label>Point A (Endpoint 1 LGU)</label>
-    <input id="pointA" placeholder="Type LGU..."/>
-    <label>Point B (Endpoint 2 LGU)</label>
-    <input id="pointB" placeholder="Type LGU..."/>
-    <label>Via (Route Structure or Corridor)</label>
-    <input id="via" placeholder="Type route structure..."/>
-    <button id="applyFilter">Apply Filter</button>
-    <button id="clearFilter">Clear Filter</button>
-  </div>
+<div id="map"></div>
 
-  <script>
-  const map = L.map('map').setView([13,122],6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18, attribution:'© OpenStreetMap'}).addTo(map);
+<div class="filter-box">
+  <h4>Search by Route Name</h4>
+  <input id="routeName" placeholder="Type route name..."/>
+  <h4>Search by Endpoints</h4>
+  <label>End Point 1 Region</label><input id="ep1Region" placeholder="Type region..."/>
+  <label>End Point 1 Province</label><input id="ep1Province" placeholder="Type province..."/>
+  <label>End Point 1 LGU</label><input id="ep1LGU" placeholder="Type LGU..."/>
+  <label>End Point 1 Barangay</label><input id="ep1Barangay" placeholder="Type barangay..."/>
+  <label>End Point 1 Terminal</label><input id="ep1Terminal" placeholder="Type terminal..."/>
 
-  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-  
-  let allData = [];
-  let routeLayers = [];
-  let hoveredLayer=null;
-  let clickedLayer=null;
-  let mapPopup=null;
+  <label>End Point 2 Region</label><input id="ep2Region" placeholder="Type region..."/>
+  <label>End Point 2 Province</label><input id="ep2Province" placeholder="Type province..."/>
+  <label>End Point 2 LGU</label><input id="ep2LGU" placeholder="Type LGU..."/>
+  <label>End Point 2 Barangay</label><input id="ep2Barangay" placeholder="Type barangay..."/>
+  <label>End Point 2 Terminal</label><input id="ep2Terminal" placeholder="Type terminal..."/>
 
-  function normalize(s){return s?s.toString().trim():"";}
+  <button id="applyFilter">Apply Filter</button>
+  <button id="clearFilter">Clear Filter</button>
+</div>
 
-  function colorFromString(str){
-    const colors=['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
-    let hash=0; for(let i=0;i<str.length;i++){hash=(hash<<5)-hash+str.charCodeAt(i);hash|=0;}
-    return colors[Math.abs(hash)%colors.length];
-  }
+<script>
+const map = L.map('map').setView([13,122],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18, attribution:'© OpenStreetMap'}).addTo(map);
 
-  function drawRoute(row){
-    if(!row["GEO PATH"]) return;
-    let coords;
-    try{coords=JSON.parse(row["GEO PATH"])}catch(e){return;}
-    if(!Array.isArray(coords)) return;
-    if(!Array.isArray(coords[0][0])) coords=[coords];
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-    const routeName=normalize(row["ROUTE NAME"]);
-    const baseColor=colorFromString(routeName);
+let allData=[], routeLayers=[], hoveredLayer=null, clickedLayer=null;
+let listPopup=null, detailPopup=null;
 
-    coords.forEach(seg=>{
-      const latlngs=seg.map(c=>[+c[1],+c[0]]);
-      const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
-      pl.options.baseColor=baseColor;
-      pl.options.routeName=routeName;
-      pl.options.rowData=row;
+function normalize(s){return s?s.toString().trim():"";}
 
-      pl.on('mouseover',()=>{
-        if(hoveredLayer!==pl){
-          pl.setStyle({color:'yellow',weight:7,opacity:1});
-          let count=routeLayers.filter(l=>l.getBounds().intersects(pl.getBounds())).length;
-          if(mapPopup) map.removeLayer(mapPopup);
-          mapPopup=L.popup({closeButton:false,offset:[0,-10]}).setLatLng(pl.getBounds().getCenter()).setContent(`Routes at this point: ${count}`).openOn(map);
-        }
-      });
-      pl.on('mouseout',()=>{
-        if(pl!==clickedLayer) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
-        if(mapPopup){ map.removeLayer(mapPopup); mapPopup=null; }
-      });
+function colorFromString(str){
+  const colors=['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
+  let hash=0; for(let i=0;i<str.length;i++){hash=(hash<<5)-hash+str.charCodeAt(i);hash|=0;}
+  return colors[Math.abs(hash)%colors.length];
+}
 
-      pl.on('click',()=>{
-        if(mapPopup) map.removeLayer(mapPopup);
-        const overlapping=routeLayers.filter(l=>l.getBounds().intersects(pl.getBounds()));
-        let html='<div style="max-height:250px;overflow:auto;">';
-        overlapping.forEach(l=>{
-          html+=`<div style="cursor:pointer;color:${l.options.baseColor}" onclick="highlightRoute('${l.options.routeName}')">${l.options.routeName}</div>`;
-        });
-        html+='</div>';
-        mapPopup=L.popup({maxWidth:300,autoClose:false,closeOnClick:false}).setLatLng(pl.getBounds().getCenter()).setContent(html).openOn(map);
-      });
+function drawRoute(row){
+  if(!row["GEO PATH"]) return;
+  let coords;
+  try{coords=JSON.parse(row["GEO PATH"])}catch(e){return;}
+  if(!Array.isArray(coords)) return;
+  if(!Array.isArray(coords[0][0])) coords=[coords];
 
-      routeLayers.push(pl);
+  const routeName=normalize(row["ROUTE NAME"]);
+  const baseColor=colorFromString(routeName);
+
+  coords.forEach(seg=>{
+    const latlngs=seg.map(c=>[+c[1],+c[0]]);
+    const pl=L.polyline(latlngs,{color:baseColor,weight:4,opacity:0.95}).addTo(map);
+    pl.options.baseColor=baseColor;
+    pl.options.routeName=routeName;
+    pl.options.rowData=row;
+
+    pl.on('mouseover',()=>{
+      if(hoveredLayer!==pl){
+        pl.setStyle({color:'yellow',weight:7,opacity:1});
+        hoveredLayer=pl;
+        // Count unique route names overlapping at this polyline's bounds
+        const overlapNames=[...new Set(routeLayers.filter(l=>l.getBounds().intersects(pl.getBounds())).map(l=>l.options.routeName))];
+        if(listPopup) map.removeLayer(listPopup);
+        listPopup=L.popup({closeButton:false,offset:[0,-10]}).setLatLng(pl.getBounds().getCenter()).setContent(`Routes at this point: ${overlapNames.length}`).openOn(map);
+      }
     });
-  }
 
-  function highlightRoute(name){
-    if(clickedLayer) clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
-    const layer=routeLayers.find(l=>l.options.routeName===name);
-    if(!layer) return;
-    clickedLayer=layer;
-    layer.setStyle({color:'yellow',weight:7,opacity:1});
-    if(mapPopup) map.removeLayer(mapPopup);
-    const row=layer.options.rowData;
-    mapPopup=L.popup({maxWidth:300,autoClose:false,closeOnClick:false})
-      .setLatLng(layer.getBounds().getCenter())
-      .setContent(`<div style="font-weight:bold;">${normalize(row["ROUTE NAME"])}</div>
-                    <div>DENO: ${normalize(row["DENO"])}</div>
-                    <div>CLASS: ${normalize(row["Class"])}</div>
-                    <div>ROUTE CLASS: ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"])}</div>
-                    <div>NAU: ${normalize(row["NO. OF AUTHORIZED UNITS"])}</div>`).openOn(map);
-  }
-
-  map.on('click',()=>{ if(clickedLayer){clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95}); clickedLayer=null;} if(mapPopup){map.removeLayer(mapPopup); mapPopup=null;} });
-
-  Papa.parse(csvUrl,{download:true,header:true,complete:function(results){
-    allData=results.data;
-    allData.forEach(drawRoute);
-
-    // --- Autocomplete ---
-    const routeNames=[...new Set(allData.map(r=>normalize(r["ROUTE NAME"])).filter(Boolean))];
-    $("#routeName").autocomplete({source:routeNames});
-    const ep1LGU=[...new Set(allData.map(r=>normalize(r["ENDPOINT 1 LGU"])).filter(Boolean))];
-    $("#pointA").autocomplete({source:ep1LGU});
-    const ep2LGU=[...new Set(allData.map(r=>normalize(r["ENDPOINT 2 LGU"])).filter(Boolean))];
-    $("#pointB").autocomplete({source:ep2LGU});
-    const viaOpts=[...new Set(allData.map(r=>normalize(r["ROUTE STRUCTURE"])).filter(Boolean).concat(allData.map(r=>normalize(r["CORRIDOR"])).filter(Boolean)))];
-    $("#via").autocomplete({source:viaOpts});
-  }});
-
-  $("#applyFilter").on('click',function(){
-    const rName=nLower($("#routeName").val());
-    const a=nLower($("#pointA").val());
-    const b=nLower($("#pointB").val());
-    const v=nLower($("#via").val());
-    routeLayers.forEach(l=>map.removeLayer(l));
-    routeLayers=[];
-    allData.forEach(r=>{
-      const rn=nLower(r["ROUTE NAME"]);
-      const ep1=nLower(r["ENDPOINT 1 LGU"]);
-      const ep2=nLower(r["ENDPOINT 2 LGU"]);
-      const vs=[nLower(r["ROUTE STRUCTURE"]),nLower(r["CORRIDOR"])];
-      if((!rName||rn.includes(rName))&&(!a||ep1.includes(a))&&(!b||ep2.includes(b))&&(!v||vs.some(x=>x.includes(v)))) drawRoute(r);
+    pl.on('mouseout',()=>{
+      if(pl!==clickedLayer) pl.setStyle({color:pl.options.baseColor,weight:4,opacity:0.95});
+      if(listPopup){ map.removeLayer(listPopup); listPopup=null; }
+      hoveredLayer=null;
     });
-  });
 
-  $("#clearFilter").on('click',function(){
-    $("#routeName,#pointA,#pointB,#via").val('');
-    routeLayers.forEach(l=>map.removeLayer(l));
-    routeLayers=[];
-    allData.forEach(drawRoute);
-  });
+    pl.on('click',()=>{
+      // List of routes at this point
+      const overlapLayers=routeLayers.filter(l=>l.getBounds().intersects(pl.getBounds()));
+      const uniqueRoutes=[...new Map(overlapLayers.map(l=>[l.options.routeName,l])).values()];
+      let html='<div style="max-height:250px;overflow:auto;">';
+      uniqueRoutes.forEach(l=>{
+        html+=`<div style="cursor:pointer;color:${l.options.baseColor}" onclick="showRouteDetail('${l.options.routeName}')">${l.options.routeName}</div>`;
+      });
+      html+='</div>';
+      if(listPopup) map.removeLayer(listPopup);
+      listPopup=L.popup({maxWidth:300,autoClose:false,closeOnClick:false}).setLatLng(pl.getBounds().getCenter()).setContent(html).openOn(map);
+    });
 
-  function nLower(s){return s?s.toLowerCase():"";}
-  </script>
+    routeLayers.push(pl);
+  });
+}
+
+// Show route details popup
+function showRouteDetail(name){
+  if(detailPopup) map.removeLayer(detailPopup);
+  if(clickedLayer) clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95});
+  const layer=routeLayers.find(l=>l.options.routeName===name);
+  if(!layer) return;
+  clickedLayer=layer;
+  layer.setStyle({color:'yellow',weight:7,opacity:1});
+  const row=layer.options.rowData;
+  detailPopup=L.popup({maxWidth:300,autoClose:false,closeOnClick:false})
+    .setLatLng(layer.getBounds().getCenter())
+    .setContent(`<div style="font-weight:bold;">${normalize(row["ROUTE NAME"])}</div>
+                 <div>DENO: ${normalize(row["DENO"])}</div>
+                 <div>CLASS: ${normalize(row["Class"])}</div>
+                 <div>ROUTE CLASS: ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"])}</div>
+                 <div>NAU: ${normalize(row["NO. OF AUTHORIZED UNITS"])}</div>
+                 <div>ROUTE LENGTH: ${normalize(row["ROUTE LENGTH"])}</div>`).openOn(map);
+}
+
+// Clear on empty map click
+map.on('click',()=>{ 
+  if(clickedLayer){clickedLayer.setStyle({color:clickedLayer.options.baseColor,weight:4,opacity:0.95); clickedLayer=null;}
+  if(listPopup){map.removeLayer(listPopup); listPopup=null;}
+  if(detailPopup){map.removeLayer(detailPopup); detailPopup=null;}
+  if(hoveredLayer){hoveredLayer=null;}
+});
+
+Papa.parse(csvUrl,{download:true,header:true,complete:function(results){
+  allData=results.data;
+  allData.forEach(drawRoute);
+
+  // --- Autocomplete ---
+  function combineColumns(col1,col2){return [...new Set(allData.map(r=>normalize(r[col1])).filter(Boolean).concat(allData.map(r=>normalize(r[col2])).filter(Boolean)))];}
+  $("#routeName").autocomplete({source:[...new Set(allData.map(r=>normalize(r["ROUTE NAME"])).filter(Boolean))]});
+  $("#ep1Region").autocomplete({source:combineColumns("ENDPOINT 1 REGION","ENDPOINT 2 REGION")});
+  $("#ep1Province").autocomplete({source:combineColumns("ENDPOINT 1 PROVINCE","ENDPOINT 2 PROVINCE")});
+  $("#ep1LGU").autocomplete({source:combineColumns("ENDPOINT 1 LGU","ENDPOINT 2 LGU")});
+  $("#ep1Barangay").autocomplete({source:combineColumns("ENDPOINT 1 BARANGAY","ENDPOINT 2 BARANGAY")});
+  $("#ep1Terminal").autocomplete({source:combineColumns("ENDPOINT 1 TERMINAL","ENDPOINT 2 TERMINAL")});
+
+  $("#ep2Region").autocomplete({source:combineColumns("ENDPOINT 1 REGION","ENDPOINT 2 REGION")});
+  $("#ep2Province").autocomplete({source:combineColumns("ENDPOINT 1 PROVINCE","ENDPOINT 2 PROVINCE")});
+  $("#ep2LGU").autocomplete({source:combineColumns("ENDPOINT 1 LGU","ENDPOINT 2 LGU")});
+  $("#ep2Barangay").autocomplete({source:combineColumns("ENDPOINT 1 BARANGAY","ENDPOINT 2 BARANGAY")});
+  $("#ep2Terminal").autocomplete({source:combineColumns("ENDPOINT 1 TERMINAL","ENDPOINT 2 TERMINAL")});
+}});
+
+// Apply filter
+$("#applyFilter").on('click',function(){
+  const vals={routeName:nLower($("#routeName").val()),
+              ep1Region:nLower($("#ep1Region").val()), ep1Province:nLower($("#ep1Province").val()), ep1LGU:nLower($("#ep1LGU").val()), ep1Barangay:nLower($("#ep1Barangay").val()), ep1Terminal:nLower($("#ep1Terminal").val()),
+              ep2Region:nLower($("#ep2Region").val()), ep2Province:nLower($("#ep2Province").val()), ep2LGU:nLower($("#ep2LGU").val()), ep2Barangay:nLower($("#ep2Barangay").val()), ep2Terminal:nLower($("#ep2Terminal").val())
+             };
+  routeLayers.forEach(l=>map.removeLayer(l));
+  routeLayers=[];
+  allData.forEach(r=>{
+    function match(val,col){return !val || normalize(r[col]).toLowerCase().includes(val);}
+    if(match(vals.routeName,"ROUTE NAME") &&
+       match(vals.ep1Region,"ENDPOINT 1 REGION") || match(vals.ep1Region,"ENDPOINT 2 REGION") &&
+       match(vals.ep1Province,"ENDPOINT 1 PROVINCE") || match(vals.ep1Province,"ENDPOINT 2 PROVINCE") &&
+       match(vals.ep1LGU,"ENDPOINT 1 LGU") || match(vals.ep1LGU,"ENDPOINT 2 LGU") &&
+       match(vals.ep1Barangay,"ENDPOINT 1 BARANGAY") || match(vals.ep1Barangay,"ENDPOINT 2 BARANGAY") &&
+       match(vals.ep1Terminal,"ENDPOINT 1 TERMINAL") || match(vals.ep1Terminal,"ENDPOINT 2 TERMINAL") &&
+       match(vals.ep2Region,"ENDPOINT 1 REGION") || match(vals.ep2Region,"ENDPOINT 2 REGION") &&
+       match(vals.ep2Province,"ENDPOINT 1 PROVINCE") || match(vals.ep2Province,"ENDPOINT 2 PROVINCE") &&
+       match(vals.ep2LGU,"ENDPOINT 1 LGU") || match(vals.ep2LGU,"ENDPOINT 2 LGU") &&
+       match(vals.ep2Barangay,"ENDPOINT 1 BARANGAY") || match(vals.ep2Barangay,"ENDPOINT 2 BARANGAY") &&
+       match(vals.ep2Terminal,"ENDPOINT 1 TERMINAL") || match(vals.ep2Terminal,"ENDPOINT 2 TERMINAL")
+      ) drawRoute(r);
+  });
+});
+
+// Clear filter
+$("#clearFilter").on('click',function(){
+  $("#routeName,#ep1Region,#ep1Province,#ep1LGU,#ep1Barangay,#ep1Terminal,#ep2Region,#ep2Province,#ep2LGU,#ep2Barangay,#ep2Terminal").val('');
+  routeLayers.forEach(l=>map.removeLayer(l));
+  routeLayers=[];
+  allData.forEach(drawRoute);
+});
+
+function nLower(s){return s?s.toLowerCase():"";}
+</script>
 </body>
 </html>
