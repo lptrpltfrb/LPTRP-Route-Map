@@ -12,7 +12,7 @@
     html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
     #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
 
-    /* ----- Filter box (copied from your working layout) ----- */
+    /* ----- Filter box (kept like your working layout) ----- */
     .search-container {
       position: absolute;
       left: 12px;
@@ -87,15 +87,30 @@
     .search-container::-webkit-scrollbar { width:8px; height:8px }
     .search-container::-webkit-scrollbar-thumb { background:#ddd; border-radius:8px }
 
-    /* small popup for hover count (keeps it readable) */
+    /* small popup for hover count */
     .hover-count .leaflet-popup-content { margin:6px 8px; font-weight:700; font-size:13px; text-align:center; color:#fff; }
     .hover-count .leaflet-popup-content-wrapper { background: rgba(0,0,0,0.8); border-radius:6px; }
 
-    /* list popup */
-    .route-list .leaflet-popup-content { max-height: 260px; overflow:auto; font-size:13px; }
-    .route-list .leaflet-popup-content-wrapper { background: rgba(255,255,255,0.98); border-radius:8px; }
-    .route-list .route-item { padding:6px 8px; cursor:pointer; border-radius:4px; }
-    .route-list .route-item:hover { background:#f0f8ff; }
+    /* route list (we now use a DOM panel in lower-right) */
+    .route-list-panel {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      z-index: 5000;
+      min-width: 300px;
+      max-width: 420px;
+      max-height: 360px;
+      overflow:auto;
+      background: rgba(255,255,255,0.98);
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      padding: 10px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+    }
+    .route-list-panel .header { font-weight:700; margin-bottom:8px; }
+    .route-list-panel .route-item { padding:6px 8px; border-radius:6px; cursor:pointer; }
+    .route-list-panel .route-item:hover { background:#f0f8ff; }
 
     /* details popup - ALMOST INVISIBLE: adjust alpha below */
     .details-popup .leaflet-popup-content-wrapper {
@@ -164,7 +179,6 @@
     // CONFIG
     // -----------------------
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-
     const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
 
     // -----------------------
@@ -201,19 +215,46 @@
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
     let allData = [];
-    let routes = []; // each item: { row, segs: [ [LatLng...] , ... ], layerGroup, baseColor, id }
+    let routes = []; // each: { row, segs, layerGroup, baseColor, id }
     let visibleLayers = [];
     let selectedRoute = null;
-    let selectedLayer = null;
 
-    // Popups
+    // Popups / panels
     const hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count', autoPan:false});
-    let listPopup = null;
     let detailsPopup = null;
-    let lastHoverIds = new Set();
+
+    // DOM route list panel (lower-right)
+    let routeListPanel = null;
+    function showRouteListPanel(names){
+      // create panel if not exists
+      if(!routeListPanel){
+        routeListPanel = document.createElement('div');
+        routeListPanel.className = 'route-list-panel';
+        // prevent map from handling clicks inside
+        routeListPanel.addEventListener('click', e => e.stopPropagation());
+        map.getContainer().appendChild(routeListPanel);
+      }
+      // build HTML
+      const header = `<div class="header">Routes at this point (${names.length})</div>`;
+      const itemsHtml = names.map(n => `<div class="route-item" data-name="${n}">${n}</div>`).join('');
+      routeListPanel.innerHTML = header + itemsHtml;
+      // wire clicks
+      routeListPanel.querySelectorAll('.route-item').forEach(el => {
+        el.addEventListener('click', (ev) => {
+          const name = ev.currentTarget.getAttribute('data-name');
+          selectRouteByName(name);
+        });
+      });
+    }
+    function hideRouteListPanel(){
+      if(routeListPanel && routeListPanel.parentNode){
+        routeListPanel.parentNode.removeChild(routeListPanel);
+        routeListPanel = null;
+      }
+    }
 
     // -----------------------
-    // FILTER UI helpers (matching your working behaviour)
+    // FILTER UI helpers
     // -----------------------
     let selectedRouteNames = [];
     function addRouteChip(name){ const n=normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
@@ -250,17 +291,15 @@
     }
 
     // -----------------------
-    // GEO PATH parsing & drawing
+    // GEO PATH parsing and drawing
     // -----------------------
     function tryParseGeoPath(geo){
       if(!geo) return null;
       try{
         const parsed = JSON.parse(normalize(geo));
-        // MultiLine: array of segments [[ [lng,lat],... ], ...]
         if(Array.isArray(parsed) && Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])){
           return parsed.map(seg => seg.map(c => L.latLng(+c[1], +c[0])));
         }
-        // LineString: [ [lng,lat], ... ]
         if(Array.isArray(parsed) && Array.isArray(parsed[0]) && typeof parsed[0][0] === 'number'){
           return [ parsed.map(c => L.latLng(+c[1], +c[0])) ];
         }
@@ -275,10 +314,14 @@
       if(!segs || !segs.length) return null;
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
-      // use layerGroup to contain all segments for this logical route
       const group = L.layerGroup();
       for(const seg of segs){
         const poly = L.polyline(seg, { color: baseColor, weight: 4, opacity: 0.95 });
+        // when user clicks a route segment, stop map click and select this route directly
+        poly.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          selectRouteByName(routeName);
+        });
         poly.addTo(group);
       }
       group.addTo(map);
@@ -294,7 +337,7 @@
     }
 
     // -----------------------
-    // FILTERS: apply & reset
+    // FILTERS
     // -----------------------
     function applyFilters(){
       const rSelected = selectedRouteNames.map(n=>nLower(n));
@@ -334,10 +377,7 @@
       });
 
       if(visibleLayers.length){
-        const fg=L.featureGroup(visibleLayers.flatMap(g => {
-          // collect child polylines to fit bounds
-          return g.getLayers();
-        }));
+        const fg=L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
         try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
       }
     }
@@ -349,19 +389,18 @@
       clearMapLayers();
       routes.forEach(rt => { rt.layerGroup.addTo(map); visibleLayers.push(rt.layerGroup); });
       if(visibleLayers.length){
-        const fg=L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
+        const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
         try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
       }
     }
 
     // -----------------------
-    // HOVER / OVERLAP detection
+    // HOVER / OVERLAP
     // -----------------------
     function routesAtPoint(latlng, pxTol=6){
       const P = map.latLngToLayerPoint(latlng);
       const found = [];
       for(const rt of routes){
-        // only consider visible groups
         if(!map.hasLayer(rt.layerGroup)) continue;
         let near = false;
         for(const seg of rt.segs){
@@ -375,7 +414,6 @@
         }
         if(near) found.push(rt);
       }
-      // unique by ROUTE NAME
       const byName = new Map();
       for(const f of found){
         const name = normalize(f.row["ROUTE NAME"]||'');
@@ -386,40 +424,33 @@
 
     function setHoverHighlights(rtList){
       const newIds = new Set(rtList.map(r=>r.id));
-      // reset non-hovered (except selected)
       for(const rt of routes){
         if(!map.hasLayer(rt.layerGroup)) continue;
-        if(!newIds.has(rt.id) && (!selectedLayer || rt !== selectedRoute)){
-          // reset style for each polyline child
+        if(!newIds.has(rt.id) && (!selectedRoute || rt !== selectedRoute)){
           rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
         }
       }
-      // highlight hovered (except selected)
       for(const rt of rtList){
         if(selectedRoute && rt === selectedRoute) continue;
         rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:7, opacity:1 }));
-        // bring each child to front
         rt.layerGroup.getLayers().forEach(poly => poly.bringToFront());
       }
-      lastHoverIds = newIds;
     }
 
     function clearSelectionAndPopups(){
       if(selectedRoute){
-        // reset selected style
         selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }));
-        selectedRoute = null; selectedLayer = null;
+        selectedRoute = null;
       }
-      if(listPopup){ try{ map.removeLayer(listPopup); }catch(e){} listPopup = null; }
-      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
       try{ if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup); }catch(e){}
-      // reset all
+      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
+      hideRouteListPanel();
+      // reset all styles
       for(const rt of routes){
         if(map.hasLayer(rt.layerGroup)){
           rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
         }
       }
-      lastHoverIds.clear && lastHoverIds.clear();
     }
 
     map.on('mousemove', (e)=>{
@@ -430,7 +461,6 @@
         if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
       } else {
         if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup);
-        // reset non-selected
         for(const rt of routes){
           if(!selectedRoute || rt !== selectedRoute){
             rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
@@ -445,84 +475,61 @@
         clearSelectionAndPopups();
         return;
       }
-
-      // Build list popup
       const uniqueNames = [...new Set(near.map(rt => normalize(rt.row["ROUTE NAME"]||''))).values()].filter(Boolean);
-      const listHtml = `
-        <div><b>Routes at this point (${uniqueNames.length})</b></div>
-        <div style="margin-top:6px">
-          ${uniqueNames.map(n=>`<div class="route-item" data-name="${n}">${n}</div>`).join('')}
-        </div>
-      `;
-      if(listPopup){ try{ map.removeLayer(listPopup); }catch(e){} listPopup = null; }
-      // place popup at clicked location; do NOT autoPan
-      listPopup = L.popup({ autoClose:false, closeOnClick:false, className:'route-list', autoPan:false })
-        .setLatLng(e.latlng)
-        .setContent(listHtml)
-        .addTo(map);
-
-      // wire clicks inside popup to select routes
-      setTimeout(()=>{
-        const el = listPopup.getElement();
-        if(el){
-          L.DomEvent.disableClickPropagation(el);
-          el.querySelectorAll('.route-item').forEach(div=>{
-            div.addEventListener('click', (ev)=>{
-              const name = ev.currentTarget.getAttribute('data-name');
-              selectRouteByName(name);
-            });
-          });
-        }
-      }, 0);
+      // show list panel in lower-right
+      showRouteListPanel(uniqueNames);
     });
 
+    // -----------------------
+    // SELECTION (by name)
+    // -----------------------
     function selectRouteByName(name){
       const target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize(name));
       if(!target) return;
 
-      // unselect previous
+      // remove previous details
+      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
+
+      // unstyle previous selection
       if(selectedRoute){
         selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }));
       }
-      selectedRoute = target;
 
-      // highlight selected route (all segments)
+      selectedRoute = target;
       selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:7, opacity:1 }));
       selectedRoute.layerGroup.getLayers().forEach(poly => poly.bringToFront());
 
-      // show details popup using ROUTE LENGTH FROM SHEET (fall back to computed if you want)
       const row = selectedRoute.row;
-      // Try several possible column names for route length (common variants)
-      const lengthFromSheet = normalize(row["ROUTE LENGTH"]) || normalize(row["ROUTE LENGTH (KM)"]) || normalize(row["ROUTE LENGTH KM"]) || normalize(row["ROUTE LENGTH (km)"]) || '';
+
+      // Use CLASS column exactly as in sheet (uppercase)
+      const classVal = normalize(row["CLASS"]||'');
+      // Use route length from sheet if present (common variants)
+      const lengthFromSheet = normalize(row["ROUTE LENGTH"]) || normalize(row["ROUTE LENGTH (KM)"]) || normalize(row["ROUTE LENGTH KM"]) || normalize(row["ROUTE LENGTH (km)"]) || normalize(row["ROUTE LENGTH (KM) "]) || '';
       const lengthDisplay = lengthFromSheet ? lengthFromSheet + (lengthFromSheet.match(/[a-zA-Z%]/) ? '' : ' km') : 'N/A';
 
       const html = `
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
         <div><strong>DENO:</strong> ${normalize(row["DENO"]||'')}</div>
-        <div><strong>CLASS:</strong> ${normalize(row["Class"]||'')}</div>
+        <div><strong>CLASS:</strong> ${classVal}</div>
         <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
         <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>
         <div><strong>ROUTE LENGTH:</strong> ${lengthDisplay}</div>
       `;
 
-      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
-
-      // place details popup near center of route bounds with an offset so popup doesn't fully sit on top of route
-      const layersForBounds = selectedRoute.layerGroup.getLayers();
-      const group = L.featureGroup(layersForBounds);
-      const bounds = group.getBounds();
+      // place details popup at center of route bounds with small offset (and previous removed above)
+      const fg = L.featureGroup(selectedRoute.layerGroup.getLayers());
+      const bounds = fg.getBounds();
       const center = bounds.getCenter();
 
       detailsPopup = L.popup({
         autoClose:false,
         closeOnClick:false,
         className:'details-popup',
-        autoPan: true,
-        offset: L.point(12, -14)  // offset so popup doesn't completely cover the route
+        offset: L.point(12, -14),
+        autoPan: true
       }).setLatLng(center).setContent(html).addTo(map);
 
-      // fit map to selected route to give context
-      try{ map.fitBounds(bounds, { padding: [40,40] }); }catch(e){}
+      try{ map.fitBounds(bounds, { padding:[40,40] }); }catch(e){}
     }
 
     // -----------------------
@@ -536,7 +543,7 @@
         complete: results => {
           allData = results.data;
 
-          // build suggestion lists (endpoints come from both EP1 & EP2)
+          // build suggestions (endpoints suggest from BOTH endpoint 1 & 2)
           suggestions.routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
           suggestions.epRegion   = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]));
           suggestions.epProvince = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]));
@@ -544,7 +551,7 @@
           suggestions.epBarangay = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]));
           suggestions.epTerminal = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]));
 
-          // wire autocompletes (route name input adds chips)
+          // wire autocompletes (route input adds chips)
           makeAutocomplete(
             document.getElementById('routeInput'),
             suggestions.routeNames,
@@ -555,7 +562,7 @@
             if(ev.key === 'Enter'){ ev.preventDefault(); const q = ev.target.value.trim(); if(!q) return; const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value=''; }
           });
 
-          // endpoint autocompletes (both EP1 & EP2 use combined suggestions)
+          // endpoint autocompletes (both EP1 & EP2 from combined sets)
           makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val;});
           makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val;});
           makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val;});
@@ -568,7 +575,7 @@
           makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;});
           makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;});
 
-          // draw routes and keep them visible initially
+          // draw routes and keep visible initially
           for(const row of allData){
             const rt = drawRoute(row);
             if(rt){ routes.push(rt); visibleLayers.push(rt.layerGroup); }
