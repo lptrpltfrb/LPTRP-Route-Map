@@ -1,148 +1,193 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
   <title>LTFRB Routes Map</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin:0; padding:0; }
-    #map { width:1170px; height:800px; }
-    .search-container {
-      position:absolute; top:10px; left:10px;
-      background:white; padding:10px;
-      border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.2);
-      z-index:1000; width:280px;
-      font-family: Arial, sans-serif;
+    #map { width: 1170px; height: 800px; }
+    .filter-box {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      z-index: 1000;
+      width: 260px;
     }
-    .search-container h4 {
-      margin:6px 0; font-size:14px; border-bottom:1px solid #ccc;
+    .floating-panel {
+      position: absolute;
+      top: 120px;
+      left: 10px;
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      z-index: 1000;
+      width: 260px;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
     }
-    .search-container select, .search-container input {
-      width:100%; margin:4px 0; padding:4px;
-      font-size:12px;
+    .floating-panel h4 {
+      margin: 0 0 5px 0;
+      font-size: 14px;
+      font-weight: bold;
     }
-    .route-list {
-      max-height:120px; overflow-y:auto; margin-top:6px;
-      border:1px solid #ddd; padding:4px; display:none;
+    .floating-panel ul {
+      padding-left: 18px;
+      margin: 0;
     }
-    .route-list div {
-      cursor:pointer; padding:2px 4px;
+    .floating-panel li {
+      cursor: pointer;
+      margin-bottom: 4px;
+      color: #0077cc;
     }
-    .route-list div:hover {
-      background:#f0f0f0;
+    .floating-panel li:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
-<div id="map"></div>
-<div class="search-container">
-  <h4>Search by Route Name</h4>
-  <input type="text" id="routeSearch" placeholder="Type route name...">
-  <h4>Search by Endpoints</h4>
-  <select id="pointA"><option value="">--Point A--</option></select>
-  <select id="pointB"><option value="">--Point B (Optional)--</option></select>
-  <select id="via"><option value="">--Via (Optional)--</option></select>
-  <div id="routeList" class="route-list"></div>
-</div>
+  <div id="map"></div>
 
-<script>
-const sheetUrl = "https://docs.google.com/spreadsheets/d/1CyoUxFDCCgDArR1iTMZJG02RTke8QoTzL7HhHwcwk6k/gviz/tq?tqx=out:csv&sheet=MASTERLIST";
+  <!-- Filter box (unchanged) -->
+  <div class="filter-box">
+    <label for="routeFilter">Search Route Name:</label><br>
+    <input type="text" id="routeFilter" list="routeNames" placeholder="Type route name..." style="width:100%">
+    <datalist id="routeNames"></datalist>
+  </div>
 
-let map = L.map('map').setView([12.8797, 121.7740], 6);
+  <!-- Floating panel for overlapping routes -->
+  <div class="floating-panel" id="routeListPanel">
+    <h4>Routes at this point:</h4>
+    <ul id="routeList"></ul>
+  </div>
 
-// basemap
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution:'&copy; OpenStreetMap contributors'
-}).addTo(map);
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
 
-let routesLayer = L.layerGroup().addTo(map);
-let allRoutes = [];
+    const routeLayer = L.layerGroup().addTo(map);
+    const routeListPanel = document.getElementById("routeListPanel");
+    const routeList = document.getElementById("routeList");
+    let allRoutes = [];
+    let highlightedRoute = null;
 
-// Parse CSV
-Papa.parse(sheetUrl, {
-  download: true,
-  header: true,
-  complete: function(results) {
-    results.data.forEach(row => {
-      if (!row["GEO PATH"]) return;
-      try {
-        let coords = JSON.parse(row["GEO PATH"]);
-        if (!Array.isArray(coords)) return;
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
 
-        let latlngs = coords.map(c => [c[1], c[0]]);
-        let color = getRandomColor();
+    // Load CSV
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        const data = results.data;
+        const routeNames = new Set();
 
-        let polyline = L.polyline(latlngs, {color:color, weight:3}).addTo(routesLayer);
+        data.forEach(row => {
+          if (!row["GEO PATH"]) return;
 
-        // Popup content
-        let popupContent = `
-          <b>ROUTE NAME:</b> ${row["ROUTE NAME"] || "N/A"}<br>
-          <b>DENO:</b> ${row["DENO"] || "N/A"}<br>
-          <b>CLASS:</b> ${row["Class"] || "N/A"}<br>
-          <b>CLASSIFICATION:</b> ${row["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A"}<br>
-          <b>NAU:</b> ${row["NO. OF AUTHORIZED UNITS"] || "N/A"}
-        `;
+          try {
+            const coords = JSON.parse(row["GEO PATH"]);
+            const latlngs = coords.map(c => [c[1], c[0]]);
+            const color = '#' + Math.floor(Math.random()*16777215).toString(16);
 
-        // Offset popup so it won’t cover route line
-        polyline.bindPopup(popupContent, { offset: L.point(0,-15) });
+            const polyline = L.polyline(latlngs, { color, weight: 3 }).addTo(routeLayer);
 
-        // Hover highlight
-        polyline.on('mouseover', function(e){
-          this.setStyle({weight:6});
-          let count = getRoutesAtPoint(e.latlng).length;
-          this.bindTooltip(count+" route(s) here",{sticky:true}).openTooltip();
+            const routeInfo = {
+              name: row["ROUTE NAME"] || "Unnamed Route",
+              deno: row["DENO"] || "N/A",
+              class: row["Class"] || "N/A",
+              classification: row["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A",
+              nau: row["NO. OF AUTHORIZED UNITS"] || "N/A",
+              polyline
+            };
+            allRoutes.push(routeInfo);
+
+            routeNames.add(routeInfo.name);
+
+            // Hover highlight
+            polyline.on("mouseover", () => {
+              if (highlightedRoute) resetHighlight();
+              polyline.setStyle({ color: "yellow", weight: 6 });
+              highlightedRoute = polyline;
+            });
+            polyline.on("mouseout", () => {
+              if (highlightedRoute === polyline) resetHighlight();
+            });
+
+            // Click to show overlapping routes
+            polyline.on("click", (e) => {
+              showOverlappingRoutes(e.latlng);
+            });
+          } catch(e) {
+            console.error("Invalid GEO PATH", row["GEO PATH"]);
+          }
         });
-        polyline.on('mouseout', function(){
-          this.setStyle({weight:3});
-          this.closeTooltip();
-        });
 
-        // Click to list overlapping routes
-        polyline.on('click', function(e){
-          showRouteList(getRoutesAtPoint(e.latlng), e.latlng);
+        // Fill datalist for route search
+        const datalist = document.getElementById("routeNames");
+        routeNames.forEach(name => {
+          const option = document.createElement("option");
+          option.value = name;
+          datalist.appendChild(option);
         });
-
-        allRoutes.push({polyline:polyline, data:row, color:color});
-      } catch(err) {
-        console.error("Bad GEO PATH:", err);
       }
     });
-  }
-});
 
-// Helpers
-function getRandomColor(){
-  return '#'+Math.floor(Math.random()*16777215).toString(16);
-}
-
-function getRoutesAtPoint(latlng){
-  let found = [];
-  allRoutes.forEach(r=>{
-    if (r.polyline.getBounds().contains(latlng)) {
-      found.push(r);
+    // Reset route highlight
+    function resetHighlight() {
+      if (!highlightedRoute) return;
+      highlightedRoute.setStyle({ color: '#3388ff', weight: 3 });
+      highlightedRoute = null;
     }
-  });
-  return found;
-}
 
-function showRouteList(routes, latlng){
-  let container = document.getElementById("routeList");
-  container.innerHTML = "";
-  if(routes.length===0){ container.style.display="none"; return; }
-  routes.forEach(r=>{
-    let div = document.createElement("div");
-    div.textContent = r.data["ROUTE NAME"] || "Unnamed Route";
-    div.onclick = function(){
-      map.fitBounds(r.polyline.getBounds());
-      r.polyline.openPopup();
-    };
-    container.appendChild(div);
-  });
-  container.style.display="block";
-}
-</script>
+    // Show overlapping routes in floating panel
+    function showOverlappingRoutes(latlng) {
+      const nearbyRoutes = allRoutes.filter(r => {
+        return r.polyline.getLatLngs().some(pt => latlng.distanceTo(pt) < 200); // within 200m
+      });
+
+      if (nearbyRoutes.length === 0) {
+        routeListPanel.style.display = "none";
+        return;
+      }
+
+      routeList.innerHTML = "";
+      nearbyRoutes.forEach(r => {
+        const li = document.createElement("li");
+        li.textContent = r.name;
+        li.onclick = () => showRouteDetails(r, latlng);
+        routeList.appendChild(li);
+      });
+
+      routeListPanel.style.display = "block";
+    }
+
+    // Show route details (offset popup above route)
+    function showRouteDetails(route, latlng) {
+      route.polyline.setStyle({ color: "red", weight: 6 });
+      map.panTo(latlng);
+      const offsetLatLng = L.latLng(latlng.lat + 0.01, latlng.lng); // offset popup north
+      L.popup()
+        .setLatLng(offsetLatLng)
+        .setContent(
+          `<b>${route.name}</b><br>
+           DENO: ${route.deno}<br>
+           CLASS: ${route.class}<br>
+           CLASSIFICATION: ${route.classification}<br>
+           NAU: ${route.nau}`
+        )
+        .openOn(map);
+    }
+  </script>
 </body>
 </html>
