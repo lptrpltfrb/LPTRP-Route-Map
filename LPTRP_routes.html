@@ -2,204 +2,595 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>LTFRB Route Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LPTRP Route Map — combined</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
   <style>
-    body { margin:0; padding:0; }
-    #map { width: 100%; height: 800px; }
+    html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
+    #map { width:100%; height:820px; margin:0 auto; display:block; }
 
-    /* Filter box */
-    .filter-box {
+    /* Filter container (kept like your previous working version) */
+    .search-container {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-      background: white;
+      left: 12px;
+      top: 12px;
+      width: 340px;
+      max-height: 760px;
+      overflow: auto;
+      background: #fff;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      font-family: Arial, sans-serif;
-      width: 250px;
-    }
-    .filter-box h4 {
-      margin: 0 0 5px 0;
-      font-size: 14px;
-    }
-    .filter-box select, .filter-box input {
-      width: 100%;
-      margin-bottom: 5px;
-      padding: 5px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.15);
+      z-index: 2000;
+      font-family: Arial, Helvetica, sans-serif;
       font-size: 13px;
     }
+    .search-section { margin-bottom: 10px; }
+    .search-section h4 { margin: 6px 0; font-size: 14px; }
+    .compact-row { display:flex; gap:6px; align-items:center; }
 
-    /* Bottom-right route list */
-    .route-list {
+    input[type="text"], .small-input {
+      width:100%;
+      padding:6px 8px;
+      border:1px solid #ccc;
+      border-radius:4px;
+      box-sizing:border-box;
+      font-size:13px;
+      outline:none;
+      background:#fff;
+    }
+    input[type="text"]:focus, .small-input:focus {
+      border-color:#2f78a0;
+      box-shadow:0 0 4px rgba(47,120,160,0.4);
+    }
+
+    .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px; border:1px solid #ddd; border-radius:4px; background:#fff; }
+    .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px; display:inline-flex; gap:6px; align-items:center; font-size:12px; }
+    .chip button { background:transparent; border:0; color:#fff; cursor:pointer; font-weight:bold; }
+
+    .btn { width:100%; padding:8px; border-radius:6px; border:0; cursor:pointer; margin-top:8px; font-size:14px; }
+    .btn.apply { background:#2f78a0; color:#fff; }
+    .btn.clear { background:#efefef; color:#222; }
+
+    .suggestions { position: relative; }
+    .suggestions-list {
       position: absolute;
-      bottom: 10px;
-      right: 10px;
-      width: 280px;
-      max-height: 250px;
-      overflow-y: auto;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      padding: 10px;
-      font-size: 13px;
-      z-index: 1000;
+      left:0;
+      right:0;
+      top:42px;
+      max-height:180px;
+      overflow:auto;
+      background:#fff;
+      border:1px solid #ccc;
+      border-radius:4px;
+      z-index:2100;
+      box-shadow:0 6px 14px rgba(0,0,0,.12);
+      display:none;
     }
-    .route-list h4 { margin: 0 0 5px 0; }
-    .route-list ul { padding-left: 15px; margin: 0; }
-    .route-list li { cursor: pointer; margin-bottom: 3px; }
+    .suggestions-list div { padding:6px 8px; cursor:pointer; }
+    .suggestions-list div:hover { background:#f0f8ff; }
 
-    /* Popup offset & transparency */
-    .custom-popup {
-      background: rgba(255,255,255,0.9);
-      border-radius: 6px;
-      padding: 5px;
-      font-size: 13px;
+    .north-arrow {
+      position: absolute;
+      right: 18px;
+      top: 18px;
+      z-index: 2000;
+      width: 40px;
+      height: 40px;
+      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="%23000"><path d="M50 5 L70 70 L50 55 L30 70 Z"/></g><text x="50" y="95" font-size="12" text-anchor="middle" fill="%23000">N</text></svg>') no-repeat center/contain;
+      pointer-events: none;
+      opacity: .95;
     }
+
+    /* bottom-right overlapping routes list */
+    .overlap-panel {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      z-index: 2000;
+      width: 340px;
+      max-height: 340px;
+      overflow:auto;
+      background:#fff;
+      border-radius:8px;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.18);
+      padding:10px;
+      font-family: Arial, Helvetica, sans-serif;
+      display:none;
+    }
+    .overlap-panel h4{ margin:0 0 6px 0; font-size:14px; }
+    .overlap-list { padding-left:0; margin:0; list-style:none; max-height:260px; overflow:auto; }
+    .overlap-list li { padding:6px 8px; cursor:pointer; border-radius:6px; }
+    .overlap-list li:hover { background:#f1f9ff; }
+
+    /* small transparent detail popup styling via Leaflet popup class */
+    .leaflet-popup-content-wrapper.detail-popup{
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      border-radius:8px;
+    }
+    .leaflet-tooltip.hover-count { background: rgba(0,0,0,0.9); color:#fff; padding:4px 8px; border-radius:4px; font-size:12px; }
+
+    .search-container::-webkit-scrollbar { width:8px; height:8px }
+    .search-container::-webkit-scrollbar-thumb { background:#ddd; border-radius:8px }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div class="north-arrow" title="North"></div>
 
-  <!-- Filter UI -->
-  <div class="filter-box">
-    <h4>Search by Route Name</h4>
-    <input type="text" id="routeNameSearch" placeholder="Type route name...">
+  <!-- Filter box (kept the same UI & behavior you liked) -->
+  <div class="search-container" id="searchPanel">
+    <div class="search-section">
+      <h4>Search by Route Name</h4>
+      <div class="chips" id="routeChips"></div>
+      <div class="suggestions" style="margin-top:8px;">
+        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
+        <div class="suggestions-list" id="routeSuggestions"></div>
+      </div>
+    </div>
 
-    <h4>Search by Endpoints</h4>
-    <select id="pointA"><option value="">--Point A--</option></select>
-    <select id="pointB"><option value="">--Point B--</option></select>
-    <select id="via"><option value="">--Via--</option></select>
+    <div class="search-section">
+      <h4>Search by Endpoints</h4>
+      <label>Endpoint 1 Region</label>
+      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
+      <label>Endpoint 1 Province</label>
+      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
+      <label>Endpoint 1 LGU</label>
+      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
+      <label>Endpoint 1 Barangay</label>
+      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
+      <label>Endpoint 1 Terminal</label>
+      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
+      <hr>
+      <label>Endpoint 2 Region</label>
+      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
+      <label>Endpoint 2 Province</label>
+      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
+      <label>Endpoint 2 LGU</label>
+      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
+      <label>Endpoint 2 Barangay</label>
+      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
+      <label>Endpoint 2 Terminal</label>
+      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
+    </div>
+
+    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
+    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
 
-  <!-- Route List Panel -->
-  <div id="routeList" class="route-list" style="display:none;">
+  <!-- bottom-right overlapping route list -->
+  <div class="overlap-panel" id="overlapPanel">
     <h4>Routes at this point</h4>
-    <ul id="routeItems"></ul>
+    <ul id="overlapList" class="overlap-list"></ul>
   </div>
 
-  <!-- Leaflet JS -->
+  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    // === CONFIG ===
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    // === UTILITIES ===
+    function normalize(s){ if(!s) return ''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
+    function nLower(s){ return normalize(s).toLowerCase(); }
+    function colorFromString(str){ const s=normalize(str||''); let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;} return PALETTE[Math.abs(hash)%PALETTE.length]; }
+    function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/1CyoUxFDCCgDArR1iTMZJG02RTke8QoTzL7HhHwcwk6k/pub?gid=0&single=true&output=csv";
-
-    let allRoutes = [];
-    let polylines = [];
-
-    // Random color generator
-    function getRandomColor() {
-      return '#' + Math.floor(Math.random()*16777215).toString(16);
+    // Flatten possible nested coordinate arrays for distance checks
+    function flattenLatLngs(latlngs){
+      // latlngs could be [ [latlngs], [latlngs] ] for multi-segment. Flatten to array of L.LatLng
+      const out = [];
+      (function walk(a){
+        if(!a) return;
+        if(Array.isArray(a) && a.length && a[0] && a[0].lat !== undefined) {
+          // array of L.LatLng
+          for(const p of a) out.push(p);
+        } else if(Array.isArray(a) && a.length && Array.isArray(a[0])) {
+          for(const x of a) walk(x);
+        } else {
+          // unknown shape: attempt treat as lat-lng pairs
+          try {
+            for(const item of a){
+              if(Array.isArray(item) && item.length>=2 && typeof item[0]==='number'){
+                out.push(L.latLng(item[1], item[0])); // assume [lon,lat]
+              }
+            }
+          } catch(e){}
+        }
+      })(latlngs);
+      return out;
     }
 
-    // Load data
-    Papa.parse(sheetUrl, {
-      download: true,
-      header: true,
-      complete: function(results) {
-        allRoutes = results.data;
-        drawRoutes(allRoutes);
-        populateFilters(allRoutes);
+    // pixel-distance from point p to segment v-w (all in {x,y} container points)
+    function pointToSegmentDistance(px,py, x1,y1, x2,y2){
+      const vx = x2 - x1, vy = y2 - y1;
+      const wx = px - x1, wy = py - y1;
+      const c = (vx*wx + vy*wy) / (vx*vx + vy*vy || 1);
+      let cx, cy;
+      if(c <= 0){ cx = x1; cy = y1; }
+      else if(c >= 1){ cx = x2; cy = y2; }
+      else { cx = x1 + c*vx; cy = y1 + c*vy; }
+      const dx = px - cx, dy = py - cy;
+      return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    // compute route length (meters) from latlng array
+    function computeLengthMeters(latlngs){
+      let len = 0;
+      for(let i=1;i<latlngs.length;i++){
+        len += latlngs[i-1].distanceTo(latlngs[i]);
+      }
+      return Math.round(len); // meters rounded
+    }
+
+    // === MAP & STATE ===
+    const map = L.map('map', { preferCanvas: true }).setView([13,122],6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18, attribution:'© OpenStreetMap'}).addTo(map);
+    L.control.scale({position:'bottomleft',metric:true}).addTo(map);
+
+    let allData = [];
+    let routeLayers = []; // {pl, row, baseColor, routeName}
+    let selectedRoute = null; // currently selected route object {pl,row,...}
+    let hoverTooltip = null;
+    let detailPopup = null;
+
+    // Suggestions container
+    const suggestions = {
+      routeNames:[],
+      region:[], province:[], lgu:[], barangay:[], terminal:[]
+    };
+
+    // === CSV load & initial wiring ===
+    function tryParseGeoPath(geo){
+      if(!geo) return null;
+      try{ return JSON.parse(normalize(geo)); } catch(e) { return null; }
+    }
+
+    // parse CSV and initialize suggestions + initial draw
+    Papa.parse(csvUrl, { header:true, skipEmptyLines:true, download:true,
+      complete: results => {
+        allData = results.data.filter(r=>Object.keys(r).length>0);
+        // build merged suggestions (ENDPOINT 1 & 2 columns)
+        const rnames = allData.map(r => r["ROUTE NAME"]);
+        const regions = allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]);
+        const provinces = allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]);
+        const lgus = allData.flatMap(r => [r["ENDPOINT 1 LGU"], r["ENDPOINT 2 LGU"]]);
+        const barangays = allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]);
+        const terminals = allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]);
+
+        suggestions.routeNames = uniqueSorted(rnames);
+        suggestions.region = uniqueSorted(regions);
+        suggestions.province = uniqueSorted(provinces);
+        suggestions.lgu = uniqueSorted(lgus);
+        suggestions.barangay = uniqueSorted(barangays);
+        suggestions.terminal = uniqueSorted(terminals);
+
+        // wire autocomplete
+        makeAutocomplete(document.getElementById('routeInput'), suggestions.routeNames, document.getElementById('routeSuggestions'), val => { document.getElementById('routeInput').value=''; addRouteChip(val); });
+        makeAutocomplete(document.getElementById('ep1Region'), suggestions.region, document.getElementById('ep1RegionSuggestions'), val => document.getElementById('ep1Region').value = val);
+        makeAutocomplete(document.getElementById('ep2Region'), suggestions.region, document.getElementById('ep2RegionSuggestions'), val => document.getElementById('ep2Region').value = val);
+        makeAutocomplete(document.getElementById('ep1Province'), suggestions.province, document.getElementById('ep1ProvinceSuggestions'), val => document.getElementById('ep1Province').value = val);
+        makeAutocomplete(document.getElementById('ep2Province'), suggestions.province, document.getElementById('ep2ProvinceSuggestions'), val => document.getElementById('ep2Province').value = val);
+        makeAutocomplete(document.getElementById('ep1LGU'), suggestions.lgu, document.getElementById('ep1LGUSuggestions'), val => document.getElementById('ep1LGU').value = val);
+        makeAutocomplete(document.getElementById('ep2LGU'), suggestions.lgu, document.getElementById('ep2LGUSuggestions'), val => document.getElementById('ep2LGU').value = val);
+        makeAutocomplete(document.getElementById('ep1Barangay'), suggestions.barangay, document.getElementById('ep1BarangaySuggestions'), val => document.getElementById('ep1Barangay').value = val);
+        makeAutocomplete(document.getElementById('ep2Barangay'), suggestions.barangay, document.getElementById('ep2BarangaySuggestions'), val => document.getElementById('ep2Barangay').value = val);
+        makeAutocomplete(document.getElementById('ep1Terminal'), suggestions.terminal, document.getElementById('ep1TerminalSuggestions'), val => document.getElementById('ep1Terminal').value = val);
+        makeAutocomplete(document.getElementById('ep2Terminal'), suggestions.terminal, document.getElementById('ep2TerminalSuggestions'), val => document.getElementById('ep2Terminal').value = val);
+
+        // enter to add chip
+        document.getElementById('routeInput').addEventListener('keydown', ev=>{
+          if(ev.key==='Enter'){ ev.preventDefault(); const q=ev.target.value.trim(); if(!q) return; const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value=''; }
+        });
+
+        // initial draw (all)
+        allData.forEach(drawRowOnMap);
+        fitMapToRouteLayers();
       }
     });
 
-    function drawRoutes(data) {
-      data.forEach(row => {
-        if (!row["GEO PATH"]) return;
-        try {
-          const coords = JSON.parse(row["GEO PATH"]);
-          const poly = L.polyline(coords, {
-            color: getRandomColor(),
-            weight: 3,
-            opacity: 0.8
-          }).addTo(map);
-
-          // Hover highlight
-          poly.on("mouseover", function() {
-            this.setStyle({ weight: 6, opacity: 1 });
-          });
-          poly.on("mouseout", function() {
-            this.setStyle({ weight: 3, opacity: 0.8 });
-          });
-
-          // Store route info
-          poly.routeData = row;
-          polylines.push(poly);
-
-          // Click → list of routes at point
-          poly.on("click", function(e) {
-            showRouteList(e.latlng);
-          });
-        } catch(err) { console.error("Invalid GEO PATH", err); }
-      });
-    }
-
-    // Show overlapping routes at clicked point
-    function showRouteList(latlng) {
-      const routesHere = polylines.filter(poly => {
-        return poly.getLatLngs().some(pt => map.latLngToLayerPoint(pt).distanceTo(map.latLngToLayerPoint(latlng)) < 10);
-      });
-
-      if (routesHere.length === 0) return;
-
-      const listEl = document.getElementById("routeList");
-      const ul = document.getElementById("routeItems");
-      ul.innerHTML = "";
-
-      routesHere.forEach((poly, i) => {
-        const li = document.createElement("li");
-        li.textContent = poly.routeData["ROUTE NAME"];
-        li.onclick = () => {
-          map.fitBounds(poly.getBounds());
-          const details = `
-            <b>ROUTE NAME:</b> ${poly.routeData["ROUTE NAME"] || "N/A"}<br>
-            <b>DENO:</b> ${poly.routeData["DENO"] || "N/A"}<br>
-            <b>CLASS:</b> ${poly.routeData["Class"] || "N/A"}<br>
-            <b>CLASSIFICATION:</b> ${poly.routeData["ROUTE CLASSIFICATION (if LPTRP)"] || "N/A"}<br>
-            <b>NAU:</b> ${poly.routeData["NO. OF AUTHORIZED UNITS"] || "N/A"}
-          `;
-          L.popup({ className: "custom-popup", autoPan: true, offset: L.point(20, -20) })
-            .setLatLng(poly.getBounds().getCenter())
-            .setContent(details)
-            .openOn(map);
-        };
-        ul.appendChild(li);
-      });
-
-      listEl.style.display = "block";
-    }
-
-    // Populate dropdown filters
-    function populateFilters(data) {
-      const pointA = document.getElementById("pointA");
-      const pointB = document.getElementById("pointB");
-      const via = document.getElementById("via");
-
-      function addUniqueOptions(select, values) {
-        [...new Set(values)].filter(v => v).sort().forEach(v => {
-          const opt = document.createElement("option");
-          opt.value = v; opt.textContent = v;
-          select.appendChild(opt);
-        });
+    // --- draw one row as polyline on map and store metadata ---
+    function drawRowOnMap(row){
+      const geo = row["GEO PATH"];
+      const parsed = tryParseGeoPath(geo);
+      if(!parsed) return;
+      const segments = (Array.isArray(parsed) && Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])) ? parsed : [parsed];
+      const routeName = normalize(row["ROUTE NAME"]||'');
+      const baseColor = colorFromString(routeName || (row["DENO"]||''));
+      for(const seg of segments){
+        try{
+          // seg likely array of [lon,lat] pairs
+          const latlngs = seg.map(c => [ +c[1], +c[0] ]);
+          const pl = L.polyline(latlngs, { color: baseColor, weight:4, opacity:0.95, pane:'overlayPane' }).addTo(map);
+          pl.options.baseColor = baseColor;
+          pl.options.routeName = routeName;
+          pl.options.row = row;
+          // store for detection
+          routeLayers.push({ pl, row, routeName, baseColor });
+        }catch(e){
+          // ignore this segment
+        }
       }
-
-      addUniqueOptions(pointA, data.map(r => r["ENDPOINT 1 LGU"]));
-      addUniqueOptions(pointB, data.map(r => r["ENDPOINT 2 LGU"]));
-      addUniqueOptions(via, data.map(r => r["ROUTE STRUCTURE"]).concat(data.map(r => r["CORRIDOR"])));
     }
+
+    function clearRouteLayers(){
+      for(const r of routeLayers) {
+        try{ map.removeLayer(r.pl); } catch(e){}
+      }
+      routeLayers = [];
+      selectedRoute = null;
+      if(detailPopup){ map.closePopup(detailPopup); detailPopup=null; }
+    }
+
+    function fitMapToRouteLayers(){
+      if(routeLayers.length===0) return;
+      map.fitBounds(L.featureGroup(routeLayers.map(r=>r.pl)).getBounds(),{padding:[40,40]});
+    }
+
+    // === FILTER UI (chips & autocomplete) ===
+    let selectedRouteNames = [];
+    function addRouteChip(name){ const n = normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
+    function removeRouteChip(name){ selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); renderChips(); }
+    function renderChips(){
+      const c = document.getElementById('routeChips'); c.innerHTML='';
+      for(const n of selectedRouteNames){
+        const ch = document.createElement('div'); ch.className='chip';
+        const t = document.createElement('span'); t.textContent = n;
+        const b = document.createElement('button'); b.innerHTML='&times;'; b.onclick = ()=>removeRouteChip(n);
+        ch.appendChild(t); ch.appendChild(b); c.appendChild(ch);
+      }
+    }
+
+    function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick){
+      inputEl.addEventListener('input', function(){
+        const q = nLower(this.value);
+        renderSuggestions(containerEl, suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200), onPick);
+      });
+      inputEl.addEventListener('focus', function(){
+        const q = nLower(this.value);
+        renderSuggestions(containerEl, suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200), onPick);
+      });
+      inputEl.addEventListener('blur', ()=> setTimeout(()=> containerEl.style.display='none', 180));
+    }
+    function renderSuggestions(containerEl, list, onPick){
+      if(!list || list.length===0){ containerEl.style.display='none'; containerEl.innerHTML=''; return; }
+      containerEl.innerHTML='';
+      for(const v of list){
+        const d = document.createElement('div');
+        d.textContent = v;
+        d.onclick = ()=>{ onPick(v); containerEl.style.display='none'; };
+        containerEl.appendChild(d);
+      }
+      containerEl.style.display='block';
+    }
+
+    // === FILTER APPLY/RESET ===
+    function applyFilters(){
+      const rSelected = selectedRouteNames.map(n=>n.toLowerCase());
+      const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
+      const ep1ProvinceVal = nLower(document.getElementById('ep1Province').value);
+      const ep1LGUVal = nLower(document.getElementById('ep1LGU').value);
+      const ep1BarangayVal = nLower(document.getElementById('ep1Barangay').value);
+      const ep1TerminalVal = nLower(document.getElementById('ep1Terminal').value);
+      const ep2RegionVal = nLower(document.getElementById('ep2Region').value);
+      const ep2ProvinceVal = nLower(document.getElementById('ep2Province').value);
+      const ep2LGUVal = nLower(document.getElementById('ep2LGU').value);
+      const ep2BarangayVal = nLower(document.getElementById('ep2Barangay').value);
+      const ep2TerminalVal = nLower(document.getElementById('ep2Terminal').value);
+
+      // redraw
+      clearRouteLayers();
+      for(const row of allData){
+        const rnNorm = nLower(row["ROUTE NAME"]||'');
+        const matchRoute = rSelected.length===0 || rSelected.includes(rnNorm);
+        const matchEndpoints =
+          (!ep1RegionVal || (nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal) || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep1RegionVal))) &&
+          (!ep1ProvinceVal || (nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal) || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep1ProvinceVal))) &&
+          (!ep1LGUVal || (nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal) || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep1LGUVal))) &&
+          (!ep1BarangayVal || (nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal) || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep1BarangayVal))) &&
+          (!ep1TerminalVal || (nLower(row["ENDPOINT 1 TERMINAL"]||'').includes(ep1TerminalVal) || nLower(row["ENDPOINT 2 TERMINAL"]||'').includes(ep1TerminalVal))) &&
+          (!ep2RegionVal || (nLower(row["ENDPOINT 1 REGION"]||'').includes(ep2RegionVal) || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal))) &&
+          (!ep2ProvinceVal || (nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep2ProvinceVal) || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal))) &&
+          (!ep2LGUVal || (nLower(row["ENDPOINT 1 LGU"]||'').includes(ep2LGUVal) || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal))) &&
+          (!ep2BarangayVal || (nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep2BarangayVal) || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal))) &&
+          (!ep2TerminalVal || (nLower(row["ENDPOINT 1 TERMINAL"]||'').includes(ep2TerminalVal) || nLower(row["ENDPOINT 2 TERMINAL"]||'').includes(ep2TerminalVal)));
+
+        if(matchRoute && matchEndpoints) drawRowOnMap(row);
+      }
+      fitMapToRouteLayers();
+    }
+
+    function resetFilters(){
+      selectedRouteNames = []; renderChips();
+      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
+      clearRouteLayers();
+      allData.forEach(drawRowOnMap);
+      fitMapToRouteLayers();
+    }
+
+    // === NEARBY ROUTE DETECTION (pixel-distance) ===
+    function getNearbyRoutes(latlng){
+      const thresholdPx = 8; // how close (px) to consider "on" a route
+      const mouseP = map.latLngToContainerPoint(latlng);
+      const found = [];
+      for(const r of routeLayers){
+        // flatten latlngs for this poly
+        const raw = r.pl.getLatLngs();
+        const flat = flattenLatLngs(raw);
+        let minD = Infinity;
+        for(let i=0;i<flat.length-1;i++){
+          const a = map.latLngToContainerPoint(flat[i]);
+          const b = map.latLngToContainerPoint(flat[i+1]);
+          const d = pointToSegmentDistance(mouseP.x, mouseP.y, a.x, a.y, b.x, b.y);
+          if(d < minD) minD = d;
+          if(minD <= thresholdPx) break;
+        }
+        if(minD <= thresholdPx){
+          found.push(r);
+        }
+      }
+      return found;
+    }
+
+    // === HOVER / MOUSEMOVE BEHAVIOR ===
+    let lastNearbyIdsKey = ""; // simple cache
+    function clearHoverHighlights(){
+      for(const r of routeLayers){
+        // do not reset the selectedRoute's highlight
+        if(selectedRoute && r.pl===selectedRoute.pl) continue;
+        r.pl.setStyle({ color: r.baseColor, weight:4, opacity:0.95 });
+      }
+    }
+    function highlightRoutes(list){
+      for(const r of list){
+        if(selectedRoute && r.pl===selectedRoute.pl) continue;
+        r.pl.setStyle({ color: 'yellow', weight:7, opacity:1 });
+        if(r.pl.bringToFront) r.pl.bringToFront();
+      }
+    }
+    function showHoverTooltip(latlng, text){
+      if(hoverTooltip){
+        hoverTooltip.setLatLng(latlng).setContent(text);
+      } else {
+        hoverTooltip = L.tooltip({className:'hover-count', offset: L.point(0,-12)}).setLatLng(latlng).setContent(text).addTo(map);
+      }
+    }
+    function hideHoverTooltip(){
+      if(hoverTooltip){ map.removeLayer(hoverTooltip); hoverTooltip=null; }
+    }
+
+    map.on('mousemove', function(e){
+      const nearby = getNearbyRoutes(e.latlng);
+      // compute a deterministic key to avoid rapid re-rendering
+      const key = nearby.map(r=>r.routeName).sort().join('|');
+      if(key === lastNearbyIdsKey) {
+        // still same set, just update tooltip position
+        if(nearby.length) {
+          showHoverTooltip(e.latlng, `${nearby.length} route(s) here`);
+        }
+        return;
+      }
+      lastNearbyIdsKey = key;
+      if(nearby.length){
+        clearHoverHighlights();
+        highlightRoutes(nearby);
+        showHoverTooltip(e.latlng, `${nearby.length} route(s) here`);
+      } else {
+        clearHoverHighlights();
+        hideHoverTooltip();
+      }
+    });
+
+    // === CLICK BEHAVIOR: show overlapping routes list (bottom-right) ===
+    const overlapPanel = document.getElementById('overlapPanel');
+    const overlapListEl = document.getElementById('overlapList');
+
+    function showOverlapPanel(routes, clickLatLng){
+      overlapListEl.innerHTML='';
+      // unique route names (in case route is split into several polylines)
+      const unique = [];
+      const seen = new Set();
+      for(const r of routes){
+        const rn = r.routeName || (r.row && normalize(r.row["ROUTE NAME"]));
+        if(!seen.has(rn)){
+          unique.push(r);
+          seen.add(rn);
+        }
+      }
+      unique.forEach(r=>{
+        const li = document.createElement('li');
+        li.textContent = r.routeName || (r.row && r.row["ROUTE NAME"]) || "Unnamed";
+        li.onclick = ()=> {
+          selectRoute(r, clickLatLng);
+        };
+        overlapListEl.appendChild(li);
+      });
+      overlapPanel.style.display = 'block';
+    }
+    function hideOverlapPanel(){ overlapPanel.style.display='none'; overlapListEl.innerHTML=''; }
+
+    // When route selected from list
+    function selectRoute(routeObj, anchorLatLng){
+      // clear previous selected
+      if(selectedRoute && selectedRoute.pl){
+        try{ selectedRoute.pl.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }); } catch(e){}
+      }
+      selectedRoute = routeObj;
+      // highlight selected (distinct)
+      selectedRoute.pl.setStyle({ color: '#ffcc00', weight:8, opacity:1 });
+      if(selectedRoute.pl.bringToFront) selectedRoute.pl.bringToFront();
+
+      // close any old detail popup
+      if(detailPopup){ map.closePopup(detailPopup); detailPopup=null; }
+
+      // compute length (use flattened latlngs from pl)
+      const flat = flattenLatLngs(selectedRoute.pl.getLatLngs());
+      const lengthMeters = computeLengthMeters(flat);
+
+      // get CLASS in case-insensitive way but prefer exact "CLASS"
+      const row = selectedRoute.row || {};
+      const cls = row["CLASS"] ?? row["Class"] ?? row["class"] ?? "N/A";
+
+      const content = `<div style="min-width:220px">
+        <div style="font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'Unnamed')}</div>
+        <div><strong>DENO:</strong> ${normalize(row["DENO"]||'N/A')}</div>
+        <div><strong>CLASS:</strong> ${normalize(cls||'N/A')}</div>
+        <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'N/A')}</div>
+        <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'N/A')}</div>
+        <div><strong>LENGTH:</strong> ${lengthMeters} m</div>
+        </div>`;
+
+      // show popup offset (so it doesn't cover the route). Slightly transparent via CSS className.
+      detailPopup = L.popup({ className: 'detail-popup', autoClose:false, closeOnClick:false, offset: L.point(0,-80) })
+        .setLatLng(anchorLatLng)
+        .setContent(content)
+        .openOn(map);
+    }
+
+    // clicking map: either show overlap panel if routes at location OR clear everything when clicked on empty space
+    map.on('click', function(e){
+      const nearby = getNearbyRoutes(e.latlng);
+      if(nearby.length){
+        // show bottom-right list of overlapping routes
+        showOverlapPanel(nearby, e.latlng);
+      } else {
+        // clicked empty space -> clear selections and panels/popups
+        hideOverlapPanel();
+        if(selectedRoute && selectedRoute.pl){
+          try{ selectedRoute.pl.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }); } catch(e){}
+          selectedRoute = null;
+        }
+        clearHoverHighlights();
+        hideHoverTooltip();
+        if(detailPopup){ map.closePopup(detailPopup); detailPopup=null; }
+      }
+    });
+
+    // If user clicks on the panel's list items, map click will not close it.
+
+    // === helper to choose a route object by route name (used sometimes) ===
+    function findRouteByName(name){
+      for(const r of routeLayers) if(r.routeName === name) return r;
+      return null;
+    }
+
+    // === small convenience to redraw entire dataset (used by reset/apply) ===
+    function redrawAllFromData(){
+      clearRouteLayers();
+      allData.forEach(drawRowOnMap);
+    }
+
+    // make sure map redraws if user resizes
+    window.addEventListener('resize', ()=>{ if(routeLayers.length) fitMapToRouteLayers(); });
+
+    // End of script
   </script>
 </body>
 </html>
