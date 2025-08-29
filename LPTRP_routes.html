@@ -520,19 +520,6 @@
           makeAutocomplete(document.getElementById('ep2LGU'),     suggestions.epLGU,      document.getElementById('ep2LGUSuggestions'),      val=>{document.getElementById('ep2LGU').value=val;});
           makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;});
           makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;});
-<style>
-/* Make Leaflet popups nearly invisible */
-.leaflet-popup-content-wrapper {
-  background: rgba(255, 255, 255, 0.2) !important; /* almost transparent */
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.2);
-  color: #000; /* ensure text readable */
-}
-
-.leaflet-popup-tip {
-  background: rgba(255, 255, 255, 0.2) !important;
-}
-</style>
 
           // draw all routes
           for(const row of allData){
