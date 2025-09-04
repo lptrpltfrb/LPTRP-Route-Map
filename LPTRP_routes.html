@@ -512,6 +512,9 @@
         <div><strong>CLASS:</strong> ${classVal}</div>
         <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
         <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>
+        <div><strong>BR. No.:</strong> ${normalize(row["BOARD RESOLUTION"]||'')}</div>
+        <div><strong>With LSO/LSR:</strong> ${normalize(row["WITH LSO/LSR"]||'')}</div>
+        <div><strong>MC No.:</strong> ${normalize(row["MEMORANDUM CIRCULAR"]||'')}</div>
         <div><strong>ROUTE LENGTH:</strong> ${lengthDisplay}</div>
       `;
 
@@ -589,3 +592,4 @@
   </script>
 </body>
 </html>
+
