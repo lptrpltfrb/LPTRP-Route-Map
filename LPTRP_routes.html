@@ -1,792 +1,246 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>LPTRP Route Map — Routes + Terminals</title>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
+  <meta charset="utf-8"/>
+  <title>LTFRB Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
   <style>
-    html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
-    #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+    body { margin:0; padding:0; }
+    #map { width:1170px; height:800px; }
 
-    /* ----- Filter box (kept like your working layout) ----- */
-    .search-container {
+    .filter-box {
       position: absolute;
-      left: 12px;
-      top: 12px;
-      width: 340px;
-      max-height: 720px;
-      overflow: auto;
-      background: #fff;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      z-index: 2000;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 13px;
+      max-width: 300px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-family: Arial, sans-serif;
     }
-    .search-section { margin-bottom: 10px; }
-    .search-section h4 { margin: 6px 0; font-size: 14px; }
-    .compact-row { display:flex; gap:6px; align-items:center; }
-
-    input[type="text"], .small-input {
-      width:100%;
-      padding:6px 8px;
-      border:1px solid #ccc;
-      border-radius:4px;
-      box-sizing:border-box;
-      font-size:13px;
-      outline:none;
-      background:#fff;
-    }
-    input[type="text"]:focus, .small-input:focus {
-      border-color:#2f78a0;
-      box-shadow:0 0 4px rgba(47,120,160,0.4);
+    .filter-box input {
+      width: 100%;
+      margin-bottom: 6px;
+      padding: 4px;
     }
 
-    .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px; border:1px solid #ddd; border-radius:4px; background:#fff; }
-    .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px; display:inline-flex; gap:6px; align-items:center; font-size:12px; }
-    .chip button { background:transparent; border:0; color:#fff; cursor:pointer; font-weight:bold; }
-    .btn { width:100%; padding:8px; border-radius:6px; border:0; cursor:pointer; margin-top:8px; font-size:14px; }
-    .btn.apply { background:#2f78a0; color:#fff; }
-    .btn.clear { background:#efefef; color:#222; }
-
-    .suggestions { position: relative; }
-    .suggestions-list {
+    .route-list-popup {
       position: absolute;
-      left:0;
-      right:0;
-      top:42px;
-      max-height:180px;
-      overflow:auto;
-      background:#fff;
-      border:1px solid #ccc;
-      border-radius:4px;
-      z-index:2100;
-      box-shadow:0 6px 14px rgba(0,0,0,.12);
-      display:none;
-    }
-    .suggestions-list div { padding:6px 8px; cursor:pointer; }
-    .suggestions-list div:hover { background:#f0f8ff; }
-
-    .north-arrow {
-      position: absolute;
-      right: 18px;
-      top: 18px;
-      z-index: 2000;
-      width: 40px;
-      height: 40px;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="%23000"><path d="M50 5 L70 70 L50 55 L30 70 Z"/></g><text x="50" y="95" font-size="12" text-anchor="middle" fill="%23000">N</text></svg>') no-repeat center/contain;
-      pointer-events: none;
-      opacity: .95;
-    }
-
-    .search-container::-webkit-scrollbar { width:8px; height:8px }
-    .search-container::-webkit-scrollbar-thumb { background:#ddd; border-radius:8px }
-
-    /* small popup for hover count */
-    .hover-count .leaflet-popup-content { margin:6px 8px; font-weight:700; font-size:13px; text-align:center; color:#fff; }
-    .hover-count .leaflet-popup-content-wrapper { background: rgba(0,0,0,0.8); border-radius:6px; }
-
-    /* route list panel (lower-right) */
-    .route-list-panel {
-      position: absolute;
-      right: 12px;
-      bottom: 12px;
-      z-index: 5000;
-      min-width: 300px;
-      max-width: 420px;
-      max-height: 360px;
-      overflow:auto;
-      background: rgba(255,255,255,0.98);
-      border-radius: 8px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      bottom: 10px;
+      right: 10px;
+      z-index: 1200;
+      background: white;
       padding: 10px;
-      font-family: Arial, Helvetica, sans-serif;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+    }
+    .route-list-popup div {
+      cursor: pointer;
+      padding: 3px 0;
+    }
+    .route-list-popup div:hover {
+      background: #f0f0f0;
+    }
+
+    .details-popup {
+      background: rgba(255,255,255,0.85);
+      padding: 8px;
+      border-radius: 6px;
       font-size: 13px;
+      line-height: 1.4;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-    .route-list-panel .header { font-weight:700; margin-bottom:8px; }
-    .route-list-panel .route-item { padding:6px 8px; border-radius:6px; cursor:pointer; }
-    .route-list-panel .route-item:hover { background:#f0f8ff; }
-
-    /* details popup - ALMOST INVISIBLE: adjust alpha below */
-    .details-popup .leaflet-popup-content-wrapper {
-      background: rgba(255,255,255,0.08);   /* <- change alpha between 0.00 (invisible) and 1.0 (opaque) */
-      border-radius:8px;
-      box-shadow: none;
-      border: 1px solid rgba(0,0,0,0.06);
-      backdrop-filter: blur(3px);
-    }
-    .details-popup .leaflet-popup-tip { display:none; }
-    .details-popup .leaflet-popup-content { font-size:13px; color: #111; opacity: 0.95; }
-
-    /* Terminal marker styling */
-    .terminal-marker {
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color:#fff;
-      font-weight:700;
-      border: 1px solid rgba(255,255,255,0.9);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-      transform-origin: center center;
-      transition: transform .12s ease, box-shadow .12s ease;
-      font-family: Arial, Helvetica, sans-serif;
-    }
-    /* hover zoom effect (lights up) */
-    .terminal-marker:hover {
-      transform: scale(1.45);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-      z-index: 6000;
-    }
-    /* popup style for terminal (small) */
-    .terminal-popup .leaflet-popup-content { font-size:13px; }
-    .terminal-popup .leaflet-popup-content-wrapper { border-radius:8px; padding:8px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="north-arrow" title="North"></div>
-
-  <div class="search-container" id="searchPanel">
-    <div class="search-section">
-      <h4>Search by Route Name</h4>
-      <div class="chips" id="routeChips"></div>
-      <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
-        <div class="suggestions-list" id="routeSuggestions"></div>
-      </div>
-    </div>
-
-    <div class="search-section">
-      <h4>Search by Endpoints</h4>
-      <!-- Endpoint 1 -->
-      <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      <hr>
-      <!-- Endpoint 2 -->
-      <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
-    </div>
-
-    <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
-    <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
+  <div class="filter-box">
+    <div><strong>Search by Route Name</strong></div>
+    <input type="text" id="routeNameInput" placeholder="Type route name..."/>
+    <div><strong>Search by Endpoints</strong></div>
+    <input type="text" id="ep1TerminalInput" placeholder="Endpoint 1 Terminal..."/>
+    <input type="text" id="ep2TerminalInput" placeholder="Endpoint 2 Terminal..."/>
   </div>
-
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <div id="routeListPopup" class="route-list-popup" style="display:none"></div>
 
   <script>
-    // -----------------------
-    // CONFIG
-    // -----------------------
-    // Routes CSV (your main sheet)
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-    // Terminals CSV (Terminal tab)
-    const terminalCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1448318988&single=true&output=csv";
+    const sheetUrlMaster = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+    const sheetUrlTerminal = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1448318988&single=true&output=csv";
 
-    // Palette (route coloring)
-    const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-    // Terminal icon diameter in px — change this to resize terminal circle icons.
-    // If it's overtaking route lines, reduce this value (e.g. set to 8 or 10).
-    const TERMINAL_ICON_DIAMETER = 12; // <--- adjust here (px)
-
-    // Known terminal types (case-insensitive keys)
-    const TERMINAL_TYPE_LABELS = {
-      'jeepney terminal': 'J',
-      'bus terminal': 'B',
-      'van terminal': 'V',
-      'common terminal': 'CT',
-      'itx': 'ITX',
-      'tricycle': 'T',
-      'tricycle terminal': 'T',
-      'offstreet terminal': 'OT',
-      'garage': 'G'
-    };
-    const TERMINAL_TYPE_COLORS = {
-      'jeepney terminal': '#f39c12',
-      'bus terminal': '#e74c3c',
-      'van terminal': '#27ae60',
-      'common terminal': '#8e44ad',
-      'itx': '#2980b9',
-      'tricycle': '#16a085',
-      'offstreet terminal': '#2c3e50',
-      'garage': '#7f8c8d'
-    };
-
-    // -----------------------
-    // UTILS
-    // -----------------------
-    function normalize(s){ if(!s && s!==0) return ''; return String(s).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim(); }
-    function nLower(s){ return normalize(s).toLowerCase(); }
-    function colorFromString(str){
-      const s = normalize(str||'');
-      let hash = 0;
-      for(let i=0;i<s.length;i++){ hash = (hash<<5) - hash + s.charCodeAt(i); hash |= 0; }
-      return PALETTE[Math.abs(hash) % PALETTE.length];
-    }
-    function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
-
-    // Haversine (if ever needed)
-    function haversine(a,b){
-      const R=6371000;
-      const dLat=(b.lat-a.lat)*Math.PI/180;
-      const dLng=(b.lng-a.lng)*Math.PI/180;
-      const lat1=a.lat*Math.PI/180, lat2=b.lat*Math.PI/180;
-      const sinDLat=Math.sin(dLat/2), sinDLng=Math.sin(dLng/2);
-      const h=sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLng*sinDLng;
-      return 2*R*Math.asin(Math.sqrt(h));
-    }
-    function totalLengthKm(paths){
-      let m=0;
-      for(const seg of paths){
-        for(let i=1;i<seg.length;i++){ m+=haversine(seg[i-1],seg[i]); }
-      }
-      return m/1000;
-    }
-
-    // distance (px) from point P to segment AB in screen space
-    function distPointToSeg(P,A,B){
-      const vx=B.x-A.x, vy=B.y-A.y;
-      const wx=P.x-A.x, wy=P.y-A.y;
-      const c1=vx*wx+vy*wy;
-      if(c1<=0) return Math.hypot(P.x-A.x,P.y-A.y);
-      const c2=vx*vx+vy*vy;
-      if(c2<=c1) return Math.hypot(P.x-B.x,P.y-B.y);
-      const t=c1/c2;
-      const proj={x:A.x+t*vx,y:A.y+t*vy};
-      return Math.hypot(P.x-proj.x,P.y-proj.y);
-    }
-
-    // -----------------------
-    // MAP
-    // -----------------------
-    const map = L.map('map', { preferCanvas:true }).setView([13,122],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
-    L.control.scale({position:'bottomleft',metric:true}).addTo(map);
-
-    let allData = [];
-    let routes = []; // { row, segs, layerGroup, baseColor, id }
-    let visibleLayers = [];
-    let selectedRoute = null;
-
-    // Terminals
-    let terminals = []; // { row, marker }
-    let terminalLayerGroup = L.layerGroup();
+    let routes = [];
+    let terminals = [];
+    let routeLayers = [];
     let terminalMarkers = [];
+    let highlighted = null;
+    let listPopup = document.getElementById("routeListPopup");
 
-    const hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count', autoPan:false});
-    let detailsPopup = null;
-    let routeListPanel = null;
+    function normalize(str){ return (str||"").toString().trim(); }
 
-    // -----------------------
-    // ROUTE LIST PANEL (lower-right)
-    // -----------------------
-    function showRouteListPanel(names){
-      hideRouteListPanel();
-
-      routeListPanel = document.createElement('div');
-      routeListPanel.className = 'route-list-panel';
-      routeListPanel.addEventListener('click', e => e.stopPropagation());
-
-      const header = `<div class="header">Routes at this point (${names.length})</div>`;
-      const itemsHtml = names.map(n => `<div class="route-item" data-name="${n}">${n}</div>`).join('');
-      routeListPanel.innerHTML = header + itemsHtml;
-
-      map.getContainer().appendChild(routeListPanel);
-
-      routeListPanel.querySelectorAll('.route-item').forEach(el => {
-        el.addEventListener('click', (ev) => {
-          const name = ev.currentTarget.getAttribute('data-name');
-          selectRouteByName(name);
-        });
-      });
-    }
-    function hideRouteListPanel(){
-      if(routeListPanel && routeListPanel.parentNode){
-        routeListPanel.parentNode.removeChild(routeListPanel);
-        routeListPanel = null;
-      }
-    }
-
-    // -----------------------
-    // FILTER helpers
-    // -----------------------
-    let selectedRouteNames = [];
-    function addRouteChip(name){ const n=normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
-    function removeRouteChip(name){ selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); renderChips(); }
-    function renderChips(){ const c=document.getElementById('routeChips'); c.innerHTML=''; for(const n of selectedRouteNames){ const ch=document.createElement('div'); ch.className='chip'; const t=document.createElement('span'); t.textContent=n; const b=document.createElement('button'); b.innerHTML='&times;'; b.onclick=()=>removeRouteChip(n); ch.appendChild(t); ch.appendChild(b); c.appendChild(ch); } }
-
-    function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick){
-      function show(){
-        const q=nLower(inputEl.value);
-        const list = suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200);
-        renderSuggestions(containerEl, list, onPick);
-      }
-      inputEl.addEventListener('input', show);
-      inputEl.addEventListener('focus', show);
-      inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none', 150));
-    }
-    function renderSuggestions(containerEl, list, onPick){
-      if(!list.length){ containerEl.style.display='none'; containerEl.innerHTML=''; return; }
-      containerEl.innerHTML = '';
-      for(const v of list){
-        const d = document.createElement('div'); d.textContent = v;
-        d.onclick = ()=>{ onPick(v); containerEl.style.display='none'; };
-        containerEl.appendChild(d);
-      }
-      containerEl.style.display = 'block';
-    }
-
-    // -----------------------
-    // GEO PATH parse + draw (routes)
-    // -----------------------
-    function tryParseGeoPath(geo){
-      if(!geo) return null;
+    function addRoute(row){
+      if(!row["GEO PATH"]) return;
       try{
-        const parsed = JSON.parse(normalize(geo));
-        if(Array.isArray(parsed) && Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])){
-          return parsed.map(seg => seg.map(c => L.latLng(+c[1], +c[0])));
-        }
-        if(Array.isArray(parsed) && Array.isArray(parsed[0]) && typeof parsed[0][0] === 'number'){
-          return [ parsed.map(c => L.latLng(+c[1], +c[0])) ];
-        }
-        return null;
-      }catch(e){
-        return null;
-      }
-    }
+        const coords = JSON.parse(row["GEO PATH"]);
+        const poly = L.polyline(coords, {color: randomColor(), weight:3, opacity:0.7}).addTo(map);
+        poly.routeData = row;
+        routeLayers.push(poly);
 
-    function drawRoute(row){
-      const segs = tryParseGeoPath(row["GEO PATH"]);
-      if(!segs || !segs.length) return null;
-      const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
-      const baseColor = colorFromString(routeName || (row["DENO"]||''));
-      const group = L.layerGroup();
-      for(const seg of segs){
-        const poly = L.polyline(seg, { color: baseColor, weight: 4, opacity: 0.95 });
-        // click on segment should show list for that clicked point (not immediately select top route)
-        poly.on('click', (ev) => {
-          L.DomEvent.stopPropagation(ev);
-          handlePointClick(ev.latlng);
+        poly.on("mouseover", e=>{
+          poly.setStyle({weight:5, opacity:1});
+          const overlaps = routeLayers.filter(r=> isPointOnLine(e.latlng, r));
+          const count = new Set(overlaps.map(r=>normalize(r.routeData["ROUTE NAME"]))).size;
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent(count+" routes here")
+            .openOn(map);
         });
-        poly.addTo(group);
-      }
-      group.addTo(map);
-      const id = routeName || normalize(row["DENO"]||'');
-      return { row, segs, layerGroup: group, baseColor, id };
+        poly.on("mouseout", ()=>{
+          if(highlighted !== poly) poly.setStyle({weight:3, opacity:0.7});
+          map.closePopup();
+        });
+        poly.on("click", e=>{
+          const overlaps = routeLayers.filter(r=> isPointOnLine(e.latlng, r));
+          showRouteList(overlaps, e.latlng);
+        });
+      }catch(err){ console.error("Invalid GEO PATH", err); }
     }
 
-    function clearMapLayers(){
-      routes.forEach(rt => {
-        try{ map.removeLayer(rt.layerGroup); }catch(e){}
+    function addTerminal(row){
+      if(!row["LATITUDE"] || !row["LONGITUDE"]) return;
+      const lat = parseFloat(row["LATITUDE"]);
+      const lng = parseFloat(row["LONGITUDE"]);
+      if(isNaN(lat)||isNaN(lng)) return;
+
+      const abbrev = getTypeAbbrev(normalize(row["TYPE"]));
+      const marker = L.circleMarker([lat,lng],{
+        radius:6, color:"black", fillColor:"orange", fillOpacity:0.9
+      }).addTo(map);
+
+      marker.bindPopup(`<div class="details-popup"><strong>${normalize(row["TERMINAL"])}</strong><br><em>${normalize(row["ADDRESS"])}</em><br><em>(${abbrev})</em></div>`);
+      terminalMarkers.push({marker, row});
+    }
+
+    function getTypeAbbrev(type){
+      if(!type) return "T";
+      const mapType = {
+        "Bus Terminal":"B",
+        "Jeepney Terminal":"J",
+        "Van Terminal":"V",
+        "Common Terminal":"CT",
+        "ITX":"ITX",
+        "Tricycle Terminal":"T",
+        "Offstreet Terminal":"OT",
+        "Garage":"G"
+      };
+      return mapType[type] || type.split(" ").map(w=>w[0]).join("");
+    }
+
+    function showRouteList(overlaps, latlng){
+      if(overlaps.length===0){ listPopup.style.display="none"; return; }
+      listPopup.innerHTML = "";
+      overlaps.forEach(r=>{
+        const div = document.createElement("div");
+        div.textContent = normalize(r.routeData["ROUTE NAME"]);
+        div.onclick = ()=>{
+          if(highlighted) highlighted.setStyle({weight:3, opacity:0.7});
+          highlighted = r;
+          r.setStyle({color:"red", weight:6, opacity:1});
+          showRouteDetails(r.routeData, latlng);
+        };
+        listPopup.appendChild(div);
       });
-      visibleLayers = [];
+      listPopup.style.display="block";
     }
 
-    // -----------------------
-    // TERMINALS: icon generation, drawing, interactions
-    // -----------------------
-    function generateTerminalAbbrev(type){
-      if(!type) return '';
-      const words = type.trim().split(/\s+/).filter(Boolean);
-      if(!words.length) return '';
-      // If known type return mapped label
-      const key = nLower(type);
-      if(TERMINAL_TYPE_LABELS[key]) return TERMINAL_TYPE_LABELS[key];
-      // fallback: take first letters of each word (max 3 chars)
-      const ab = words.map(w => w.charAt(0).toUpperCase()).join('');
-      return ab.length ? ab.slice(0,3) : type.slice(0,2).toUpperCase();
-    }
-    function terminalColorFor(type){
-      const key = nLower(type||'');
-      return TERMINAL_TYPE_COLORS[key] || '#34495e';
-    }
-
-    function createTerminalDivIcon(type, diameter){
-      const label = generateTerminalAbbrev(type);
-      const color = terminalColorFor(type);
-      const fontSize = Math.max(9, Math.floor(diameter*0.45));
-      const html = `<div class="terminal-marker" style="width:${diameter}px;height:${diameter}px;line-height:${diameter}px;font-size:${fontSize}px;background:${color};border-radius:50%">${label}</div>`;
-      return L.divIcon({ className: '', html: html, iconSize: [diameter, diameter], iconAnchor: [Math.floor(diameter/2), Math.floor(diameter/2)] });
-    }
-
-    function drawTerminals(termRows){
-      // clear previous
-      try{ terminalLayerGroup.clearLayers(); }catch(e){}
-      terminals = [];
-      terminalMarkers = [];
-
-      for(const r of termRows){
-        const lat = parseFloat(r["LATITUDE"] || r["Latitude"] || r["latitude"]);
-        const lng = parseFloat(r["LONGITUDE"] || r["Longitude"] || r["longitude"]);
-        const name = normalize(r["TERMINAL"] || r["Terminal"] || r["terminal"] || '');
-        const address = normalize(r["ADDRESS"] || r["Address"] || r["address"] || '');
-        const type = normalize(r["TYPE"] || r["Type"] || r["type"] || '');
-
-        if(!name || Number.isNaN(lat) || Number.isNaN(lng)) continue;
-
-        const icon = createTerminalDivIcon(type, TERMINAL_ICON_DIAMETER);
-        const marker = L.marker([lat, lng], { icon: icon, riseOnHover:true });
-
-        // popup content: name, address (italics), (type) italics inside parentheses
-        const popupHtml = `<div style="font-weight:700;margin-bottom:4px">${name}</div>
-                           <div style="font-style:italic;margin-bottom:4px">${address}</div>
-                           <div style="font-style:italic">(${type || 'Unknown'})</div>`;
-
-        marker.bindPopup(popupHtml, { className: 'terminal-popup', maxWidth: 280 });
-
-        // hover style handled by CSS scale rule, stop propagation of clicks so map doesn't handle them
-        marker.on('mouseover', () => {
-          const el = marker.getElement();
-          if(el) el.style.zIndex = 6500;
-        });
-        marker.on('mouseout', () => {
-          const el = marker.getElement();
-          if(el) el.style.zIndex = '';
-        });
-
-        marker.on('click', (ev) => {
-          L.DomEvent.stopPropagation(ev); // important: prevents the route-list from opening
-          // close route list and route details so user can focus on terminal popup
-          hideRouteListPanel();
-          if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
-          // open terminal popup
-          marker.openPopup();
-        });
-
-        marker.addTo(terminalLayerGroup);
-        terminals.push({ row: r, marker: marker });
-        terminalMarkers.push({ row: r, marker: marker });
-      }
-
-      terminalLayerGroup.addTo(map);
-    }
-
-    // Filter/show/hide terminal markers according to Endpoint Terminal filters
-    function updateTerminalVisibility(ep1TermVal, ep2TermVal){
-      const v1 = nLower(ep1TermVal);
-      const v2 = nLower(ep2TermVal);
-      for(const t of terminalMarkers){
-        const name = nLower(t.row["TERMINAL"] || t.row["Terminal"] || '');
-        const matches = (!v1 && !v2) || (v1 && name.includes(v1)) || (v2 && name.includes(v2));
-        if(matches){
-          if(!map.hasLayer(t.marker)) t.marker.addTo(map);
-        } else {
-          if(map.hasLayer(t.marker)) map.removeLayer(t.marker);
-        }
-      }
-    }
-
-    // -----------------------
-    // FILTERS
-    // -----------------------
-    function applyFilters(){
-      const rSelected = selectedRouteNames.map(n=>nLower(n));
-      const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
-      const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
-      const ep1LGUVal=nLower(document.getElementById('ep1LGU').value);
-      const ep1BarangayVal=nLower(document.getElementById('ep1Barangay').value);
-      const ep1TerminalVal=nLower(document.getElementById('ep1Terminal').value);
-      const ep2RegionVal=nLower(document.getElementById('ep2Region').value);
-      const ep2ProvinceVal=nLower(document.getElementById('ep2Province').value);
-      const ep2LGUVal=nLower(document.getElementById('ep2LGU').value);
-      const ep2BarangayVal=nLower(document.getElementById('ep2Barangay').value);
-      const ep2TerminalVal=nLower(document.getElementById('ep2Terminal').value);
-
-      // reset selection/popups
-      clearSelectionAndPopups();
-      clearMapLayers();
-
-      routes.forEach(rt=>{
-        const row = rt.row;
-        const rn = nLower(row["ROUTE NAME"]||'');
-        const matchRoute = rSelected.length===0 || rSelected.includes(rn);
-        const matchEndpoints =
-          (!ep1RegionVal||nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal)) &&
-          (!ep1ProvinceVal||nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal)) &&
-          (!ep1LGUVal||nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal)) &&
-          (!ep1BarangayVal||nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal)) &&
-          (!ep1TerminalVal||nLower(row["ENDPOINT 1 TERMINAL"]||'').includes(ep1TerminalVal)) &&
-          (!ep2RegionVal||nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal)) &&
-          (!ep2ProvinceVal||nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal)) &&
-          (!ep2LGUVal||nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal)) &&
-          (!ep2BarangayVal||nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal)) &&
-          (!ep2TerminalVal||nLower(row["ENDPOINT 2 TERMINAL"]||'').includes(ep2TerminalVal));
-        if(matchRoute && matchEndpoints){
-          rt.layerGroup.addTo(map);
-          visibleLayers.push(rt.layerGroup);
-        }
-      });
-
-      // Update terminal visibility (filter terminals by endpoint terminal names)
-      updateTerminalVisibility(document.getElementById('ep1Terminal').value, document.getElementById('ep2Terminal').value);
-
-      // Fit bounds to visible features (routes + visible terminals)
-      const routeLayers = visibleLayers.flatMap(g => g.getLayers());
-      const visibleTerminalMarkers = terminalMarkers.filter(t => map.hasLayer(t.marker)).map(t=>t.marker);
-      const allFeatures = [...routeLayers, ...visibleTerminalMarkers];
-      if(allFeatures.length){
-        try{
-          const fg = L.featureGroup(allFeatures);
-          map.fitBounds(fg.getBounds(),{padding:[40,40]});
-        }catch(e){}
-      }
-    }
-
-    function resetFilters(){
-      selectedRouteNames=[]; renderChips();
-      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
-      clearSelectionAndPopups();
-      clearMapLayers();
-      routes.forEach(rt => { rt.layerGroup.addTo(map); visibleLayers.push(rt.layerGroup); });
-      // show all terminals
-      terminalMarkers.forEach(t => { if(!map.hasLayer(t.marker)) t.marker.addTo(map); });
-      if(visibleLayers.length){
-        const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
-        try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
-      }
-    }
-
-    // -----------------------
-    // HOVER / OVERLAP
-    // -----------------------
-    function routesAtPoint(latlng, pxTol=6){
-      const P = map.latLngToLayerPoint(latlng);
-      const found = [];
-      for(const rt of routes){
-        if(!map.hasLayer(rt.layerGroup)) continue;
-        let near = false;
-        for(const seg of rt.segs){
-          for(let i=1;i<seg.length;i++){
-            const A = map.latLngToLayerPoint(seg[i-1]);
-            const B = map.latLngToLayerPoint(seg[i]);
-            const d = distPointToSeg(P,A,B);
-            if(d <= pxTol){ near = true; break; }
-          }
-          if(near) break;
-        }
-        if(near) found.push(rt);
-      }
-      const byName = new Map();
-      for(const f of found){
-        const name = normalize(f.row["ROUTE NAME"]||'');
-        if(!byName.has(name)) byName.set(name, f);
-      }
-      return Array.from(byName.values());
-    }
-
-    function setHoverHighlights(rtList){
-      const newIds = new Set(rtList.map(r=>r.id));
-      for(const rt of routes){
-        if(!map.hasLayer(rt.layerGroup)) continue;
-        if(!newIds.has(rt.id) && (!selectedRoute || rt !== selectedRoute)){
-          rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
-        }
-      }
-      for(const rt of rtList){
-        if(selectedRoute && rt === selectedRoute) continue;
-        rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:7, opacity:1 }));
-        rt.layerGroup.getLayers().forEach(poly => poly.bringToFront());
-      }
-    }
-
-    function clearSelectionAndPopups(){
-      if(selectedRoute){
-        selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }));
-        selectedRoute = null;
-      }
-      try{ if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup); }catch(e){}
-      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
-      hideRouteListPanel();
-      for(const rt of routes){
-        if(map.hasLayer(rt.layerGroup)){
-          rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
-        }
-      }
-    }
-
-    map.on('mousemove', (e)=>{
-      const near = routesAtPoint(e.latlng, 6);
-      if(near.length){
-        setHoverHighlights(near);
-        hoverPopup.setLatLng(e.latlng).setContent(String(near.length));
-        if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
-      } else {
-        if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup);
-        for(const rt of routes){
-          if(!selectedRoute || rt !== selectedRoute){
-            rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:4, opacity:0.95 }));
-          }
-        }
-      }
-    });
-
-    // Shared handler for clicks (polyline click and map click)
-    function handlePointClick(latlng){
-      const near = routesAtPoint(latlng, 6);
-      if(!near.length){
-        // click on open space: clear everything
-        clearSelectionAndPopups();
-        return;
-      }
-      // click on routes: clear previous selection and show list for this point
-      clearSelectionAndPopups();
-      const uniqueNames = [...new Set(near.map(rt => normalize(rt.row["ROUTE NAME"]||'')).filter(Boolean))];
-      showRouteListPanel(uniqueNames);
-    }
-
-    // map click uses shared handler
-    map.on('click', (e) => {
-      handlePointClick(e.latlng);
-    });
-
-    // -----------------------
-    // SELECTION (by name from list)
-    // -----------------------
-    function selectRouteByName(name){
-      const target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize(name));
-      if(!target) return;
-
-      // remove previous details popup (keep list open)
-      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
-
-      // unstyle previous
-      if(selectedRoute){
-        selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:4, opacity:0.95 }));
-      }
-
-      selectedRoute = target;
-      selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:7, opacity:1 }));
-      selectedRoute.layerGroup.getLayers().forEach(poly => poly.bringToFront());
-
-      const row = selectedRoute.row;
-
-      // CLASS uses header "CLASS" exactly
-      const classVal = normalize(row["CLASS"]||row["Class"]||'');
-
-      // ROUTE LENGTH should come from Google Sheet. Try common header variants:
-      const lengthFromSheet = normalize(row["ROUTE LENGTH"]) || normalize(row["ROUTE LENGTH (KM)"]) || normalize(row["ROUTE LENGTH KM"]) || normalize(row["ROUTE LENGTH (km)"]) || normalize(row["ROUTE LENGTH (KM) "]) || '';
-      const lengthDisplay = lengthFromSheet ? (lengthFromSheet.match(/[a-zA-Z%]/) ? lengthFromSheet : lengthFromSheet + ' km') : 'N/A';
+    function showRouteDetails(row, latlng){
+      const classVal = normalize(row["CLASS"]);
+      const lengthFromSheet = normalize(row["ROUTE LENGTH"]);
+      const lengthDisplay = lengthFromSheet ? (/[a-zA-Z%]/.test(lengthFromSheet) ? lengthFromSheet : lengthFromSheet+" km") : "N/A";
 
       const html = `
-        <div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
-        <div><strong>DENO:</strong> ${normalize(row["DENO"]||'')}</div>
-        <div><strong>CLASS:</strong> ${classVal}</div>
-        <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
-        <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>
-        <div><strong>ROUTE LENGTH:</strong> ${lengthDisplay}</div>
-        <div><strong>BR. No.:</strong> ${normalize(row["BOARD RESOLUTION"]||'')}</div>
-        <div><strong>With LSO/LSR:</strong> ${normalize(row["WITH LSO/LSR"]||'')}</div>
-        <div><strong>MC No.:</strong> ${normalize(row["MEMORANDUM CIRCULAR"]||'')}</div>
-      `;
-
-      // place details popup at center of route bounds
-      const fg = L.featureGroup(selectedRoute.layerGroup.getLayers());
-      const bounds = fg.getBounds();
-      const center = bounds.getCenter();
-
-      detailsPopup = L.popup({
-        autoClose:false,
-        closeOnClick:false,
-        className:'details-popup',
-        offset: L.point(12, -14),
-        autoPan: true
-      }).setLatLng(center).setContent(html).addTo(map);
-
-      try{ map.fitBounds(bounds, { padding:[40,40] }); }catch(e){}
+        <div class="details-popup">
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"])}</div>
+          <div><strong>DENO:</strong> ${normalize(row["DENO"])}</div>
+          <div><strong>CLASS:</strong> ${classVal}</div>
+          <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"])}</div>
+          <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"])}</div>
+          <div><strong>BR. No.:</strong> ${normalize(row["BOARD RESOLUTION"])}</div>
+          <div><strong>With LSO/LSR:</strong> ${normalize(row["WITH LSO/LSR"])}</div>
+          <div><strong>MC No.:</strong> ${normalize(row["MEMORANDUM CIRCULAR"])}</div>
+          <div><strong>ROUTE LENGTH:</strong> ${lengthDisplay}</div>
+        </div>`;
+      L.popup({offset:[150,0]}).setLatLng(latlng).setContent(html).openOn(map);
     }
 
-    // -----------------------
-    // LOAD DATA & wiring
-    // -----------------------
-    const suggestions = { routeNames:[], epRegion:[], epProvince:[], epLGU:[], epBarangay:[], epTerminal:[] };
+    function isPointOnLine(latlng, poly){
+      const dist = L.GeometryUtil.distance(map, latlng, poly);
+      return dist < 20; // tolerance in meters
+    }
 
-    // fetch routes + terminals in parallel, then parse and draw
-    Promise.all([fetch(csvUrl).then(r=>r.text()), fetch(terminalCsvUrl).then(r=>r.text())])
-      .then(([routesCsvText, terminalsCsvText])=>{
-        // parse using PapaParse (synchronous parse of string)
-        const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
-        const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+    function randomColor(){
+      return "#"+Math.floor(Math.random()*16777215).toString(16);
+    }
 
-        allData = routesParsed;
+    // Filtering
+    function applyFilters(){
+      const routeNameVal = normalize(document.getElementById("routeNameInput").value);
+      const ep1Val = normalize(document.getElementById("ep1TerminalInput").value);
+      const ep2Val = normalize(document.getElementById("ep2TerminalInput").value);
 
-        // build suggestions (endpoints suggest from BOTH endpoint 1 & 2)
-        suggestions.routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
-        // endpoints from route sheet
-        const epRegionFromRoutes   = allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]);
-        const epProvinceFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]);
-        const epLGUFromRoutes      = allData.flatMap(r => [r["ENDPOINT 1 LGU"], r["ENDPOINT 2 LGU"]]);
-        const epBarangayFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]);
-        const epTerminalFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]);
+      routeLayers.forEach(r=>{
+        const name = normalize(r.routeData["ROUTE NAME"]);
+        const ep1 = normalize(r.routeData["ENDPOINT 1 TERMINAL"]);
+        const ep2 = normalize(r.routeData["ENDPOINT 2 TERMINAL"]);
 
-        // terminals names from Terminal sheet
-        const terminalNamesFromSheet = terminalsParsed.map(t => t["TERMINAL"] || t["Terminal"] || t["terminal"]).filter(Boolean);
+        let show = true;
+        if(routeNameVal && !name.includes(routeNameVal)) show=false;
+        if(ep1Val && ep1 !== ep1Val && ep2 !== ep1Val) show=false;
+        if(ep2Val && ep1 !== ep2Val && ep2 !== ep2Val) show=false;
 
-        suggestions.epRegion   = uniqueSorted(epRegionFromRoutes);
-        suggestions.epProvince = uniqueSorted(epProvinceFromRoutes);
-        suggestions.epLGU      = uniqueSorted(epLGUFromRoutes);
-        suggestions.epBarangay = uniqueSorted(epBarangayFromRoutes);
-        // combine route-endpoint terminal values + terminal masterlist names
-        suggestions.epTerminal = uniqueSorted([...epTerminalFromRoutes, ...terminalNamesFromSheet]);
+        if(show){ r.addTo(map); } else { map.removeLayer(r); }
+      });
 
-        // wire autocompletes
-        makeAutocomplete(document.getElementById('routeInput'), suggestions.routeNames, document.getElementById('routeSuggestions'), val=>{document.getElementById('routeInput').value=''; addRouteChip(val);});
-        // Enter to add quickly
-        document.getElementById('routeInput').addEventListener('keydown', (ev)=>{
-          if(ev.key === 'Enter'){ ev.preventDefault(); const q = ev.target.value.trim(); if(!q) return; const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value=''; }
-        });
+      terminalMarkers.forEach(t=>{
+        const tname = normalize(t.row["TERMINAL"]);
+        let show = true;
+        if(ep1Val && tname !== ep1Val) show=false;
+        if(ep2Val && tname !== ep2Val) show=false;
+        if(show){ t.marker.addTo(map); } else { map.removeLayer(t.marker); }
+      });
+    }
 
-        makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val;});
-        makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val;});
-        makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val;});
-        makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.epBarangay, document.getElementById('ep1BarangaySuggestions'), val=>{document.getElementById('ep1Barangay').value=val;});
-        makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.epTerminal, document.getElementById('ep1TerminalSuggestions'), val=>{document.getElementById('ep1Terminal').value=val;});
+    document.getElementById("routeNameInput").addEventListener("input", applyFilters);
+    document.getElementById("ep1TerminalInput").addEventListener("input", applyFilters);
+    document.getElementById("ep2TerminalInput").addEventListener("input", applyFilters);
 
-        makeAutocomplete(document.getElementById('ep2Region'),  suggestions.epRegion,   document.getElementById('ep2RegionSuggestions'),   val=>{document.getElementById('ep2Region').value=val;});
-        makeAutocomplete(document.getElementById('ep2Province'),suggestions.epProvince, document.getElementById('ep2ProvinceSuggestions'), val=>{document.getElementById('ep2Province').value=val;});
-        makeAutocomplete(document.getElementById('ep2LGU'),     suggestions.epLGU,      document.getElementById('ep2LGUSuggestions'),      val=>{document.getElementById('ep2LGU').value=val;});
-        makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;});
-        makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;});
+    // Load Data
+    Papa.parse(sheetUrlMaster, {
+      download:true, header:true, complete: res=>{
+        res.data.forEach(r=> addRoute(r));
+        applyFilters();
+      }
+    });
+    Papa.parse(sheetUrlTerminal, {
+      download:true, header:true, complete: res=>{
+        res.data.forEach(r=> addTerminal(r));
+        applyFilters();
+      }
+    });
 
-        // draw routes
-        for(const row of allData){
-          const rt = drawRoute(row);
-          if(rt){ routes.push(rt); visibleLayers.push(rt.layerGroup); }
-        }
-
-        // draw terminals (terminal sheet)
-        drawTerminals(terminalsParsed);
-
-        // include terminals + routes in initial fit
-        const initialFeatures = visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker));
-        if(initialFeatures.length){
-          try{ map.fitBounds(L.featureGroup(initialFeatures).getBounds(),{padding:[40,40]}); }catch(e){}
-        }
-      })
-      .catch(err => { console.error('Failed to load CSVs:', err); });
-
+    map.on("click", ()=>{ listPopup.style.display="none"; map.closePopup(); if(highlighted){ highlighted.setStyle({weight:3, opacity:0.7}); highlighted=null; }});
   </script>
 </body>
 </html>
