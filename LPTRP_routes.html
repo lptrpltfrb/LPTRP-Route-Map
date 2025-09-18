@@ -24,7 +24,7 @@
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      z-index: 7000;
+      z-index: 2000;
       font-family: Arial, Helvetica, sans-serif;
       font-size: 13px;
     }
@@ -65,7 +65,7 @@
       background:#fff;
       border:1px solid #ccc;
       border-radius:4px;
-      z-index: 9000; /* ensure suggestions are above other map elements */
+      z-index:2100;
       box-shadow:0 6px 14px rgba(0,0,0,.12);
       display:none;
     }
@@ -96,7 +96,7 @@
       position: absolute;
       right: 12px;
       bottom: 12px;
-      z-index: 8000;
+      z-index: 5000;
       min-width: 300px;
       max-width: 420px;
       max-height: 360px;
@@ -114,7 +114,7 @@
 
     /* details popup - ALMOST INVISIBLE: adjust alpha below */
     .details-popup .leaflet-popup-content-wrapper {
-      background: rgba(255,255,255,0.08);   /* <- change alpha (0.00 - 1.0) */
+      background: rgba(255,255,255,0.08);   /* <- change alpha between 0.00 (invisible) and 1.0 (opaque) */
       border-radius:8px;
       box-shadow: none;
       border: 1px solid rgba(0,0,0,0.06);
@@ -145,9 +145,6 @@
     /* popup style for terminal (small) */
     .terminal-popup .leaflet-popup-content { font-size:13px; }
     .terminal-popup .leaflet-popup-content-wrapper { border-radius:8px; padding:8px; }
-
-    /* make sure map elements don't obscure UI */
-    .leaflet-top, .leaflet-bottom { z-index: 1000; }
   </style>
 </head>
 <body>
@@ -205,16 +202,17 @@
     // -----------------------
     // Routes CSV (your main sheet)
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
-    // Terminals CSV (Terminal tab - you published this)
+    // Terminals CSV (Terminal tab)
     const terminalCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1448318988&single=true&output=csv";
 
+    // Palette (route coloring)
     const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
 
     // Terminal icon diameter in px — change this to resize terminal circle icons.
     // If it's overtaking route lines, reduce this value (e.g. set to 8 or 10).
     const TERMINAL_ICON_DIAMETER = 12; // <--- adjust here (px)
 
-    // Known terminal type label & colors (lowercased keys)
+    // Known terminal types (case-insensitive keys)
     const TERMINAL_TYPE_LABELS = {
       'jeepney terminal': 'J',
       'bus terminal': 'B',
@@ -250,6 +248,24 @@
     }
     function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
+    // Haversine (if ever needed)
+    function haversine(a,b){
+      const R=6371000;
+      const dLat=(b.lat-a.lat)*Math.PI/180;
+      const dLng=(b.lng-a.lng)*Math.PI/180;
+      const lat1=a.lat*Math.PI/180, lat2=b.lat*Math.PI/180;
+      const sinDLat=Math.sin(dLat/2), sinDLng=Math.sin(dLng/2);
+      const h=sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLng*sinDLng;
+      return 2*R*Math.asin(Math.sqrt(h));
+    }
+    function totalLengthKm(paths){
+      let m=0;
+      for(const seg of paths){
+        for(let i=1;i<seg.length;i++){ m+=haversine(seg[i-1],seg[i]); }
+      }
+      return m/1000;
+    }
+
     // distance (px) from point P to segment AB in screen space
     function distPointToSeg(P,A,B){
       const vx=B.x-A.x, vy=B.y-A.y;
@@ -276,9 +292,9 @@
     let selectedRoute = null;
 
     // Terminals
-    let terminals = []; // { row, marker }
+    let terminals = []; // { rawRow, marker, norm }
     let terminalLayerGroup = L.layerGroup();
-    let terminalMarkers = []; // array of { row, marker }
+    let terminalMarkers = [];
 
     const hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count', autoPan:false});
     let detailsPopup = null;
@@ -315,25 +331,32 @@
     }
 
     // -----------------------
-    // FILTER helpers
+    // FILTER helpers + improved autocomplete (min chars + max results)
     // -----------------------
     let selectedRouteNames = [];
     function addRouteChip(name){ const n=normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
     function removeRouteChip(name){ selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); renderChips(); }
     function renderChips(){ const c=document.getElementById('routeChips'); c.innerHTML=''; for(const n of selectedRouteNames){ const ch=document.createElement('div'); ch.className='chip'; const t=document.createElement('span'); t.textContent=n; const b=document.createElement('button'); b.innerHTML='&times;'; b.onclick=()=>removeRouteChip(n); ch.appendChild(t); ch.appendChild(b); c.appendChild(ch); } }
 
-    function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick){
+    function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick, opts = {}){
+      const minChars = opts.minChars ?? 2;
+      const maxResults = opts.maxResults ?? 30;
       function show(){
-        const q=nLower(inputEl.value);
-        const list = suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,200);
-        renderSuggestions(containerEl, list, onPick);
+        const q = nLower(inputEl.value);
+        if(q.length < minChars){
+          containerEl.style.display='none';
+          containerEl.innerHTML='';
+          return;
+        }
+        const list = suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,maxResults);
+        renderSuggestions(containerEl,list,onPick);
       }
       inputEl.addEventListener('input', show);
       inputEl.addEventListener('focus', show);
-      // keep a small delay so clicks on suggestions register before hiding
-      inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none', 170));
+      // delay hiding to allow click
+      inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none', 150));
     }
-    function renderSuggestions(containerEl, list, onPick){
+    function renderSuggestions(containerEl,list,onPick){
       if(!list.length){ containerEl.style.display='none'; containerEl.innerHTML=''; return; }
       containerEl.innerHTML = '';
       for(const v of list){
@@ -422,28 +445,29 @@
       terminalMarkers = [];
 
       for(const r of termRows){
-        // Accept multiple capitalization variants for lat/lng column names
         const lat = parseFloat(r["LATITUDE"] || r["Latitude"] || r["latitude"]);
         const lng = parseFloat(r["LONGITUDE"] || r["Longitude"] || r["longitude"]);
-        const name = normalize(r["TERMINAL"] || r["Terminal"] || r["terminal"] || '');
+        const nameRaw = normalize(r["TERMINAL"] || r["Terminal"] || r["terminal"] || '');
         const address = normalize(r["ADDRESS"] || r["Address"] || r["address"] || '');
         const type = normalize(r["TYPE"] || r["Type"] || r["type"] || '');
+        const region = normalize(r["REGION"] || r["Region"] || r["region"] || '');
+        const province = normalize(r["PROVINCE"] || r["Province"] || r["province"] || '');
+        const lgu = normalize(r["LGU"] || r["Lgu"] || r["lgu"] || '');
+        const barangay = normalize(r["BARANGAY"] || r["Barangay"] || r["barangay"] || '');
 
-        if(!name || Number.isNaN(lat) || Number.isNaN(lng)) continue;
+        if(!nameRaw || Number.isNaN(lat) || Number.isNaN(lng)) continue;
 
         const icon = createTerminalDivIcon(type, TERMINAL_ICON_DIAMETER);
         const marker = L.marker([lat, lng], { icon: icon, riseOnHover:true });
 
-        // popup content: name, address (italics), (type) italics inside parentheses — only if type exists
-        let popupHtml = `<div style="font-weight:700;margin-bottom:4px">${name}</div>
-                         <div style="font-style:italic;margin-bottom:4px">${address}</div>`;
-        if(type && type.trim() !== '') {
-          popupHtml += `<div style="font-style:italic">(${type})</div>`;
-        }
+        // popup content: name, address (italics), (type) italics inside parentheses
+        const popupHtml = `<div style="font-weight:700;margin-bottom:4px">${nameRaw}</div>
+                           <div style="font-style:italic;margin-bottom:4px">${address}</div>
+                           <div style="font-style:italic">(${type || ''})</div>`;
 
         marker.bindPopup(popupHtml, { className: 'terminal-popup', maxWidth: 280 });
 
-        // hover style handled by CSS; stop propagation of clicks so map doesn't handle them
+        // hover style handled by CSS scale rule, stop propagation of clicks so map doesn't handle them
         marker.on('mouseover', () => {
           const el = marker.getElement();
           if(el) el.style.zIndex = 6500;
@@ -454,7 +478,7 @@
         });
 
         marker.on('click', (ev) => {
-          L.DomEvent.stopPropagation(ev); // prevents the route-list from opening
+          L.DomEvent.stopPropagation(ev); // important: prevents the route-list from opening
           // close route list and route details so user can focus on terminal popup
           hideRouteListPanel();
           if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
@@ -463,21 +487,52 @@
         });
 
         marker.addTo(terminalLayerGroup);
-        terminals.push({ row: r, marker: marker });
-        terminalMarkers.push({ row: r, marker: marker });
+
+        const norm = {
+          name: nLower(nameRaw),
+          region: nLower(region),
+          province: nLower(province),
+          lgu: nLower(lgu),
+          barangay: nLower(barangay),
+          type: nLower(type)
+        };
+
+        terminals.push({ rawRow: r, marker: marker, norm });
+        terminalMarkers.push({ rawRow: r, marker: marker, norm });
       }
 
       terminalLayerGroup.addTo(map);
     }
 
-    // Filter/show/hide terminal markers according to Endpoint Terminal filters
-    function updateTerminalVisibility(ep1TermVal, ep2TermVal){
-      const v1 = nLower(ep1TermVal);
-      const v2 = nLower(ep2TermVal);
+    // Helper to check category filters (any of the category values can match)
+    function matchesCategory(valueToCheck, filterValuesArray){
+      if(!filterValuesArray || !filterValuesArray.length) return true;
+      if(!valueToCheck) return false;
+      for(const v of filterValuesArray){
+        if(!v) continue;
+        if(valueToCheck.includes(v)) return true;
+      }
+      return false;
+    }
+
+    // Filter/show/hide terminal markers according to all endpoint filters
+    function updateTerminalVisibility(epFilters){
+      // epFilters: {ep1RegionVal, ep1ProvinceVal, ep1LGUVal, ep1BarangayVal, ep1TerminalVal, ep2RegionVal, ...}
+      const regionVals = [epFilters.ep1RegionVal, epFilters.ep2RegionVal].filter(Boolean);
+      const provinceVals = [epFilters.ep1ProvinceVal, epFilters.ep2ProvinceVal].filter(Boolean);
+      const lguVals = [epFilters.ep1LGUVal, epFilters.ep2LGUVal].filter(Boolean);
+      const barangayVals = [epFilters.ep1BarangayVal, epFilters.ep2BarangayVal].filter(Boolean);
+      const terminalVals = [epFilters.ep1TerminalVal, epFilters.ep2TerminalVal].filter(Boolean);
+
       for(const t of terminalMarkers){
-        const name = nLower(t.row["TERMINAL"] || t.row["Terminal"] || '');
-        const matches = (!v1 && !v2) || (v1 && name.includes(v1)) || (v2 && name.includes(v2));
-        if(matches){
+        const nm = t.norm;
+        const ok =
+          matchesCategory(nm.region, regionVals) &&
+          matchesCategory(nm.province, provinceVals) &&
+          matchesCategory(nm.lgu, lguVals) &&
+          matchesCategory(nm.barangay, barangayVals) &&
+          matchesCategory(nm.name, terminalVals);
+        if(ok){
           if(!map.hasLayer(t.marker)) t.marker.addTo(map);
         } else {
           if(map.hasLayer(t.marker)) map.removeLayer(t.marker);
@@ -486,10 +541,19 @@
     }
 
     // -----------------------
-    // FILTERS (single applyFilters used)
+    // FILTERS (routes + terminals)
     // -----------------------
+    function matchEither(row, fields, val){
+      if(!val) return true;
+      for(const f of fields){
+        if(nLower(row[f]||'').includes(val)) return true;
+      }
+      return false;
+    }
+
     function applyFilters(){
       const rSelected = selectedRouteNames.map(n=>nLower(n));
+      // gather endpoint filter values (normalized)
       const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
       const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
       const ep1LGUVal=nLower(document.getElementById('ep1LGU').value);
@@ -505,35 +569,34 @@
       clearSelectionAndPopups();
       clearMapLayers();
 
-      // Re-add routes that match filters
-      routes.forEach(rt=>{
+      for(const rt of routes){
         const row = rt.row;
         const rn = nLower(row["ROUTE NAME"]||'');
-        const ep1TermInRow = nLower(row["ENDPOINT 1 TERMINAL"]||'');
-        const ep2TermInRow = nLower(row["ENDPOINT 2 TERMINAL"]||'');
         const matchRoute = rSelected.length===0 || rSelected.includes(rn);
 
-        // endpoint matching: ANY of the endpoint fields should include the provided filter
-        const matchEndpoints =
-          (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal)) &&
-          (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal)) &&
-          (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal)) &&
-          (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal)) &&
-          (!ep1TerminalVal || ep1TermInRow.includes(ep1TerminalVal)) &&
-          (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal)) &&
-          (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal)) &&
-          (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal)) &&
-          (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal)) &&
-          (!ep2TerminalVal || ep2TermInRow.includes(ep2TerminalVal));
+        // For each input field, we check both endpoint columns (search both)
+        const ok_region = matchEither(row, ["ENDPOINT 1 REGION","ENDPOINT 2 REGION"], ep1RegionVal || ep2RegionVal);
+        const ok_province = matchEither(row, ["ENDPOINT 1 PROVINCE","ENDPOINT 2 PROVINCE"], ep1ProvinceVal || ep2ProvinceVal);
+        const ok_lgu = matchEither(row, ["ENDPOINT 1 LGU","ENDPOINT 2 LGU"], ep1LGUVal || ep2LGUVal);
+        const ok_barangay = matchEither(row, ["ENDPOINT 1 BARANGAY","ENDPOINT 2 BARANGAY"], ep1BarangayVal || ep2BarangayVal);
+
+        // For terminal filters: if either ep1TerminalVal or ep2TerminalVal provided, check both endpoint terminal columns
+        const epTermFilterValue = ep1TerminalVal || ep2TerminalVal;
+        const ok_terminal = matchEither(row, ["ENDPOINT 1 TERMINAL","ENDPOINT 2 TERMINAL"], epTermFilterValue);
+
+        const matchEndpoints = ok_region && ok_province && ok_lgu && ok_barangay && ok_terminal;
 
         if(matchRoute && matchEndpoints){
           rt.layerGroup.addTo(map);
           visibleLayers.push(rt.layerGroup);
         }
-      });
+      }
 
-      // Update terminal markers visibility (filter terminals by endpoint terminal names)
-      updateTerminalVisibility(document.getElementById('ep1Terminal').value, document.getElementById('ep2Terminal').value);
+      // Update terminal visibility using all endpoint filters
+      updateTerminalVisibility({
+        ep1RegionVal, ep1ProvinceVal, ep1LGUVal, ep1BarangayVal, ep1TerminalVal,
+        ep2RegionVal, ep2ProvinceVal, ep2LGUVal, ep2BarangayVal, ep2TerminalVal
+      });
 
       // Fit bounds to visible features (routes + visible terminals)
       const routeLayers = visibleLayers.flatMap(g => g.getLayers());
@@ -558,6 +621,11 @@
       if(visibleLayers.length){
         const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
         try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
+      } else {
+        // if no routes, but terminals exist show all terminals bounds
+        if(terminalMarkers.length){
+          try{ map.fitBounds(L.featureGroup(terminalMarkers.map(t=>t.marker)).getBounds(),{padding:[40,40]}); }catch(e){}
+        }
       }
     }
 
@@ -675,7 +743,7 @@
 
       const row = selectedRoute.row;
 
-      // CLASS uses header "CLASS" exactly (try variants)
+      // CLASS uses header "CLASS" exactly or fallback
       const classVal = normalize(row["CLASS"]||row["Class"]||'');
 
       // ROUTE LENGTH should come from Google Sheet. Try common header variants:
@@ -718,6 +786,7 @@
     // fetch routes + terminals in parallel, then parse and draw
     Promise.all([fetch(csvUrl).then(r=>r.text()), fetch(terminalCsvUrl).then(r=>r.text())])
       .then(([routesCsvText, terminalsCsvText])=>{
+        // parse using PapaParse (synchronous parse of string)
         const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
         const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
 
@@ -739,27 +808,34 @@
         suggestions.epProvince = uniqueSorted(epProvinceFromRoutes);
         suggestions.epLGU      = uniqueSorted(epLGUFromRoutes);
         suggestions.epBarangay = uniqueSorted(epBarangayFromRoutes);
-        // combine route-endpoint terminal values + terminal masterlist names for best suggestion coverage
+        // combine route-endpoint terminal values + terminal masterlist names
         suggestions.epTerminal = uniqueSorted([...epTerminalFromRoutes, ...terminalNamesFromSheet]);
 
-        // wire autocompletes
-        makeAutocomplete(document.getElementById('routeInput'), suggestions.routeNames, document.getElementById('routeSuggestions'), val=>{document.getElementById('routeInput').value=''; addRouteChip(val);});
+        // wire autocompletes (minChars 2 to make it easier to click)
+        makeAutocomplete(
+          document.getElementById('routeInput'),
+          suggestions.routeNames,
+          document.getElementById('routeSuggestions'),
+          val=>{document.getElementById('routeInput').value=''; addRouteChip(val);},
+          { minChars: 2, maxResults: 40 }
+        );
         // Enter to add quickly
         document.getElementById('routeInput').addEventListener('keydown', (ev)=>{
           if(ev.key === 'Enter'){ ev.preventDefault(); const q = ev.target.value.trim(); if(!q) return; const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value=''; }
         });
 
-        makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val;});
-        makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val;});
-        makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val;});
-        makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.epBarangay, document.getElementById('ep1BarangaySuggestions'), val=>{document.getElementById('ep1Barangay').value=val;});
-        makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.epTerminal, document.getElementById('ep1TerminalSuggestions'), val=>{document.getElementById('ep1Terminal').value=val;});
+        // Endpoint autocompletes (both EP1 & EP2 from combined sets). minChars 2.
+        makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.epBarangay, document.getElementById('ep1BarangaySuggestions'), val=>{document.getElementById('ep1Barangay').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.epTerminal, document.getElementById('ep1TerminalSuggestions'), val=>{document.getElementById('ep1Terminal').value=val;}, {minChars:2, maxResults:40});
 
-        makeAutocomplete(document.getElementById('ep2Region'),  suggestions.epRegion,   document.getElementById('ep2RegionSuggestions'),   val=>{document.getElementById('ep2Region').value=val;});
-        makeAutocomplete(document.getElementById('ep2Province'),suggestions.epProvince, document.getElementById('ep2ProvinceSuggestions'), val=>{document.getElementById('ep2Province').value=val;});
-        makeAutocomplete(document.getElementById('ep2LGU'),     suggestions.epLGU,      document.getElementById('ep2LGUSuggestions'),      val=>{document.getElementById('ep2LGU').value=val;});
-        makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;});
-        makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;});
+        makeAutocomplete(document.getElementById('ep2Region'),  suggestions.epRegion,   document.getElementById('ep2RegionSuggestions'),   val=>{document.getElementById('ep2Region').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep2Province'),suggestions.epProvince, document.getElementById('ep2ProvinceSuggestions'), val=>{document.getElementById('ep2Province').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep2LGU'),     suggestions.epLGU,      document.getElementById('ep2LGUSuggestions'),      val=>{document.getElementById('ep2LGU').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val;}, {minChars:2, maxResults:30});
+        makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val;}, {minChars:2, maxResults:40});
 
         // draw routes
         for(const row of allData){
