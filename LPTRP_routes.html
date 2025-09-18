@@ -341,19 +341,22 @@
     function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick, opts = {}){
       const minChars = opts.minChars ?? 2;
       const maxResults = opts.maxResults ?? 30;
-      function show(){
+
+      function show(force=false){
         const q = nLower(inputEl.value);
-        if(q.length < minChars){
+        // if focus (force=true) show even when q.length < minChars — makes suggestion clickable immediately
+        if(!force && q.length < minChars){
           containerEl.style.display='none';
           containerEl.innerHTML='';
           return;
         }
-        const list = suggestionArray.filter(s=>s.toLowerCase().includes(q)).slice(0,maxResults);
-        renderSuggestions(containerEl,list,onPick);
+        // guard suggestionArray items
+        const list = (suggestionArray || []).filter(s => s && String(s).toLowerCase().includes(q)).slice(0, maxResults);
+        renderSuggestions(containerEl, list, onPick);
       }
-      inputEl.addEventListener('input', show);
-      inputEl.addEventListener('focus', show);
-      // delay hiding to allow click
+
+      inputEl.addEventListener('input', ()=>show(false));
+      inputEl.addEventListener('focus', ()=>show(true)); // show suggestions on focus (immediate)
       inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none', 150));
     }
     function renderSuggestions(containerEl,list,onPick){
