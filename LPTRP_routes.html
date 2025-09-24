@@ -4,288 +4,223 @@
   <meta charset="utf-8" />
   <title>LTFRB Routes Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <link rel="stylesheet" href="https://leaverou.github.io/awesomplete/awesomplete.css" />
-  <script src="https://leaverou.github.io/awesomplete/awesomplete.min.js"></script>
   <style>
-    body { margin:0; }
-    #map { width: 100%; height: 100vh; }
-    .filter-box {
+    #map { width: 1170px; height: 800px; }
+    .filter-container {
       position: absolute;
       top: 10px;
       left: 10px;
-      z-index: 1000;
       background: white;
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      font-family: Arial, sans-serif;
+      z-index: 1000;
       max-width: 300px;
     }
-    .filter-box input {
+    .filter-container h4 { margin: 5px 0; font-size: 14px; }
+    .filter-box {
       width: 100%;
-      margin-bottom: 6px;
       padding: 5px;
+      margin: 3px 0 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
-    .route-popup {
-      background: rgba(255,255,255,0.85);
-      padding: 8px;
-      border-radius: 6px;
-    }
+    .awesomplete { width: 100%; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="filter-box">
-    <div><strong>Search by Route Name</strong></div>
-    <input id="routeNameFilter" placeholder="Type Route Name" />
+  <div class="filter-container">
+    <h4>Search by Route Name</h4>
+    <input id="routeNameFilter" class="filter-box" placeholder="Type route name..." />
 
-    <div><strong>Search by Endpoints</strong></div>
-    <input id="endpoint1Filter" placeholder="Endpoint 1 (Region/Province/LGU...)" />
-    <input id="endpoint2Filter" placeholder="Endpoint 2 (Region/Province/LGU...)" />
-    <input id="viaFilter" placeholder="Via (Route Structure or Corridor)" />
-
-    <div><strong>Search by Terminals</strong></div>
-    <input id="terminal1Filter" placeholder="Endpoint 1 Terminal" />
-    <input id="terminal2Filter" placeholder="Endpoint 2 Terminal" />
+    <h4>Search by Endpoints</h4>
+    <input id="endpoint1Filter" class="filter-box" placeholder="Endpoint 1 (Region, Province, LGU, Barangay, Terminal)" />
+    <input id="endpoint2Filter" class="filter-box" placeholder="Endpoint 2 (Region, Province, LGU, Barangay, Terminal)" />
+    <input id="viaFilter" class="filter-box" placeholder="Via (Route Structure or Corridor)" />
   </div>
 
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://leaverou.github.io/awesomplete/awesomplete.min.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    const map = L.map("map").setView([12.8797, 121.7740], 6);
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Google Sheet URLs
-    const routesURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=0&single=true&output=csv";
-    const terminalsURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1448318988&single=true&output=csv";
+    const routeLayerGroup = L.layerGroup().addTo(map);
+    const terminalLayerGroup = L.layerGroup().addTo(map);
 
-    let routes = [];
-    let terminals = [];
+    const routeNameFilter = document.getElementById('routeNameFilter');
+    const endpoint1Filter = document.getElementById('endpoint1Filter');
+    const endpoint2Filter = document.getElementById('endpoint2Filter');
+    const viaFilter = document.getElementById('viaFilter');
+
+    let allData = [];
+    let allTerminals = [];
     let routeLayers = [];
-    let terminalLayers = [];
+    let terminalMarkers = [];
 
-    function normalize(val) {
-      return (val || "").toString().trim();
-    }
-
-    // ---- Attach Awesomplete ----
-    function attachAwesomplete(input, list) {
-      const awesomplete = new Awesomplete(input, {
-        list: [...new Set(list.filter(v => v))],
-        minChars: 1,
-        autoFirst: true
-      });
-
-      // Apply when suggestion picked
-      input.addEventListener("awesomplete-selectcomplete", () => {
-        applyFilters();
-      });
-
-      // Apply when pressing Enter
-      input.addEventListener("change", () => {
-        applyFilters();
-      });
-    }
-
-    // ---- Load Routes ----
-    Papa.parse(routesURL, {
+    // === LOAD MASTERLIST ===
+    Papa.parse("YOUR_MASTERLIST_CSV_URL_HERE", {
       download: true,
       header: true,
       complete: function(results) {
-        routes = results.data;
-        drawRoutes();
-        setupFilters();
+        allData = results.data.filter(row => row["ROUTE NAME"]);
+        drawRoutes(allData);
+        setupFilters(allData);
       }
     });
 
-    // ---- Load Terminals ----
-    Papa.parse(terminalsURL, {
+    // === LOAD TERMINALS ===
+    Papa.parse("YOUR_TERMINAL_CSV_URL_HERE", {
       download: true,
       header: true,
       complete: function(results) {
-        terminals = results.data;
-        drawTerminals();
+        allTerminals = results.data.filter(row => row["Terminal Name"]);
+        drawTerminals(allTerminals);
       }
     });
 
-    function drawRoutes() {
-      routes.forEach(row => {
-        const pathData = normalize(row["GEO PATH"]);
-        if (!pathData) return;
+    function drawRoutes(data) {
+      routeLayerGroup.clearLayers();
+      routeLayers = [];
 
-        try {
-          const coords = JSON.parse(pathData);
-          const polyline = L.polyline(coords, {
-            color: getRandomColor(),
-            weight: 2,  // thinner lines
-            opacity: 0.9
-          }).addTo(map);
+      data.forEach(row => {
+        if (row["GEO PATH"]) {
+          try {
+            const coords = JSON.parse(row["GEO PATH"]);
+            const polyline = L.polyline(coords, {
+              color: getRandomColor(),
+              weight: 2,   // thinner lines
+              opacity: 0.8
+            });
 
-          polyline.featureData = row;
-          routeLayers.push(polyline);
-        } catch(e) {
-          console.error("Invalid GEO PATH", e);
+            polyline.bindPopup(`
+              <b>${row["ROUTE NAME"] || ""}</b><br>
+              DENO: ${row["DENO"] || ""}<br>
+              Class: ${row["Class"] || ""}<br>
+              Classification: ${row["ROUTE CLASSIFICATION (if LPTRP)"] || ""}<br>
+              NAU: ${row["NO. OF AUTHORIZED UNITS"] || ""}
+            `);
+
+            polyline.on("click", () => {
+              routeLayerGroup.eachLayer(l => l.setStyle({ weight: 2, opacity: 0.5 }));
+              polyline.setStyle({ weight: 5, opacity: 1 });
+              map.fitBounds(polyline.getBounds(), { padding: [50, 50] }); // move to top
+            });
+
+            polyline.addTo(routeLayerGroup);
+            routeLayers.push({ layer: polyline, data: row });
+          } catch (e) {
+            console.error("Invalid GEO PATH", e);
+          }
         }
       });
     }
 
-    function drawTerminals() {
-      terminals.forEach(row => {
-        const lat = parseFloat(row["LATITUDE"]);
-        const lng = parseFloat(row["LONGITUDE"]);
-        if (!lat || !lng) return;
+    function drawTerminals(data) {
+      terminalLayerGroup.clearLayers();
+      terminalMarkers = [];
 
-        const type = normalize(row["TYPE"]);
-        const termIcon = L.divIcon({
-          html: `<div style="background:#2E86C1;color:white;border-radius:50%;width:22px;height:22px;line-height:22px;text-align:center;font-size:12px;">
-                  ${getTerminalLabel(type)}
-                 </div>`,
-          className: ""
-        });
+      data.forEach(row => {
+        if (row["Latitude"] && row["Longitude"]) {
+          const marker = L.marker([+row["Latitude"], +row["Longitude"]]);
 
-        const marker = L.marker([lat, lng], { icon: termIcon }).addTo(map);
+          let terminalType = row["Terminal Type"] ? ` (${row["Terminal Type"]})` : "";
+          marker.bindPopup(`
+            <b>${row["Terminal Name"] || ""}</b><br>
+            ${row["Address"] || ""}<br>
+            ${terminalType}
+          `);
 
-        let popupHtml = `<div style="font-size:14px;font-weight:bold;">${normalize(row["TERMINAL"])}</div>`;
-        popupHtml += `<div style="font-style:italic;">${normalize(row["ADDRESS"])}</div>`;
-        if (type) popupHtml += `<div style="font-style:italic;">(${type})</div>`;
-
-        marker.bindPopup(popupHtml, { className: "route-popup" });
-        terminalLayers.push(marker);
+          marker.addTo(terminalLayerGroup);
+          terminalMarkers.push({ marker, data: row });
+        }
       });
     }
 
-    function getTerminalLabel(type) {
-      if (!type) return "T";
-      const words = type.split(" ");
-      return words.length === 1 ? words[0][0].toUpperCase() : words.map(w => w[0].toUpperCase()).join("");
+    function setupFilters(data) {
+      const routeNames = [...new Set(data.map(r => r["ROUTE NAME"]).filter(Boolean))];
+      const endpoints1 = [
+        ...new Set(data.flatMap(r => [
+          r["ENDPOINT 1 REGION"], r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 1 LGU"], r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 1 TERMINAL"]
+        ]).filter(Boolean))
+      ];
+      const endpoints2 = [
+        ...new Set(data.flatMap(r => [
+          r["ENDPOINT 2 REGION"], r["ENDPOINT 2 PROVINCE"], r["ENDPOINT 2 LGU"], r["ENDPOINT 2 BARANGAY"], r["ENDPOINT 2 TERMINAL"]
+        ]).filter(Boolean))
+      ];
+      const vias = [
+        ...new Set(data.flatMap(r => [r["ROUTE STRUCTURE"], r["CORRIDOR"]]).filter(Boolean))
+      ];
+
+      const filters = [
+        { input: routeNameFilter, list: routeNames },
+        { input: endpoint1Filter, list: endpoints1 },
+        { input: endpoint2Filter, list: endpoints2 },
+        { input: viaFilter, list: vias }
+      ];
+
+      filters.forEach(f => {
+        const awesomplete = new Awesomplete(f.input, {
+          list: f.list,
+          minChars: 1,
+          autoFirst: true
+        });
+
+        // ✅ Fix: selecting suggestion applies filters immediately
+        f.input.addEventListener("awesomplete-selectcomplete", () => {
+          applyFilters();
+        });
+
+        // Also trigger filtering when manually typed
+        f.input.addEventListener("change", applyFilters);
+      });
+    }
+
+    function applyFilters() {
+      const routeVal = routeNameFilter.value.trim().toLowerCase();
+      const ep1Val = endpoint1Filter.value.trim().toLowerCase();
+      const ep2Val = endpoint2Filter.value.trim().toLowerCase();
+      const viaVal = viaFilter.value.trim().toLowerCase();
+
+      routeLayers.forEach(({ layer, data }) => {
+        let match = true;
+
+        if (routeVal && data["ROUTE NAME"]?.toLowerCase() !== routeVal) match = false;
+
+        if (ep1Val && !Object.values(data).some(v => v && v.toLowerCase() === ep1Val)) match = false;
+        if (ep2Val && !Object.values(data).some(v => v && v.toLowerCase() === ep2Val)) match = false;
+
+        if (viaVal && !(data["ROUTE STRUCTURE"]?.toLowerCase() === viaVal || data["CORRIDOR"]?.toLowerCase() === viaVal)) match = false;
+
+        if (match) {
+          routeLayerGroup.addLayer(layer);
+        } else {
+          routeLayerGroup.removeLayer(layer);
+        }
+      });
+
+      terminalMarkers.forEach(({ marker, data }) => {
+        let match = true;
+        if (ep1Val && data["Terminal Name"]?.toLowerCase() !== ep1Val) match = false;
+        if (ep2Val && data["Terminal Name"]?.toLowerCase() !== ep2Val) match = false;
+
+        if (match) {
+          terminalLayerGroup.addLayer(marker);
+        } else {
+          terminalLayerGroup.removeLayer(marker);
+        }
+      });
     }
 
     function getRandomColor() {
-      return "#" + Math.floor(Math.random()*16777215).toString(16);
-    }
-
-    // ---- Setup Filters ----
-    function setupFilters() {
-      const routeNames = routes.map(r => normalize(r["ROUTE NAME"]));
-      const endpoint1Vals = [].concat(
-        routes.map(r => normalize(r["ENDPOINT 1 REGION"])),
-        routes.map(r => normalize(r["ENDPOINT 1 PROVINCE"])),
-        routes.map(r => normalize(r["ENDPOINT 1 LGU"])),
-        routes.map(r => normalize(r["ENDPOINT 1 BARANGAY"])),
-        routes.map(r => normalize(r["ENDPOINT 1 TERMINAL"]))
-      );
-      const endpoint2Vals = [].concat(
-        routes.map(r => normalize(r["ENDPOINT 2 REGION"])),
-        routes.map(r => normalize(r["ENDPOINT 2 PROVINCE"])),
-        routes.map(r => normalize(r["ENDPOINT 2 LGU"])),
-        routes.map(r => normalize(r["ENDPOINT 2 BARANGAY"])),
-        routes.map(r => normalize(r["ENDPOINT 2 TERMINAL"]))
-      );
-      const viaVals = [].concat(
-        routes.map(r => normalize(r["ROUTE STRUCTURE"])),
-        routes.map(r => normalize(r["CORRIDOR"]))
-      );
-      const terminalNames = terminals.map(t => normalize(t["TERMINAL"]));
-
-      attachAwesomplete(document.getElementById("routeNameFilter"), routeNames);
-      attachAwesomplete(document.getElementById("endpoint1Filter"), endpoint1Vals);
-      attachAwesomplete(document.getElementById("endpoint2Filter"), endpoint2Vals);
-      attachAwesomplete(document.getElementById("viaFilter"), viaVals);
-      attachAwesomplete(document.getElementById("terminal1Filter"), terminalNames);
-      attachAwesomplete(document.getElementById("terminal2Filter"), terminalNames);
-    }
-
-    // ---- Apply Filters ----
-    function applyFilters() {
-      const routeName = normalize(document.getElementById("routeNameFilter").value);
-      const ep1 = normalize(document.getElementById("endpoint1Filter").value);
-      const ep2 = normalize(document.getElementById("endpoint2Filter").value);
-      const via = normalize(document.getElementById("viaFilter").value);
-      const t1 = normalize(document.getElementById("terminal1Filter").value);
-      const t2 = normalize(document.getElementById("terminal2Filter").value);
-
-      routeLayers.forEach(layer => {
-        const row = layer.featureData;
-        let visible = true;
-
-        if (routeName && normalize(row["ROUTE NAME"]) !== routeName) visible = false;
-
-        if (ep1) {
-          visible = visible && (
-            normalize(row["ENDPOINT 1 REGION"]) === ep1 ||
-            normalize(row["ENDPOINT 1 PROVINCE"]) === ep1 ||
-            normalize(row["ENDPOINT 1 LGU"]) === ep1 ||
-            normalize(row["ENDPOINT 1 BARANGAY"]) === ep1 ||
-            normalize(row["ENDPOINT 1 TERMINAL"]) === ep1 ||
-            normalize(row["ENDPOINT 2 REGION"]) === ep1 ||
-            normalize(row["ENDPOINT 2 PROVINCE"]) === ep1 ||
-            normalize(row["ENDPOINT 2 LGU"]) === ep1 ||
-            normalize(row["ENDPOINT 2 BARANGAY"]) === ep1 ||
-            normalize(row["ENDPOINT 2 TERMINAL"]) === ep1
-          );
-        }
-
-        if (ep2) {
-          visible = visible && (
-            normalize(row["ENDPOINT 1 REGION"]) === ep2 ||
-            normalize(row["ENDPOINT 1 PROVINCE"]) === ep2 ||
-            normalize(row["ENDPOINT 1 LGU"]) === ep2 ||
-            normalize(row["ENDPOINT 1 BARANGAY"]) === ep2 ||
-            normalize(row["ENDPOINT 1 TERMINAL"]) === ep2 ||
-            normalize(row["ENDPOINT 2 REGION"]) === ep2 ||
-            normalize(row["ENDPOINT 2 PROVINCE"]) === ep2 ||
-            normalize(row["ENDPOINT 2 LGU"]) === ep2 ||
-            normalize(row["ENDPOINT 2 BARANGAY"]) === ep2 ||
-            normalize(row["ENDPOINT 2 TERMINAL"]) === ep2
-          );
-        }
-
-        if (via) {
-          visible = visible && (
-            normalize(row["ROUTE STRUCTURE"]) === via ||
-            normalize(row["CORRIDOR"]) === via
-          );
-        }
-
-        if (t1) {
-          visible = visible && (
-            normalize(row["ENDPOINT 1 TERMINAL"]) === t1 ||
-            normalize(row["ENDPOINT 2 TERMINAL"]) === t1
-          );
-        }
-
-        if (t2) {
-          visible = visible && (
-            normalize(row["ENDPOINT 1 TERMINAL"]) === t2 ||
-            normalize(row["ENDPOINT 2 TERMINAL"]) === t2
-          );
-        }
-
-        if (visible) {
-          layer.addTo(map);
-        } else {
-          map.removeLayer(layer);
-        }
-      });
-
-      terminalLayers.forEach(marker => {
-        const popup = marker.getPopup();
-        const content = popup.getContent();
-        const termName = content.split("<div")[1]?.replace(/<[^>]+>/g, "").trim();
-
-        let visible = true;
-        if (t1 && !content.includes(t1)) visible = false;
-        if (t2 && !content.includes(t2)) visible = false;
-
-        if (visible) {
-          marker.addTo(map);
-        } else {
-          map.removeLayer(marker);
-        }
-      });
+      return "#" + Math.floor(Math.random() * 16777215).toString(16);
     }
   </script>
 </body>
