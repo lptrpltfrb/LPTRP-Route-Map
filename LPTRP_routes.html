@@ -715,6 +715,30 @@
       }
 
       selectedRoute = target;
+
+      // If no geometry (GEO PATH) for this route, show your requested message and stop.
+      // This is the only change: show exact message "Geographic data has not yet been inputted."
+      if(!selectedRoute.segs || !selectedRoute.segs.length){
+        const row = selectedRoute.row;
+        const msg = "Geographic data has not yet been inputted.";
+        // remove any existing detailsPopup
+        if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
+        // show a small popup at map center so user sees it
+        detailsPopup = L.popup({
+          autoClose:true,
+          closeOnClick:true,
+          className:'details-popup',
+          offset: L.point(0,0),
+          autoPan: true
+        }).setLatLng(map.getCenter()).setContent(`
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
+          <div>${msg}</div>
+        `).addTo(map);
+        // do not try to fit bounds or paint route (since it's not available)
+        return;
+      }
+
+      // NORMAL selection flow when geometry is present:
       selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:6, opacity:1 }));
       selectedRoute.layerGroup.getLayers().forEach(poly => poly.bringToFront());
 
