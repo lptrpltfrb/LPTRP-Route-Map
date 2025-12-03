@@ -393,7 +393,7 @@
     }
 
     function drawRoute(row){
-      const segs = tryParseGeoPath(row["GEO PATH"]);
+      const segs = tryParseGeoPath(row["GEO PATH 1-1"]);
       if(!segs || !segs.length) return null;
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
@@ -833,4 +833,5 @@
   </script>
 </body>
 </html>
+
 
