@@ -188,6 +188,13 @@
       <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
+<div class="search-section">
+  <h4>Route Direction</h4>
+  <select id="directionMode" class="small-input">
+    <option value="outbound">Outbound Only</option>
+    <option value="both">Both Directions</option>
+  </select>
+</div>
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
@@ -392,8 +399,65 @@
       }
     }
 
-    function drawRoute(row){
-      const segs = tryParseGeoPath(row["GEO PATH 1-1"]);
+function combineGeoParts(row, prefix){
+  let geo = "";
+  for(let i=1;i<=8;i++){
+    geo += row[prefix + i] || "";
+  }
+  return geo;
+}
+
+function drawRoute(row){
+
+  const mode = document.getElementById("directionMode")?.value || "outbound";
+
+  const geo1 = combineGeoParts(row,"GEO PATH 1-");
+  const geo2 = combineGeoParts(row,"GEO PATH 2-");
+
+  const segs1 = tryParseGeoPath(geo1);
+  const segs2 = tryParseGeoPath(geo2);
+
+  if(!segs1) return null;
+
+  const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
+  const baseColor = colorFromString(routeName || (row["DENO"]||''));
+
+  const group = L.layerGroup();
+
+  // OUTBOUND
+  if(segs1){
+    for(const seg of segs1){
+      const poly = L.polyline(seg,{color:baseColor,weight:2,opacity:0.95});
+      poly.on('click',(ev)=>{
+        L.DomEvent.stopPropagation(ev);
+        handlePointClick(ev.latlng);
+      });
+      poly.addTo(group);
+    }
+  }
+
+  // RETURN / SECOND LINE
+  if(mode === "both" && segs2){
+    for(const seg of segs2){
+      const poly = L.polyline(seg,{
+        color:baseColor,
+        weight:2,
+        opacity:0.95,
+        dashArray:"6,6"
+      });
+      poly.on('click',(ev)=>{
+        L.DomEvent.stopPropagation(ev);
+        handlePointClick(ev.latlng);
+      });
+      poly.addTo(group);
+    }
+  }
+
+  group.addTo(map);
+
+  const id = routeName || normalize(row["DENO"]||'');
+  return { row, segs: [...(segs1||[]), ...(segs2||[])], layerGroup: group, baseColor, id };
+}
       if(!segs || !segs.length) return null;
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
@@ -830,8 +894,12 @@
       })
       .catch(err => { console.error('Failed to load CSVs:', err); });
 
-  </script>
+document.addEventListener("change", function(e){
+  if(e.target.id === "directionMode"){
+    applyFilters();
+  }
+});
+
+</script>
 </body>
 </html>
-
-
