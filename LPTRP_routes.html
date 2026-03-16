@@ -392,27 +392,50 @@
       }
     }
 
-    function drawRoute(row){
-      const segs = tryParseGeoPath(row["GEO PATH 1-1"]);
-      if(!segs || !segs.length) return null;
+function drawRoute(row){
+      let allSegments = [];
+      
+      // STITCH PATH 1 (1-1 to 1-8)
+      let raw1 = "";
+      for(let i=1; i<=8; i++) {
+        let val = row["GEO PATH 1-" + i];
+        if(val) raw1 += normalize(val);
+      }
+      const p1 = tryParseGeoPath(raw1);
+      if(p1) allSegments.push(...p1);
+
+      // STITCH PATH 2 (2-1 to 2-8)
+      let raw2 = "";
+      for(let i=1; i<=8; i++) {
+        let val = row["GEO PATH 2-" + i];
+        if(val) raw2 += normalize(val);
+      }
+      const p2 = tryParseGeoPath(raw2);
+      if(p2) allSegments.push(...p2);
+
+      // If no paths found in any of the 16 columns, exit
+      if(!allSegments.length) return null;
+
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
-      const baseColor = colorFromString(routeName || (row["DENO"]||''));
+      const baseColor = colorFromString(routeName);
       const group = L.layerGroup();
-      for(const seg of segs){
-        // thinner lines: weight 2
+
+      allSegments.forEach(seg => {
+        // Keeps your specific weight 2 and opacity settings
         const poly = L.polyline(seg, { color: baseColor, weight: 2, opacity: 0.95 });
-        // click on segment should show list for that clicked point (not immediately select top route)
+        
+        // Keeps your specific click interaction
         poly.on('click', (ev) => {
           L.DomEvent.stopPropagation(ev);
           handlePointClick(ev.latlng);
         });
         poly.addTo(group);
-      }
-      group.addTo(map);
-      const id = routeName || normalize(row["DENO"]||'');
-      return { row, segs, layerGroup: group, baseColor, id };
-    }
+      });
 
+      group.addTo(map);
+      const id = routeName;
+      return { row, segs: allSegments, layerGroup: group, baseColor, id };
+    }
     function clearMapLayers(){
       routes.forEach(rt => {
         try{ map.removeLayer(rt.layerGroup); }catch(e){}
