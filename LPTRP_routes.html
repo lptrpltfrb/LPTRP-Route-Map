@@ -2,190 +2,90 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Route Map Viewer</title>
+<title>Route Map Step 1</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
-<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <style>
-  #map { width: 1170px; height: 800px; }
-  .search-container { position: absolute; top: 10px; left: 10px; background: white; padding: 10px; border-radius: 8px; z-index: 1000; }
-  .popup-box { position: absolute; bottom: 10px; right: 10px; width: 300px; max-height: 400px; overflow-y: auto; background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; z-index: 1001; }
-  .route-detail-box { position: absolute; background: rgba(255,255,255,0.5); padding: 5px 10px; border-radius: 5px; z-index: 1002; pointer-events: none; font-size: 12px; }
-  .route-name { font-weight: bold; cursor: pointer; margin: 5px 0; }
-  .highlighted { weight: 5 !important; opacity: 1 !important; }
+  #map { height: 800px; width: 1170px; }
 </style>
 </head>
 <body>
-<div id="map"></div>
-<div class="search-container">
-  <div>
-    <label>Search by Route Name</label><br>
-    <select id="route-name-search" multiple></select>
-  </div>
-  <div style="margin-top:10px;">
-    <label>Search by Endpoints</label><br>
-    <select id="point-a"></select><br>
-    <select id="point-b" style="margin-top:5px;"></select><br>
-    <select id="via" style="margin-top:5px;"></select>
-  </div>
-</div>
-<div id="route-popup" class="popup-box" style="display:none;"></div>
-<script>
-const map = L.map('map').setView([12.8797, 121.7740], 6);
 
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- PapaParse for CSV parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<script>
+const map = L.map('map').setView([12.8797, 121.7740], 6); // Centered on Philippines
+
+// Base layer
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
+  attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
-const routeLayerGroup = L.layerGroup().addTo(map);
-let routeData = [];
-let routePopUpBox = document.getElementById('route-popup');
-let highlightedRoutes = [];
+// URL to published Google Sheet CSV
+const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv"; // <-- replace with your published CSV link
 
-const routeNameSelect = new Choices('#route-name-search', { removeItemButton: true, placeholderValue: 'Select route(s)' });
-const pointASelect = new Choices('#point-a', { placeholderValue: 'Point A' });
-const pointBSelect = new Choices('#point-b', { placeholderValue: 'Point B' });
-const viaSelect = new Choices('#via', { placeholderValue: 'Via (optional)' });
-
-const GEO_PATH_COLUMNS_1 = ['GEO PATH 1-1','GEO PATH 1-2','GEO PATH 1-3','GEO PATH 1-4','GEO PATH 1-5'];
-const GEO_PATH_COLUMNS_2 = ['GEO PATH 2-1','GEO PATH 2-2','GEO PATH 2-3','GEO PATH 2-4','GEO PATH 2-5'];
-
-function parseCoordinates(str) {
-  if(!str) return [];
-  try {
-    return JSON.parse(str);
-  } catch(e) { return [] }
-}
-
-function combineGeoPath(row, columns) {
-  let combined = [];
-  columns.forEach(col => {
-    const coords = parseCoordinates(row[col]);
-    if(coords.length) combined = combined.concat(coords);
-  });
-  return combined;
-}
-
-function randomColor() {
-  const letters = '0123456789ABCDEF';
-  let color = '#';
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
+// Helper: parse GEO PATH columns into one coordinate array
+function mergeGeoPaths(row, prefix) {
+  let coords = [];
+  for (let i = 1; i <= 5; i++) {
+    let cell = row[`${prefix}-${i}`];
+    if (cell && cell.trim() !== '') {
+      try {
+        let part = JSON.parse(cell); // Expecting JSON array [[lat,lng],[lat,lng],...]
+        coords = coords.concat(part);
+      } catch(e) {
+        console.warn(`Invalid JSON in ${prefix}-${i}:`, cell);
+      }
+    }
   }
-  return color;
+  return coords.length ? coords : null;
 }
 
-function clearHighlights() {
-  highlightedRoutes.forEach(r => {
-    r.polyline.setStyle({ color: r.originalColor, weight: 3, opacity: 0.7 });
-  });
-  highlightedRoutes = [];
-}
+// Load CSV
+Papa.parse(sheetCSV, {
+  download: true,
+  header: true,
+  skipEmptyLines: true,
+  complete: function(results) {
+    const data = results.data;
 
-function hidePopUps() {
-  routePopUpBox.style.display='none';
-  document.querySelectorAll('.route-detail-box').forEach(e => e.remove());
-}
+    data.forEach(row => {
+      if (row['STATUS'] && row['STATUS'].toLowerCase() === 'superseded') return;
 
-function createRoutePopup(routeObjs) {
-  routePopUpBox.innerHTML = '';
-  routeObjs.forEach(r => {
-    const div = document.createElement('div');
-    div.className = 'route-name';
-    div.textContent = r.data['ROUTE NAME'];
-    div.onclick = () => {
-      clearHighlights();
-      r.polyline.setStyle({ color: 'red', weight: 5, opacity:1 });
-      highlightedRoutes.push(r);
+      // Outbound route
+      const routeOut = mergeGeoPaths(row, 'GEO PATH 1');
+      if (routeOut) {
+        L.polyline(routeOut, {
+          color: getRandomColor(),
+          weight: 4,
+          opacity: 0.7
+        }).addTo(map);
+      }
 
-      // Show small detail box near route
-      document.querySelectorAll('.route-detail-box').forEach(e=>e.remove());
-      const bounds = r.polyline.getBounds();
-      const center = bounds.getCenter();
-      const detailBox = document.createElement('div');
-      detailBox.className = 'route-detail-box';
-      detailBox.style.left = map.latLngToContainerPoint(center).x + 'px';
-      detailBox.style.top = map.latLngToContainerPoint(center).y + 'px';
-      detailBox.innerHTML = `<b>${r.data['ROUTE NAME']}</b><br>
-DENO: ${r.data['DENO']}<br>
-ROUTE CLASS: ${r.data['ROUTE CLASSIFICATION (if LPTRP)'] || r.data['ROUTE CLASSIFICATION']}<br>
-NAU: ${r.data['NO. OF AUTHORIZED UNITS']}<br>
-ROUTE LENGTH: ${r.data['ROUTE LENGTH']}<br>
-BR. NO.: ${r.data['BOARD RESOLUTION']}<br>
-WITH LSO/LSR: ${r.data['WITH LSO/LSR']}<br>
-MC NO.: ${r.data['MEMORANDUM CIRCULAR']}`;
-      detailBox.classList.add('route-detail-box');
-      document.body.appendChild(detailBox);
-    };
-    routePopUpBox.appendChild(div);
-  });
-  routePopUpBox.style.display='block';
-}
-
-map.on('click', ()=>{
-  clearHighlights();
-  hidePopUps();
-});
-
-// Replace with your published CSV URL
-const SHEET_CSV_URL = 'YOUR_PUBLISHED_CSV_URL';
-
-Papa.parse(SHEET_CSV_URL, {
-  download:true,
-  header:true,
-  complete: function(results){
-    routeData = results.data.filter(r=>r['STATUS']!=='Superseded');
-
-    // Populate Route Name search
-    routeData.forEach(r => {
-      if(combineGeoPath(r,GEO_PATH_COLUMNS_1).length || combineGeoPath(r,GEO_PATH_COLUMNS_2).length) {
-        routeNameSelect.setChoices([{value:r['ROUTE NAME'],label:r['ROUTE NAME']}], 'value','label',false);
+      // Return route
+      const routeBack = mergeGeoPaths(row, 'GEO PATH 2');
+      if (routeBack) {
+        L.polyline(routeBack, {
+          color: getRandomColor(),
+          weight: 4,
+          opacity: 0.7
+        }).addTo(map);
       }
     });
-
-    // Populate Endpoint searches
-    const endpointFields = ['ENDPOINT 1 REGION','ENDPOINT 1 PROVINCE','ENDPOINT 1 LGU','ENDPOINT 1 BARANGAY','ENDPOINT 1 TERMINAL','CORRIDOR','ENDPOINT 2 REGION','ENDPOINT 2 PROVINCE','ENDPOINT 2 LGU','ENDPOINT 2 BARANGAY','ENDPOINT 2 TERMINAL'];
-    const pointAFields = ['ENDPOINT 1 REGION','ENDPOINT 1 PROVINCE','ENDPOINT 1 LGU','ENDPOINT 1 BARANGAY','ENDPOINT 1 TERMINAL'];
-    const pointBFields = ['ENDPOINT 2 REGION','ENDPOINT 2 PROVINCE','ENDPOINT 2 LGU','ENDPOINT 2 BARANGAY','ENDPOINT 2 TERMINAL'];
-    const viaFields = ['ROUTE STRUCTURE','CORRIDOR'];
-
-    let pointAChoices = [];
-    let pointBChoices = [];
-    let viaChoices = [];
-
-    routeData.forEach(r=>{
-      pointAFields.forEach(f=>{ if(r[f] && !pointAChoices.includes(r[f])) pointAChoices.push(r[f]); });
-      pointBFields.forEach(f=>{ if(r[f] && !pointBChoices.includes(r[f])) pointBChoices.push(r[f]); });
-      viaFields.forEach(f=>{ if(r[f] && !viaChoices.includes(r[f])) viaChoices.push(r[f]); });
-    });
-
-    pointASelect.setChoices(pointAChoices.map(v=>({value:v,label:v}))); 
-    pointBSelect.setChoices(pointBChoices.map(v=>({value:v,label:v})));
-    viaSelect.setChoices(viaChoices.map(v=>({value:v,label:v})));
-
-    // Draw routes
-    routeData.forEach(r=>{
-      const paths1 = combineGeoPath(r,GEO_PATH_COLUMNS_1);
-      const paths2 = combineGeoPath(r,GEO_PATH_COLUMNS_2);
-      const routesToDraw = [];
-      if(paths1.length) routesToDraw.push(paths1);
-      if(paths2.length) routesToDraw.push(paths2);
-
-      routesToDraw.forEach(path => {
-        const color = randomColor();
-        const polyline = L.polyline(path,{color:color,weight:3,opacity:0.7}).addTo(routeLayerGroup);
-
-        polyline.on('mouseover', ()=>{ polyline.setStyle({weight:5,opacity:1}); });
-        polyline.on('mouseout', ()=>{ if(!highlightedRoutes.find(hr=>hr.polyline===polyline)) polyline.setStyle({weight:3,opacity:0.7}); });
-        polyline.on('click',(e)=>{
-          createRoutePopup([{data:r,polyline:polyline,originalColor:color}]);
-        });
-      });
-    });
   }
 });
+
+// Random color generator
+function getRandomColor() {
+  return '#' + Math.floor(Math.random()*16777215).toString(16);
+}
 </script>
+
 </body>
 </html>
