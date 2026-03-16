@@ -188,6 +188,15 @@
       <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
+<div class="search-section">
+  <h4>Route Direction</h4>
+  <div class="compact-row">
+    <label><input type="radio" name="direction" value="both" checked onclick="applyFilters()"> Both</label>
+    <label><input type="radio" name="direction" value="to" onclick="applyFilters()"> Going To</label>
+    <label><input type="radio" name="direction" value="back" onclick="applyFilters()"> Going Back</label>
+  </div>
+</div>
+
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
@@ -392,39 +401,43 @@
       }
     }
 
-function drawRoute(row){
-      let allSegments = [];
+function drawRoute(row) {
+      // Check which direction is selected in the UI
+      const dirEl = document.querySelector('input[name="direction"]:checked');
+      const direction = dirEl ? dirEl.value : "both";
       
-      // STITCH PATH 1 (1-1 to 1-8)
-      let raw1 = "";
-      for(let i=1; i<=8; i++) {
-        let val = row["GEO PATH 1-" + i];
-        if(val) raw1 += normalize(val);
-      }
-      const p1 = tryParseGeoPath(raw1);
-      if(p1) allSegments.push(...p1);
+      let allSegments = [];
 
-      // STITCH PATH 2 (2-1 to 2-8)
-      let raw2 = "";
-      for(let i=1; i<=8; i++) {
-        let val = row["GEO PATH 2-" + i];
-        if(val) raw2 += normalize(val);
+      // STITCH PATH 1 (Going To)
+      if (direction === "both" || direction === "to") {
+        let raw1 = "";
+        for (let i = 1; i <= 8; i++) {
+          let val = row["GEO PATH 1-" + i];
+          if (val) raw1 += normalize(val);
+        }
+        const p1 = tryParseGeoPath(raw1);
+        if (p1) allSegments.push(...p1);
       }
-      const p2 = tryParseGeoPath(raw2);
-      if(p2) allSegments.push(...p2);
 
-      // If no paths found in any of the 16 columns, exit
-      if(!allSegments.length) return null;
+      // STITCH PATH 2 (Going Back)
+      if (direction === "both" || direction === "back") {
+        let raw2 = "";
+        for (let i = 1; i <= 8; i++) {
+          let val = row["GEO PATH 2-" + i];
+          if (val) raw2 += normalize(val);
+        }
+        const p2 = tryParseGeoPath(raw2);
+        if (p2) allSegments.push(...p2);
+      }
+
+      if (!allSegments.length) return null;
 
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName);
       const group = L.layerGroup();
 
       allSegments.forEach(seg => {
-        // Keeps your specific weight 2 and opacity settings
         const poly = L.polyline(seg, { color: baseColor, weight: 2, opacity: 0.95 });
-        
-        // Keeps your specific click interaction
         poly.on('click', (ev) => {
           L.DomEvent.stopPropagation(ev);
           handlePointClick(ev.latlng);
@@ -433,9 +446,9 @@ function drawRoute(row){
       });
 
       group.addTo(map);
-      const id = routeName;
-      return { row, segs: allSegments, layerGroup: group, baseColor, id };
+      return { row, segs: allSegments, layerGroup: group, baseColor, id: routeName };
     }
+
     function clearMapLayers(){
       routes.forEach(rt => {
         try{ map.removeLayer(rt.layerGroup); }catch(e){}
@@ -545,73 +558,72 @@ function drawRoute(row){
     // - if only ep1Terminal typed => match routes that have that terminal in either endpoint
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
-    function applyFilters(){
-      const rSelected = selectedRouteNames.map(n=>nLower(n));
-      const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
-      const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
-      const ep1LGUVal=nLower(document.getElementById('ep1LGU').value);
-      const ep1BarangayVal=nLower(document.getElementById('ep1Barangay').value);
-      const ep1TerminalVal=nLower(document.getElementById('ep1Terminal').value);
-      const ep2RegionVal=nLower(document.getElementById('ep2Region').value);
-      const ep2ProvinceVal=nLower(document.getElementById('ep2Province').value);
-      const ep2LGUVal=nLower(document.getElementById('ep2LGU').value);
-      const ep2BarangayVal=nLower(document.getElementById('ep2Barangay').value);
-      const ep2TerminalVal=nLower(document.getElementById('ep2Terminal').value);
+function applyFilters() {
+      const rSelected = selectedRouteNames.map(n => nLower(n));
+      const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
+      const ep1ProvinceVal = nLower(document.getElementById('ep1Province').value);
+      const ep1LGUVal = nLower(document.getElementById('ep1LGU').value);
+      const ep1BarangayVal = nLower(document.getElementById('ep1Barangay').value);
+      const ep1TerminalVal = nLower(document.getElementById('ep1Terminal').value);
+      const ep2RegionVal = nLower(document.getElementById('ep2Region').value);
+      const ep2ProvinceVal = nLower(document.getElementById('ep2Province').value);
+      const ep2LGUVal = nLower(document.getElementById('ep2LGU').value);
+      const ep2BarangayVal = nLower(document.getElementById('ep2Barangay').value);
+      const ep2TerminalVal = nLower(document.getElementById('ep2Terminal').value);
 
-      // reset selection/popups
       clearSelectionAndPopups();
-      clearMapLayers();
+      
+      // We must remove all old layers before redrawing with the new direction
+      routes.forEach(rt => {
+        if(rt.layerGroup) map.removeLayer(rt.layerGroup);
+      });
+      visibleLayers = [];
 
-      for(const rt of routes){
-        const row = rt.row;
-        const rn = nLower(row["ROUTE NAME"]||'');
-        const matchRoute = rSelected.length===0 || rSelected.includes(rn);
+      // Process all data rows to see which ones match the filters
+      allData.forEach(row => {
+        const rn = nLower(row["ROUTE NAME"] || '');
+        const matchRoute = rSelected.length === 0 || rSelected.includes(rn);
 
-        // endpoint 1 fields (these should match specifically against endpoint1 columns)
-        const ep1regionOK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal));
-        const ep1provinceOK = (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal));
-        const ep1lguOK = (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal));
-        const ep1barangayOK = (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal));
-        // endpoint 2 fields
-        const ep2regionOK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal));
-        const ep2provinceOK = (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal));
-        const ep2lguOK = (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal));
-        const ep2barangayOK = (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal));
+        const ep1regionOK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"] || '').includes(ep1RegionVal));
+        const ep1provinceOK = (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"] || '').includes(ep1ProvinceVal));
+        const ep1lguOK = (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"] || '').includes(ep1LGUVal));
+        const ep1barangayOK = (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"] || '').includes(ep1BarangayVal));
+        const ep2regionOK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"] || '').includes(ep2RegionVal));
+        const ep2provinceOK = (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"] || '').includes(ep2ProvinceVal));
+        const ep2lguOK = (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"] || '').includes(ep2LGUVal));
+        const ep2barangayOK = (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"] || '').includes(ep2BarangayVal));
 
-        // Terminal matching (flexible):
-        const routeTerm1 = nLower(row["ENDPOINT 1 TERMINAL"]||'');
-        const routeTerm2 = nLower(row["ENDPOINT 2 TERMINAL"]||'');
+        const routeTerm1 = nLower(row["ENDPOINT 1 TERMINAL"] || '');
+        const routeTerm2 = nLower(row["ENDPOINT 2 TERMINAL"] || '');
         let terminalOK = true;
-        if(ep1TerminalVal && ep2TerminalVal){
-          // require both typed terminal strings to appear somewhere in the route's two terminal fields (order not important)
+        if (ep1TerminalVal && ep2TerminalVal) {
           const need = [ep1TerminalVal, ep2TerminalVal];
           terminalOK = need.every(req => (routeTerm1 && routeTerm1.includes(req)) || (routeTerm2 && routeTerm2.includes(req)));
-        } else if(ep1TerminalVal){
+        } else if (ep1TerminalVal) {
           terminalOK = (routeTerm1 && routeTerm1.includes(ep1TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep1TerminalVal));
-        } else if(ep2TerminalVal){
+        } else if (ep2TerminalVal) {
           terminalOK = (routeTerm1 && routeTerm1.includes(ep2TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep2TerminalVal));
         }
 
-        const endpointsOK = ep1regionOK && ep1provinceOK && ep1lguOK && ep1barangayOK && ep2regionOK && ep2provinceOK && ep2lguOK && ep2barangayOK && terminalOK;
-
-        if(matchRoute && endpointsOK){
-          rt.layerGroup.addTo(map);
-          visibleLayers.push(rt.layerGroup);
+        if (matchRoute && ep1regionOK && ep1provinceOK && ep1lguOK && ep1barangayOK && ep2regionOK && ep2provinceOK && ep2lguOK && ep2barangayOK && terminalOK) {
+          // IMPORTANT: Create the path based on the current radio selection
+          const rt = drawRoute(row);
+          if (rt) {
+            // Update the global routes array reference so interactions still work
+            const existingIdx = routes.findIndex(r => r.id === rt.id);
+            if(existingIdx > -1) routes[existingIdx] = rt;
+            visibleLayers.push(rt.layerGroup);
+          }
         }
-      }
+      });
 
-      // Update terminal visibility (filter terminals by endpoint terminal names)
       updateTerminalVisibility(document.getElementById('ep1Terminal').value, document.getElementById('ep2Terminal').value);
 
-      // Fit bounds to visible features (routes + visible terminals)
-      const routeLayers = visibleLayers.flatMap(g => g.getLayers());
-      const visibleTerminalMarkers = terminalMarkers.filter(t => map.hasLayer(t.marker)).map(t=>t.marker);
-      const allFeatures = [...routeLayers, ...visibleTerminalMarkers];
-      if(allFeatures.length){
-        try{
-          const fg = L.featureGroup(allFeatures);
-          map.fitBounds(fg.getBounds(),{padding:[40,40]});
-        }catch(e){}
+      if (visibleLayers.length) {
+        try {
+          const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
+          map.fitBounds(fg.getBounds(), { padding: [40, 40] });
+        } catch (e) {}
       }
     }
 
@@ -856,4 +868,3 @@ function drawRoute(row){
   </script>
 </body>
 </html>
-
