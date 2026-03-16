@@ -1,90 +1,174 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Route Map Step 1</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<meta charset="utf-8">
+<title>Route Map</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
 <style>
-  #map { height: 800px; width: 1170px; }
+body{
+margin:0;
+padding:0;
+}
+
+#map{
+width:1170px;
+height:800px;
+margin:auto;
+}
 </style>
 </head>
+
 <body>
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- PapaParse for CSV parsing -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-const map = L.map('map').setView([12.8797, 121.7740], 6); // Centered on Philippines
 
-// Base layer
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
+// GOOGLE SHEET CSV
+const sheetCSV="https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
+
+
+// CREATE MAP
+const map=L.map("map").setView([12.8797,121.7740],6);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+maxZoom:18
 }).addTo(map);
 
-// URL to published Google Sheet CSV
-const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv"; // <-- replace with your published CSV link
 
-// Helper: parse GEO PATH columns into one coordinate array
-function mergeGeoPaths(row, prefix) {
-  let coords = [];
-  for (let i = 1; i <= 5; i++) {
-    let cell = row[`${prefix}-${i}`];
-    if (cell && cell.trim() !== '') {
-      try {
-        let part = JSON.parse(cell); // Expecting JSON array [[lat,lng],[lat,lng],...]
-        coords = coords.concat(part);
-      } catch(e) {
-        console.warn(`Invalid JSON in ${prefix}-${i}:`, cell);
-      }
-    }
-  }
-  return coords.length ? coords : null;
+// RANDOM COLOR
+function randomColor(){
+
+const letters="0123456789ABCDEF";
+let color="#";
+
+for(let i=0;i<6;i++){
+color+=letters[Math.floor(Math.random()*16)];
 }
 
-// Load CSV
-Papa.parse(sheetCSV, {
-  download: true,
-  header: true,
-  skipEmptyLines: true,
-  complete: function(results) {
-    const data = results.data;
+return color;
 
-    data.forEach(row => {
-      if (row['STATUS'] && row['STATUS'].toLowerCase() === 'superseded') return;
+}
 
-      // Outbound route
-      const routeOut = mergeGeoPaths(row, 'GEO PATH 1');
-      if (routeOut) {
-        L.polyline(routeOut, {
-          color: getRandomColor(),
-          weight: 4,
-          opacity: 0.7
-        }).addTo(map);
-      }
 
-      // Return route
-      const routeBack = mergeGeoPaths(row, 'GEO PATH 2');
-      if (routeBack) {
-        L.polyline(routeBack, {
-          color: getRandomColor(),
-          weight: 4,
-          opacity: 0.7
-        }).addTo(map);
-      }
-    });
-  }
+// MERGE GEO PATH PARTS
+function mergeGeoPaths(row,prefix){
+
+let coords=[];
+
+for(let i=1;i<=5;i++){
+
+let cell=row[prefix+"-"+i];
+
+if(cell && cell.trim()!==""){
+
+try{
+
+let part=JSON.parse(cell);
+
+part.forEach(function(c){
+
+// convert [lng,lat] → [lat,lng]
+coords.push([c[1],c[0]]);
+
 });
 
-// Random color generator
-function getRandomColor() {
-  return '#' + Math.floor(Math.random()*16777215).toString(16);
+}catch(e){
+
+console.log("Bad GEO PATH:",prefix+"-"+i);
+
 }
+
+}
+
+}
+
+if(coords.length>0){
+return coords;
+}else{
+return null;
+}
+
+}
+
+
+// SIMPLE CSV PARSER
+function parseCSV(text){
+
+let lines=text.split("\n");
+let headers=lines[0].split(",");
+
+let rows=[];
+
+for(let i=1;i<lines.length;i++){
+
+let row={};
+let cols=lines[i].split(",");
+
+headers.forEach(function(h,j){
+row[h.trim()]=cols[j];
+});
+
+rows.push(row);
+
+}
+
+return rows;
+
+}
+
+
+// LOAD SHEET
+fetch(sheetCSV)
+
+.then(function(res){
+return res.text();
+})
+
+.then(function(text){
+
+let data=parseCSV(text);
+
+data.forEach(function(row){
+
+// skip superseded
+if(row["STATUS"]==="Superseded") return;
+
+
+// OUTBOUND ROUTE
+let route1=mergeGeoPaths(row,"GEO PATH 1");
+
+if(route1){
+
+L.polyline(route1,{
+color:randomColor(),
+weight:3
+}).addTo(map);
+
+}
+
+
+// RETURN ROUTE
+let route2=mergeGeoPaths(row,"GEO PATH 2");
+
+if(route2){
+
+L.polyline(route2,{
+color:randomColor(),
+weight:3,
+dashArray:"6,6"
+}).addTo(map);
+
+}
+
+});
+
+});
+
 </script>
 
 </body>
