@@ -156,46 +156,46 @@
       <h4>Search by Route Name</h4>
       <div class="chips" id="routeChips"></div>
       <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
+        <input id="routeInput" type="text" placeholder="Type route name (Multiple allowed)" class="small-input" autocomplete="off" />
         <div class="suggestions-list" id="routeSuggestions"></div>
       </div>
     </div>
 
     <div class="search-section">
-      <h4>Search by Endpoints</h4>
-      <!-- Endpoint 1 -->
-      <label>Endpoint 1 Region</label>
-      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label>Endpoint 1 Province</label>
-      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label>Endpoint 1 LGU</label>
-      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label>Endpoint 1 Barangay</label>
-      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label>Endpoint 1 Terminal</label>
-      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      <hr>
-      <!-- Endpoint 2 -->
-      <label>Endpoint 2 Region</label>
-      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label>Endpoint 2 Province</label>
-      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label>Endpoint 2 LGU</label>
-      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label>Endpoint 2 Barangay</label>
-      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label>Endpoint 2 Terminal</label>
-      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
+      <h4>Search by Endpoints (Single Click)</h4>
+      
+      <div style="background: #f9f9f9; padding: 8px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #eee;">
+        <label><b>Origin (EP1)</b></label>
+        <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
+        <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
+        <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
+        <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
+        <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
+      </div>
+
+      <div style="margin: 10px 0;">
+        <label><b>Corridor</b></label>
+        <div class="suggestions"><input id="corridorInput" type="text" class="small-input" placeholder="Type corridor..." autocomplete="off" /><div class="suggestions-list" id="corridorSuggestions"></div></div>
+      </div>
+
+      <div style="background: #f2f7f9; padding: 8px; border-radius: 4px; border: 1px solid #e0e6e8;">
+        <label><b>Destination (EP2)</b></label>
+        <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
+        <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
+        <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
+        <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
+        <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
+      </div>
     </div>
 
-<div class="search-section">
-  <h4>Route Direction</h4>
-  <div class="compact-row">
-    <label><input type="radio" name="direction" value="both" checked onclick="applyFilters()"> Both</label>
-    <label><input type="radio" name="direction" value="to" onclick="applyFilters()"> Going To</label>
-    <label><input type="radio" name="direction" value="back" onclick="applyFilters()"> Going Back</label>
-  </div>
-</div>
+    <div class="search-section">
+      <h4>Route Direction</h4>
+      <div class="compact-row">
+        <label><input type="radio" name="direction" value="both" checked onclick="applyFilters()"> Both</label>
+        <label><input type="radio" name="direction" value="to" onclick="applyFilters()"> Going To</label>
+        <label><input type="radio" name="direction" value="back" onclick="applyFilters()"> Going Back</label>
+      </div>
+    </div>
 
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
@@ -344,28 +344,44 @@
     // -----------------------
     let selectedRouteNames = [];
     function addRouteChip(name){ const n=normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
-    function removeRouteChip(name){ 
-  selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); 
-  renderChips(); 
-  applyFilters(); 
-}
+    function removeRouteChip(name){ selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); renderChips(); }
+    function renderChips(){ const c=document.getElementById('routeChips'); c.innerHTML=''; for(const n of selectedRouteNames){ const ch=document.createElement('div'); ch.className='chip'; const t=document.createElement('span'); t.textContent=n; const b=document.createElement('button'); b.innerHTML='&times;'; b.onclick=()=>removeRouteChip(n); ch.appendChild(t); ch.appendChild(b); c.appendChild(ch); } }
+
     // Improved autocomplete: shows suggestions while typing, pointerdown used so blur doesn't block selection.
     function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick){
-  function show(){
-    const q = nLower(inputEl.value);
-    
-    // This part is the "Smart Filter"
-    // It looks at all current filters to decide what to suggest
-    let currentList = suggestionArray;
-    
-    // Only show suggestions that match what you are typing
-    const list = currentList.filter(s => nLower(s).includes(q)).slice(0, 200);
-    renderSuggestions(containerEl, list, onPick, inputEl);
-  }
-  inputEl.addEventListener('input', show);
-  inputEl.addEventListener('focus', show);
-  inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none',250));
-}
+      function show(){
+        const q=nLower(inputEl.value);
+        const list = suggestionArray.filter(s=>nLower(s).includes(q)).slice(0,200);
+        renderSuggestions(containerEl, list, onPick, inputEl);
+      }
+      inputEl.addEventListener('input', show);
+      inputEl.addEventListener('focus', show);
+      // increase blur delay a bit for pointerdown edge cases
+      inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none',250));
+    }
+    function renderSuggestions(containerEl, list, onPick, inputEl){
+      if(!list.length){ containerEl.style.display='none'; containerEl.innerHTML=''; return; }
+      containerEl.innerHTML = '';
+      for(const v of list){
+        const d = document.createElement('div');
+        d.textContent = v;
+        // pointerdown registers before blur, preventing suggestions from disappearing before click
+        d.addEventListener('pointerdown', (ev)=>{
+          ev.preventDefault();
+          // set input value and call pick handler
+          inputEl.value = v;
+          try{ onPick(v); }catch(e){}
+          containerEl.style.display='none';
+          // keep focus so keyboard can continue if user wants
+          inputEl.focus();
+          // immediately apply filters when a suggestion is picked
+          try{ applyFilters(); }catch(e){}
+        });
+        containerEl.appendChild(d);
+      }
+      containerEl.style.display = 'block';
+    }
+
     // -----------------------
     // GEO PATH parse + draw (routes)
     // -----------------------
@@ -542,6 +558,29 @@ function drawRoute(row) {
     // - if only ep1Terminal typed => match routes that have that terminal in either endpoint
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
+
+function getFilteredSuggestions(targetColumn, prefix) {
+    const isEP1 = (prefix === 'ep1');
+    const sReg = nLower(document.getElementById(prefix + 'Region').value);
+    const sProv = nLower(document.getElementById(prefix + 'Province').value);
+    const sLgu = nLower(document.getElementById(prefix + 'LGU').value);
+
+    let list = allData;
+
+    // Filter suggestions based on what is typed in the SAME group
+    if (sReg) {
+        list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 REGION" : "ENDPOINT 2 REGION"]).includes(sReg));
+    }
+    if (sProv) {
+        list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 PROVINCE" : "ENDPOINT 2 PROVINCE"]).includes(sProv));
+    }
+    if (sLgu) {
+        list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 LGU" : "ENDPOINT 2 LGU"]).includes(sLgu));
+    }
+
+    return uniqueSorted(list.map(r => r[targetColumn]));
+}
+
 function applyFilters() {
       const rSelected = selectedRouteNames.map(n => nLower(n));
       const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
@@ -612,37 +651,19 @@ function applyFilters() {
     }
 
     function resetFilters(){
-  // 1. Clear the text boxes
-  document.querySelectorAll('.search-container input').forEach(i=>i.value='');
-  
-  // 2. Clear the Chips
-  selectedRouteNames = []; 
-  renderChips(); 
-  
-  // 3. Reset the map view
-  clearSelectionAndPopups();
-  clearMapLayers();
-  
-  // 4. Put ALL routes back on the map
-  allData.forEach(row => {
-    const rt = drawRoute(row);
-    if (rt) {
-      routes.push(rt);
-      visibleLayers.push(rt.layerGroup);
+      selectedRouteNames=[]; renderChips();
+      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
+      clearSelectionAndPopups();
+      clearMapLayers();
+      routes.forEach(rt => { rt.layerGroup.addTo(map); visibleLayers.push(rt.layerGroup); });
+      // show all terminals
+      terminalMarkers.forEach(t => { if(!map.hasLayer(t.marker)) t.marker.addTo(map); });
+      if(visibleLayers.length){
+        const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
+        try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
+      }
     }
-  });
 
-  // 5. Put ALL terminals back
-  terminalMarkers.forEach(t => { 
-    if(!map.hasLayer(t.marker)) t.marker.addTo(map); 
-  });
-
-  // 6. Zoom out to see everything
-  if(visibleLayers.length){
-    const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
-    try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
-  }
-}
     // -----------------------
     // HOVER / OVERLAP
     // -----------------------
@@ -767,6 +788,48 @@ function applyFilters() {
           }
         });
 
+        // >>> STEP 3 PASTE START HERE <<<
+
+        // 1. ROUTE NAME - Multiselect Fix
+        const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
+        makeAutocomplete(document.getElementById('routeInput'), () => routeNames, document.getElementById('routeSuggestions'), (v) => {
+            addRouteChip(v);
+            document.getElementById('routeInput').value = ''; 
+            applyFilters();
+        });
+
+        // 2. DEPENDENT ENDPOINTS Helper
+        const bindDep = (id, col, sugId, prefix) => {
+          const el = document.getElementById(id);
+          if (el) {
+            makeAutocomplete(el, () => getFilteredSuggestions(col, prefix), document.getElementById(sugId), () => applyFilters());
+          }
+        };
+
+        // Bind EP1 Group (Origin)
+        bindDep('ep1Region',   'ENDPOINT 1 REGION',   'ep1RegionSuggestions',   'ep1');
+        bindDep('ep1Province', 'ENDPOINT 1 PROVINCE', 'ep1ProvinceSuggestions', 'ep1');
+        bindDep('ep1LGU',      'ENDPOINT 1 LGU',      'ep1LGUSuggestions',      'ep1');
+        bindDep('ep1Barangay', 'ENDPOINT 1 BARANGAY', 'ep1BarangaySuggestions', 'ep1');
+        bindDep('ep1Terminal', 'ENDPOINT 1 TERMINAL', 'ep1TerminalSuggestions', 'ep1');
+
+        // Bind EP2 Group (Destination)
+        bindDep('ep2Region',   'ENDPOINT 2 REGION',   'ep2RegionSuggestions',   'ep2');
+        bindDep('ep2Province', 'ENDPOINT 2 PROVINCE', 'ep2ProvinceSuggestions', 'ep2');
+        bindDep('ep2LGU',      'ENDPOINT 2 LGU',      'ep2LGUSuggestions',      'ep2');
+        bindDep('ep2Barangay', 'ENDPOINT 2 BARANGAY', 'ep2BarangaySuggestions', 'ep2');
+        bindDep('ep2Terminal', 'ENDPOINT 2 TERMINAL', 'ep2TerminalSuggestions', 'ep2');
+
+        // Bind Corridor
+        makeAutocomplete(document.getElementById('corridorInput'), () => uniqueSorted(allData.map(r => r["CORRIDOR"])), document.getElementById('corridorSuggestions'), () => applyFilters());
+
+        resetFilters(); // Finalize the view
+
+        // >>> STEP 3 PASTE END HERE <<<
+
+      } // This closes the 'complete' function
+    }); // This closes Papa.parse
+
         // BUILD LISTS: Only use names from the filtered data
         const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
         const regions = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]));
@@ -775,42 +838,23 @@ function applyFilters() {
         const barangays = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]));
         const terminalsList = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]));
 
-        // ATTACH AUTOCOMPLETE WITH DEPENDENCY
-const setupSmartSearch = () => {
-  const getFilteredData = () => {
-    const r1 = nLower(document.getElementById('ep1Region').value);
-    const p1 = nLower(document.getElementById('ep1Province').value);
-    const r2 = nLower(document.getElementById('ep2Region').value);
-    const p2 = nLower(document.getElementById('ep2Province').value);
-    
-    return allData.filter(row => {
-      return (!r1 || nLower(row["ENDPOINT 1 REGION"]).includes(r1)) &&
-             (!p1 || nLower(row["ENDPOINT 1 PROVINCE"]).includes(p1)) &&
-             (!r2 || nLower(row["ENDPOINT 2 REGION"]).includes(r2)) &&
-             (!p2 || nLower(row["ENDPOINT 2 PROVINCE"]).includes(p2));
-    });
-  };
+        // ATTACH AUTOCOMPLETE
+        makeAutocomplete(document.getElementById('routeInput'), routeNames, document.getElementById('routeSuggestions'), (v) => addRouteChip(v));
+        
+        // EP 1 Suggestions
+        makeAutocomplete(document.getElementById('ep1Region'), regions, document.getElementById('ep1RegionSuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep1Province'), provinces, document.getElementById('ep1ProvinceSuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep1LGU'), lgus, document.getElementById('ep1LGUSuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep1Barangay'), barangays, document.getElementById('ep1BarangaySuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep1Terminal'), terminalsList, document.getElementById('ep1TerminalSuggestions'), ()=>{});
 
-  const updateSuggestions = () => {
-    const filtered = getFilteredData();
-    const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"])); // Routes always show all
-    
-    makeAutocomplete(document.getElementById('routeInput'), routeNames, document.getElementById('routeSuggestions'), (v) => addRouteChip(v));
-    
-    // Create lists based on what is currently filtered
-    makeAutocomplete(document.getElementById('ep1Region'), uniqueSorted(filtered.map(r => r["ENDPOINT 1 REGION"])), document.getElementById('ep1RegionSuggestions'), updateSuggestions);
-    makeAutocomplete(document.getElementById('ep1Province'), uniqueSorted(filtered.map(r => r["ENDPOINT 1 PROVINCE"])), document.getElementById('ep1ProvinceSuggestions'), updateSuggestions);
-    makeAutocomplete(document.getElementById('ep1LGU'), uniqueSorted(filtered.map(r => r["ENDPOINT 1 LGU"])), document.getElementById('ep1LGUSuggestions'), updateSuggestions);
-    
-    makeAutocomplete(document.getElementById('ep2Region'), uniqueSorted(filtered.map(r => r["ENDPOINT 2 REGION"])), document.getElementById('ep2RegionSuggestions'), updateSuggestions);
-    makeAutocomplete(document.getElementById('ep2Province'), uniqueSorted(filtered.map(r => r["ENDPOINT 2 PROVINCE"])), document.getElementById('ep2ProvinceSuggestions'), updateSuggestions);
-    makeAutocomplete(document.getElementById('ep2LGU'), uniqueSorted(filtered.map(r => r["ENDPOINT 2 LGU"])), document.getElementById('ep2LGUSuggestions'), updateSuggestions);
-  };
+        // EP 2 Suggestions
+        makeAutocomplete(document.getElementById('ep2Region'), regions, document.getElementById('ep2RegionSuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep2Province'), provinces, document.getElementById('ep2ProvinceSuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep2LGU'), lgus, document.getElementById('ep2LGUSuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep2Barangay'), barangays, document.getElementById('ep2BarangaySuggestions'), ()=>{});
+        makeAutocomplete(document.getElementById('ep2Terminal'), terminalsList, document.getElementById('ep2TerminalSuggestions'), ()=>{});
 
-  updateSuggestions();
-};
-
-setupSmartSearch();
         // Center map
         if(visibleLayers.length){
           const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
