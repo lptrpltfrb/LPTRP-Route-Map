@@ -567,7 +567,6 @@ function getFilteredSuggestions(targetColumn, prefix) {
 
     let list = allData;
 
-    // Filter suggestions based on what is typed in the SAME group
     if (sReg) {
         list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 REGION" : "ENDPOINT 2 REGION"]).includes(sReg));
     }
@@ -770,31 +769,18 @@ function applyFilters() {
       header: true,
       skipEmptyLines: true,
       complete: function(results) {
-        
-        // FILTER: This removes any row that doesn't have actual map coordinates
+        // Load data & ignore empty paths
         allData = results.data.filter(row => {
           const p1 = (row["GEO PATH 1-1"] || "").trim();
           const p2 = (row["GEO PATH 2-1"] || "").trim();
-          // We check for length > 10 to ensure it's a real coordinate string, not just "[]"
           return p1.length > 10 || p2.length > 10;
         });
-
-        // DRAW: Add the valid routes to the map
-        allData.forEach(row => {
-          const rt = drawRoute(row);
-          if (rt) {
-            routes.push(rt);
-            visibleLayers.push(rt.layerGroup);
-          }
-        });
-
-        // >>> STEP 3 PASTE START HERE <<<
 
         // 1. ROUTE NAME - Multiselect Fix
         const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
         makeAutocomplete(document.getElementById('routeInput'), () => routeNames, document.getElementById('routeSuggestions'), (v) => {
             addRouteChip(v);
-            document.getElementById('routeInput').value = ''; 
+            document.getElementById('routeInput').value = ''; // Reset box for next selection
             applyFilters();
         });
 
@@ -806,14 +792,14 @@ function applyFilters() {
           }
         };
 
-        // Bind EP1 Group (Origin)
+        // Bind EP1 Group
         bindDep('ep1Region',   'ENDPOINT 1 REGION',   'ep1RegionSuggestions',   'ep1');
         bindDep('ep1Province', 'ENDPOINT 1 PROVINCE', 'ep1ProvinceSuggestions', 'ep1');
         bindDep('ep1LGU',      'ENDPOINT 1 LGU',      'ep1LGUSuggestions',      'ep1');
         bindDep('ep1Barangay', 'ENDPOINT 1 BARANGAY', 'ep1BarangaySuggestions', 'ep1');
         bindDep('ep1Terminal', 'ENDPOINT 1 TERMINAL', 'ep1TerminalSuggestions', 'ep1');
 
-        // Bind EP2 Group (Destination)
+        // Bind EP2 Group
         bindDep('ep2Region',   'ENDPOINT 2 REGION',   'ep2RegionSuggestions',   'ep2');
         bindDep('ep2Province', 'ENDPOINT 2 PROVINCE', 'ep2ProvinceSuggestions', 'ep2');
         bindDep('ep2LGU',      'ENDPOINT 2 LGU',      'ep2LGUSuggestions',      'ep2');
@@ -823,12 +809,9 @@ function applyFilters() {
         // Bind Corridor
         makeAutocomplete(document.getElementById('corridorInput'), () => uniqueSorted(allData.map(r => r["CORRIDOR"])), document.getElementById('corridorSuggestions'), () => applyFilters());
 
-        resetFilters(); // Finalize the view
-
-        // >>> STEP 3 PASTE END HERE <<<
-
-      } // This closes the 'complete' function
-    }); // This closes Papa.parse
+        resetFilters(); // Initializes map and makes "Clear" work
+      }
+        });
 
         // BUILD LISTS: Only use names from the filtered data
         const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
