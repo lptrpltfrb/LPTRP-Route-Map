@@ -156,46 +156,46 @@
       <h4>Search by Route Name</h4>
       <div class="chips" id="routeChips"></div>
       <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (Multiple allowed)" class="small-input" autocomplete="off" />
+        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
         <div class="suggestions-list" id="routeSuggestions"></div>
       </div>
     </div>
 
     <div class="search-section">
-      <h4>Search by Endpoints (Single Click)</h4>
-      
-      <div style="background: #f9f9f9; padding: 8px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #eee;">
-        <label><b>Origin (EP1)</b></label>
-        <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-        <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-        <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-        <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-        <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
-      </div>
-
-      <div style="margin: 10px 0;">
-        <label><b>Corridor</b></label>
-        <div class="suggestions"><input id="corridorInput" type="text" class="small-input" placeholder="Type corridor..." autocomplete="off" /><div class="suggestions-list" id="corridorSuggestions"></div></div>
-      </div>
-
-      <div style="background: #f2f7f9; padding: 8px; border-radius: 4px; border: 1px solid #e0e6e8;">
-        <label><b>Destination (EP2)</b></label>
-        <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-        <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-        <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-        <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-        <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
-      </div>
+      <h4>Search by Endpoints</h4>
+      <!-- Endpoint 1 -->
+      <label>Endpoint 1 Region</label>
+      <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
+      <label>Endpoint 1 Province</label>
+      <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
+      <label>Endpoint 1 LGU</label>
+      <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
+      <label>Endpoint 1 Barangay</label>
+      <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
+      <label>Endpoint 1 Terminal</label>
+      <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
+      <hr>
+      <!-- Endpoint 2 -->
+      <label>Endpoint 2 Region</label>
+      <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
+      <label>Endpoint 2 Province</label>
+      <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
+      <label>Endpoint 2 LGU</label>
+      <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
+      <label>Endpoint 2 Barangay</label>
+      <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
+      <label>Endpoint 2 Terminal</label>
+      <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
-    <div class="search-section">
-      <h4>Route Direction</h4>
-      <div class="compact-row">
-        <label><input type="radio" name="direction" value="both" checked onclick="applyFilters()"> Both</label>
-        <label><input type="radio" name="direction" value="to" onclick="applyFilters()"> Going To</label>
-        <label><input type="radio" name="direction" value="back" onclick="applyFilters()"> Going Back</label>
-      </div>
-    </div>
+<div class="search-section">
+  <h4>Route Direction</h4>
+  <div class="compact-row">
+    <label><input type="radio" name="direction" value="both" checked onclick="applyFilters()"> Both</label>
+    <label><input type="radio" name="direction" value="to" onclick="applyFilters()"> Going To</label>
+    <label><input type="radio" name="direction" value="back" onclick="applyFilters()"> Going Back</label>
+  </div>
+</div>
 
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
@@ -558,28 +558,6 @@ function drawRoute(row) {
     // - if only ep1Terminal typed => match routes that have that terminal in either endpoint
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
-
-function getFilteredSuggestions(targetColumn, prefix) {
-    const isEP1 = (prefix === 'ep1');
-    const sReg = nLower(document.getElementById(prefix + 'Region').value);
-    const sProv = nLower(document.getElementById(prefix + 'Province').value);
-    const sLgu = nLower(document.getElementById(prefix + 'LGU').value);
-
-    let list = allData;
-
-    if (sReg) {
-        list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 REGION" : "ENDPOINT 2 REGION"]).includes(sReg));
-    }
-    if (sProv) {
-        list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 PROVINCE" : "ENDPOINT 2 PROVINCE"]).includes(sProv));
-    }
-    if (sLgu) {
-        list = list.filter(r => nLower(r[isEP1 ? "ENDPOINT 1 LGU" : "ENDPOINT 2 LGU"]).includes(sLgu));
-    }
-
-    return uniqueSorted(list.map(r => r[targetColumn]));
-}
-
 function applyFilters() {
       const rSelected = selectedRouteNames.map(n => nLower(n));
       const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
@@ -769,48 +747,22 @@ function applyFilters() {
       header: true,
       skipEmptyLines: true,
       complete: function(results) {
-        // Load data & ignore empty paths
+        
+        // FILTER: This removes any row that doesn't have actual map coordinates
         allData = results.data.filter(row => {
           const p1 = (row["GEO PATH 1-1"] || "").trim();
           const p2 = (row["GEO PATH 2-1"] || "").trim();
+          // We check for length > 10 to ensure it's a real coordinate string, not just "[]"
           return p1.length > 10 || p2.length > 10;
         });
 
-        // 1. ROUTE NAME - Multiselect Fix
-        const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
-        makeAutocomplete(document.getElementById('routeInput'), () => routeNames, document.getElementById('routeSuggestions'), (v) => {
-            addRouteChip(v);
-            document.getElementById('routeInput').value = ''; // Reset box for next selection
-            applyFilters();
-        });
-
-        // 2. DEPENDENT ENDPOINTS Helper
-        const bindDep = (id, col, sugId, prefix) => {
-          const el = document.getElementById(id);
-          if (el) {
-            makeAutocomplete(el, () => getFilteredSuggestions(col, prefix), document.getElementById(sugId), () => applyFilters());
+        // DRAW: Add the valid routes to the map
+        allData.forEach(row => {
+          const rt = drawRoute(row);
+          if (rt) {
+            routes.push(rt);
+            visibleLayers.push(rt.layerGroup);
           }
-        };
-
-        // Bind EP1 Group
-        bindDep('ep1Region',   'ENDPOINT 1 REGION',   'ep1RegionSuggestions',   'ep1');
-        bindDep('ep1Province', 'ENDPOINT 1 PROVINCE', 'ep1ProvinceSuggestions', 'ep1');
-        bindDep('ep1LGU',      'ENDPOINT 1 LGU',      'ep1LGUSuggestions',      'ep1');
-        bindDep('ep1Barangay', 'ENDPOINT 1 BARANGAY', 'ep1BarangaySuggestions', 'ep1');
-        bindDep('ep1Terminal', 'ENDPOINT 1 TERMINAL', 'ep1TerminalSuggestions', 'ep1');
-
-        // Bind EP2 Group
-        bindDep('ep2Region',   'ENDPOINT 2 REGION',   'ep2RegionSuggestions',   'ep2');
-        bindDep('ep2Province', 'ENDPOINT 2 PROVINCE', 'ep2ProvinceSuggestions', 'ep2');
-        bindDep('ep2LGU',      'ENDPOINT 2 LGU',      'ep2LGUSuggestions',      'ep2');
-        bindDep('ep2Barangay', 'ENDPOINT 2 BARANGAY', 'ep2BarangaySuggestions', 'ep2');
-        bindDep('ep2Terminal', 'ENDPOINT 2 TERMINAL', 'ep2TerminalSuggestions', 'ep2');
-
-        // Bind Corridor
-        makeAutocomplete(document.getElementById('corridorInput'), () => uniqueSorted(allData.map(r => r["CORRIDOR"])), document.getElementById('corridorSuggestions'), () => applyFilters());
-
-        resetFilters(); // Initializes map and makes "Clear" work
-      }
         });
 
         // BUILD LISTS: Only use names from the filtered data
