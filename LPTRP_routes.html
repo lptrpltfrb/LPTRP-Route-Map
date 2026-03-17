@@ -344,44 +344,28 @@
     // -----------------------
     let selectedRouteNames = [];
     function addRouteChip(name){ const n=normalize(name); if(!n || selectedRouteNames.includes(n)) return; selectedRouteNames.push(n); renderChips(); }
-    function removeRouteChip(name){ selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); renderChips(); }
-    function renderChips(){ const c=document.getElementById('routeChips'); c.innerHTML=''; for(const n of selectedRouteNames){ const ch=document.createElement('div'); ch.className='chip'; const t=document.createElement('span'); t.textContent=n; const b=document.createElement('button'); b.innerHTML='&times;'; b.onclick=()=>removeRouteChip(n); ch.appendChild(t); ch.appendChild(b); c.appendChild(ch); } }
-
+    function removeRouteChip(name){ 
+  selectedRouteNames = selectedRouteNames.filter(x=>x!==normalize(name)); 
+  renderChips(); 
+  applyFilters(); 
+}
     // Improved autocomplete: shows suggestions while typing, pointerdown used so blur doesn't block selection.
     function makeAutocomplete(inputEl, suggestionArray, containerEl, onPick){
-      function show(){
-        const q=nLower(inputEl.value);
-        const list = suggestionArray.filter(s=>nLower(s).includes(q)).slice(0,200);
-        renderSuggestions(containerEl, list, onPick, inputEl);
-      }
-      inputEl.addEventListener('input', show);
-      inputEl.addEventListener('focus', show);
-      // increase blur delay a bit for pointerdown edge cases
-      inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none',250));
-    }
-    function renderSuggestions(containerEl, list, onPick, inputEl){
-      if(!list.length){ containerEl.style.display='none'; containerEl.innerHTML=''; return; }
-      containerEl.innerHTML = '';
-      for(const v of list){
-        const d = document.createElement('div');
-        d.textContent = v;
-        // pointerdown registers before blur, preventing suggestions from disappearing before click
-        d.addEventListener('pointerdown', (ev)=>{
-          ev.preventDefault();
-          // set input value and call pick handler
-          inputEl.value = v;
-          try{ onPick(v); }catch(e){}
-          containerEl.style.display='none';
-          // keep focus so keyboard can continue if user wants
-          inputEl.focus();
-          // immediately apply filters when a suggestion is picked
-          try{ applyFilters(); }catch(e){}
-        });
-        containerEl.appendChild(d);
-      }
-      containerEl.style.display = 'block';
-    }
-
+  function show(){
+    const q = nLower(inputEl.value);
+    
+    // This part is the "Smart Filter"
+    // It looks at all current filters to decide what to suggest
+    let currentList = suggestionArray;
+    
+    // Only show suggestions that match what you are typing
+    const list = currentList.filter(s => nLower(s).includes(q)).slice(0, 200);
+    renderSuggestions(containerEl, list, onPick, inputEl);
+  }
+  inputEl.addEventListener('input', show);
+  inputEl.addEventListener('focus', show);
+  inputEl.addEventListener('blur', ()=>setTimeout(()=>containerEl.style.display='none',250));
+}
     // -----------------------
     // GEO PATH parse + draw (routes)
     // -----------------------
@@ -628,19 +612,37 @@ function applyFilters() {
     }
 
     function resetFilters(){
-      selectedRouteNames=[]; renderChips();
-      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
-      clearSelectionAndPopups();
-      clearMapLayers();
-      routes.forEach(rt => { rt.layerGroup.addTo(map); visibleLayers.push(rt.layerGroup); });
-      // show all terminals
-      terminalMarkers.forEach(t => { if(!map.hasLayer(t.marker)) t.marker.addTo(map); });
-      if(visibleLayers.length){
-        const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
-        try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
-      }
+  // 1. Clear the text boxes
+  document.querySelectorAll('.search-container input').forEach(i=>i.value='');
+  
+  // 2. Clear the Chips
+  selectedRouteNames = []; 
+  renderChips(); 
+  
+  // 3. Reset the map view
+  clearSelectionAndPopups();
+  clearMapLayers();
+  
+  // 4. Put ALL routes back on the map
+  allData.forEach(row => {
+    const rt = drawRoute(row);
+    if (rt) {
+      routes.push(rt);
+      visibleLayers.push(rt.layerGroup);
     }
+  });
 
+  // 5. Put ALL terminals back
+  terminalMarkers.forEach(t => { 
+    if(!map.hasLayer(t.marker)) t.marker.addTo(map); 
+  });
+
+  // 6. Zoom out to see everything
+  if(visibleLayers.length){
+    const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
+    try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
+  }
+}
     // -----------------------
     // HOVER / OVERLAP
     // -----------------------
@@ -773,23 +775,42 @@ function applyFilters() {
         const barangays = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]));
         const terminalsList = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]));
 
-        // ATTACH AUTOCOMPLETE
-        makeAutocomplete(document.getElementById('routeInput'), routeNames, document.getElementById('routeSuggestions'), (v) => addRouteChip(v));
-        
-        // EP 1 Suggestions
-        makeAutocomplete(document.getElementById('ep1Region'), regions, document.getElementById('ep1RegionSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1Province'), provinces, document.getElementById('ep1ProvinceSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1LGU'), lgus, document.getElementById('ep1LGUSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1Barangay'), barangays, document.getElementById('ep1BarangaySuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1Terminal'), terminalsList, document.getElementById('ep1TerminalSuggestions'), ()=>{});
+        // ATTACH AUTOCOMPLETE WITH DEPENDENCY
+const setupSmartSearch = () => {
+  const getFilteredData = () => {
+    const r1 = nLower(document.getElementById('ep1Region').value);
+    const p1 = nLower(document.getElementById('ep1Province').value);
+    const r2 = nLower(document.getElementById('ep2Region').value);
+    const p2 = nLower(document.getElementById('ep2Province').value);
+    
+    return allData.filter(row => {
+      return (!r1 || nLower(row["ENDPOINT 1 REGION"]).includes(r1)) &&
+             (!p1 || nLower(row["ENDPOINT 1 PROVINCE"]).includes(p1)) &&
+             (!r2 || nLower(row["ENDPOINT 2 REGION"]).includes(r2)) &&
+             (!p2 || nLower(row["ENDPOINT 2 PROVINCE"]).includes(p2));
+    });
+  };
 
-        // EP 2 Suggestions
-        makeAutocomplete(document.getElementById('ep2Region'), regions, document.getElementById('ep2RegionSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2Province'), provinces, document.getElementById('ep2ProvinceSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2LGU'), lgus, document.getElementById('ep2LGUSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2Barangay'), barangays, document.getElementById('ep2BarangaySuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2Terminal'), terminalsList, document.getElementById('ep2TerminalSuggestions'), ()=>{});
+  const updateSuggestions = () => {
+    const filtered = getFilteredData();
+    const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"])); // Routes always show all
+    
+    makeAutocomplete(document.getElementById('routeInput'), routeNames, document.getElementById('routeSuggestions'), (v) => addRouteChip(v));
+    
+    // Create lists based on what is currently filtered
+    makeAutocomplete(document.getElementById('ep1Region'), uniqueSorted(filtered.map(r => r["ENDPOINT 1 REGION"])), document.getElementById('ep1RegionSuggestions'), updateSuggestions);
+    makeAutocomplete(document.getElementById('ep1Province'), uniqueSorted(filtered.map(r => r["ENDPOINT 1 PROVINCE"])), document.getElementById('ep1ProvinceSuggestions'), updateSuggestions);
+    makeAutocomplete(document.getElementById('ep1LGU'), uniqueSorted(filtered.map(r => r["ENDPOINT 1 LGU"])), document.getElementById('ep1LGUSuggestions'), updateSuggestions);
+    
+    makeAutocomplete(document.getElementById('ep2Region'), uniqueSorted(filtered.map(r => r["ENDPOINT 2 REGION"])), document.getElementById('ep2RegionSuggestions'), updateSuggestions);
+    makeAutocomplete(document.getElementById('ep2Province'), uniqueSorted(filtered.map(r => r["ENDPOINT 2 PROVINCE"])), document.getElementById('ep2ProvinceSuggestions'), updateSuggestions);
+    makeAutocomplete(document.getElementById('ep2LGU'), uniqueSorted(filtered.map(r => r["ENDPOINT 2 LGU"])), document.getElementById('ep2LGUSuggestions'), updateSuggestions);
+  };
 
+  updateSuggestions();
+};
+
+setupSmartSearch();
         // Center map
         if(visibleLayers.length){
           const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
