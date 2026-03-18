@@ -559,39 +559,35 @@ function drawRoute(row) {
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
 function applyFilters() {
-    // 1. Get the list of names from the "chips" (lowercase for easy matching)
-    const rSelected = selectedRouteNames.map(n => nLower(n));
-    
-    // 2. Get the values from all endpoint search boxes
-    const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
-    const ep1ProvinceVal = nLower(document.getElementById('ep1Province').value);
-    const ep1LGUVal = nLower(document.getElementById('ep1LGU').value);
-    const ep1BarangayVal = nLower(document.getElementById('ep1Barangay').value);
-    const ep1TerminalVal = nLower(document.getElementById('ep1Terminal').value);
-    
-    const ep2RegionVal = nLower(document.getElementById('ep2Region').value);
-    const ep2ProvinceVal = nLower(document.getElementById('ep2Province').value);
-    const ep2LGUVal = nLower(document.getElementById('ep2LGU').value);
-    const ep2BarangayVal = nLower(document.getElementById('ep2Barangay').value);
-    const ep2TerminalVal = nLower(document.getElementById('ep2Terminal').value);
+      const rSelected = selectedRouteNames.map(n => nLower(n));
+      const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
+      const ep1ProvinceVal = nLower(document.getElementById('ep1Province').value);
+      const ep1LGUVal = nLower(document.getElementById('ep1LGU').value);
+      const ep1BarangayVal = nLower(document.getElementById('ep1Barangay').value);
+      const ep1TerminalVal = nLower(document.getElementById('ep1Terminal').value);
+      const ep2RegionVal = nLower(document.getElementById('ep2Region').value);
+      const ep2ProvinceVal = nLower(document.getElementById('ep2Province').value);
+      const ep2LGUVal = nLower(document.getElementById('ep2LGU').value);
+      const ep2BarangayVal = nLower(document.getElementById('ep2Barangay').value);
+      const ep2TerminalVal = nLower(document.getElementById('ep2Terminal').value);
 
-    // 3. Clear existing popups and route lines from the map
-    clearSelectionAndPopups();
-    routes.forEach(rt => { if(rt.layerGroup) map.removeLayer(rt.layerGroup); });
-    visibleLayers = [];
+      clearSelectionAndPopups();
+      
+      // We must remove all old layers before redrawing with the new direction
+      routes.forEach(rt => {
+        if(rt.layerGroup) map.removeLayer(rt.layerGroup);
+      });
+      visibleLayers = [];
 
-    // 4. Re-draw only the routes that match ALL criteria
-    allData.forEach(row => {
+      // Process all data rows to see which ones match the filters
+      allData.forEach(row => {
         const rn = nLower(row["ROUTE NAME"] || '');
-        
-        // FIX: Check if the route is in our multiselect list (if list isn't empty)
         const matchRoute = rSelected.length === 0 || rSelected.includes(rn);
 
         const ep1regionOK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"] || '').includes(ep1RegionVal));
         const ep1provinceOK = (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"] || '').includes(ep1ProvinceVal));
         const ep1lguOK = (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"] || '').includes(ep1LGUVal));
         const ep1barangayOK = (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"] || '').includes(ep1BarangayVal));
-        
         const ep2regionOK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"] || '').includes(ep2RegionVal));
         const ep2provinceOK = (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"] || '').includes(ep2ProvinceVal));
         const ep2lguOK = (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"] || '').includes(ep2LGUVal));
@@ -601,78 +597,49 @@ function applyFilters() {
         const routeTerm2 = nLower(row["ENDPOINT 2 TERMINAL"] || '');
         let terminalOK = true;
         if (ep1TerminalVal && ep2TerminalVal) {
-            terminalOK = [ep1TerminalVal, ep2TerminalVal].every(req => routeTerm1.includes(req) || routeTerm2.includes(req));
+          const need = [ep1TerminalVal, ep2TerminalVal];
+          terminalOK = need.every(req => (routeTerm1 && routeTerm1.includes(req)) || (routeTerm2 && routeTerm2.includes(req)));
         } else if (ep1TerminalVal) {
-            terminalOK = routeTerm1.includes(ep1TerminalVal) || routeTerm2.includes(ep1TerminalVal);
+          terminalOK = (routeTerm1 && routeTerm1.includes(ep1TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep1TerminalVal));
         } else if (ep2TerminalVal) {
-            terminalOK = routeTerm1.includes(ep2TerminalVal) || routeTerm2.includes(ep2TerminalVal);
+          terminalOK = (routeTerm1 && routeTerm1.includes(ep2TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep2TerminalVal));
         }
 
-        // If it passes all tests, draw it
         if (matchRoute && ep1regionOK && ep1provinceOK && ep1lguOK && ep1barangayOK && ep2regionOK && ep2provinceOK && ep2lguOK && ep2barangayOK && terminalOK) {
-            const rt = drawRoute(row);
-            if (rt) visibleLayers.push(rt.layerGroup);
-        }
-    });
-
-    updateTerminalVisibility(ep1TerminalVal, ep2TerminalVal);
-
-    // 5. Auto-zoom to the filtered results
-    if (visibleLayers.length) {
-        try {
-            const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
-            map.fitBounds(fg.getBounds(), { padding: [40, 40] });
-        } catch (e) {}
-    }
-}
-
-// -----------------------
-// RESET & CLEAR LOGIC
-// -----------------------
-function resetFilters() {
-    // 1. Clear the multiselect chips and all input boxes
-    selectedRouteNames = []; 
-    renderChips();
-    document.querySelectorAll('.search-container input').forEach(i => i.value = '');
-    
-    // 2. Reset the radio buttons to "Both"
-    const bothRadio = document.querySelector('input[name="direction"][value="both"]');
-    if (bothRadio) bothRadio.checked = true;
-
-    // 3. Clear the map visuals
-    clearSelectionAndPopups();
-    
-    // 4. Remove all current route layers from the map
-    routes.forEach(rt => { 
-        if(rt.layerGroup) map.removeLayer(rt.layerGroup); 
-    });
-    
-    // 5. Important: Reset the arrays so we can rebuild them
-    visibleLayers = [];
-    routes = []; 
-
-    // 6. Re-draw EVERY route from your master 'allData'
-    // This makes the routes "clickable" again without refreshing Chrome
-    allData.forEach(row => {
-        const rt = drawRoute(row);
-        if (rt) {
-            routes.push(rt);
+          // IMPORTANT: Create the path based on the current radio selection
+          const rt = drawRoute(row);
+          if (rt) {
+            // Update the global routes array reference so interactions still work
+            const existingIdx = routes.findIndex(r => r.id === rt.id);
+            if(existingIdx > -1) routes[existingIdx] = rt;
             visibleLayers.push(rt.layerGroup);
+          }
         }
-    });
+      });
 
-    // 7. Make all terminal markers visible again
-    terminalMarkers.forEach(t => { 
-        if(!map.hasLayer(t.marker)) t.marker.addTo(map); 
-    });
+      updateTerminalVisibility(document.getElementById('ep1Terminal').value, document.getElementById('ep2Terminal').value);
 
-    // 8. Zoom the map back out to show the full network
-    if(visibleLayers.length) {
-        const allItems = visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker));
-        const fg = L.featureGroup(allItems);
-        try { map.fitBounds(fg.getBounds(), {padding:[40,40]}); } catch(e){}
+      if (visibleLayers.length) {
+        try {
+          const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
+          map.fitBounds(fg.getBounds(), { padding: [40, 40] });
+        } catch (e) {}
+      }
     }
-}
+
+    function resetFilters(){
+      selectedRouteNames=[]; renderChips();
+      document.querySelectorAll('.search-container input').forEach(i=>i.value='');
+      clearSelectionAndPopups();
+      clearMapLayers();
+      routes.forEach(rt => { rt.layerGroup.addTo(map); visibleLayers.push(rt.layerGroup); });
+      // show all terminals
+      terminalMarkers.forEach(t => { if(!map.hasLayer(t.marker)) t.marker.addTo(map); });
+      if(visibleLayers.length){
+        const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
+        try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
+      }
+    }
 
     // -----------------------
     // HOVER / OVERLAP
