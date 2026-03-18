@@ -188,15 +188,6 @@
       <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
-<div class="search-section">
-  <h4>Route Direction</h4>
-  <div class="compact-row">
-    <label><input type="radio" name="direction" value="both" checked onclick="applyFilters()"> Both</label>
-    <label><input type="radio" name="direction" value="to" onclick="applyFilters()"> Going To</label>
-    <label><input type="radio" name="direction" value="back" onclick="applyFilters()"> Going Back</label>
-  </div>
-</div>
-
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
   </div>
@@ -401,52 +392,25 @@
       }
     }
 
-function drawRoute(row) {
-      // Check which direction is selected in the UI
-      const dirEl = document.querySelector('input[name="direction"]:checked');
-      const direction = dirEl ? dirEl.value : "both";
-      
-      let allSegments = [];
-
-      // STITCH PATH 1 (Going To)
-      if (direction === "both" || direction === "to") {
-        let raw1 = "";
-        for (let i = 1; i <= 8; i++) {
-          let val = row["GEO PATH 1-" + i];
-          if (val) raw1 += normalize(val);
-        }
-        const p1 = tryParseGeoPath(raw1);
-        if (p1) allSegments.push(...p1);
-      }
-
-      // STITCH PATH 2 (Going Back)
-      if (direction === "both" || direction === "back") {
-        let raw2 = "";
-        for (let i = 1; i <= 8; i++) {
-          let val = row["GEO PATH 2-" + i];
-          if (val) raw2 += normalize(val);
-        }
-        const p2 = tryParseGeoPath(raw2);
-        if (p2) allSegments.push(...p2);
-      }
-
-      if (!allSegments.length) return null;
-
+    function drawRoute(row){
+      const segs = tryParseGeoPath(row["GEO PATH 1-1"]);
+      if(!segs || !segs.length) return null;
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
-      const baseColor = colorFromString(routeName);
+      const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
-
-      allSegments.forEach(seg => {
+      for(const seg of segs){
+        // thinner lines: weight 2
         const poly = L.polyline(seg, { color: baseColor, weight: 2, opacity: 0.95 });
+        // click on segment should show list for that clicked point (not immediately select top route)
         poly.on('click', (ev) => {
           L.DomEvent.stopPropagation(ev);
           handlePointClick(ev.latlng);
         });
         poly.addTo(group);
-      });
-
+      }
       group.addTo(map);
-      return { row, segs: allSegments, layerGroup: group, baseColor, id: routeName };
+      const id = routeName || normalize(row["DENO"]||'');
+      return { row, segs, layerGroup: group, baseColor, id };
     }
 
     function clearMapLayers(){
@@ -558,72 +522,73 @@ function drawRoute(row) {
     // - if only ep1Terminal typed => match routes that have that terminal in either endpoint
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
-function applyFilters() {
-      const rSelected = selectedRouteNames.map(n => nLower(n));
-      const ep1RegionVal = nLower(document.getElementById('ep1Region').value);
-      const ep1ProvinceVal = nLower(document.getElementById('ep1Province').value);
-      const ep1LGUVal = nLower(document.getElementById('ep1LGU').value);
-      const ep1BarangayVal = nLower(document.getElementById('ep1Barangay').value);
-      const ep1TerminalVal = nLower(document.getElementById('ep1Terminal').value);
-      const ep2RegionVal = nLower(document.getElementById('ep2Region').value);
-      const ep2ProvinceVal = nLower(document.getElementById('ep2Province').value);
-      const ep2LGUVal = nLower(document.getElementById('ep2LGU').value);
-      const ep2BarangayVal = nLower(document.getElementById('ep2Barangay').value);
-      const ep2TerminalVal = nLower(document.getElementById('ep2Terminal').value);
+    function applyFilters(){
+      const rSelected = selectedRouteNames.map(n=>nLower(n));
+      const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
+      const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
+      const ep1LGUVal=nLower(document.getElementById('ep1LGU').value);
+      const ep1BarangayVal=nLower(document.getElementById('ep1Barangay').value);
+      const ep1TerminalVal=nLower(document.getElementById('ep1Terminal').value);
+      const ep2RegionVal=nLower(document.getElementById('ep2Region').value);
+      const ep2ProvinceVal=nLower(document.getElementById('ep2Province').value);
+      const ep2LGUVal=nLower(document.getElementById('ep2LGU').value);
+      const ep2BarangayVal=nLower(document.getElementById('ep2Barangay').value);
+      const ep2TerminalVal=nLower(document.getElementById('ep2Terminal').value);
 
+      // reset selection/popups
       clearSelectionAndPopups();
-      
-      // We must remove all old layers before redrawing with the new direction
-      routes.forEach(rt => {
-        if(rt.layerGroup) map.removeLayer(rt.layerGroup);
-      });
-      visibleLayers = [];
+      clearMapLayers();
 
-      // Process all data rows to see which ones match the filters
-      allData.forEach(row => {
-        const rn = nLower(row["ROUTE NAME"] || '');
-        const matchRoute = rSelected.length === 0 || rSelected.includes(rn);
+      for(const rt of routes){
+        const row = rt.row;
+        const rn = nLower(row["ROUTE NAME"]||'');
+        const matchRoute = rSelected.length===0 || rSelected.includes(rn);
 
-        const ep1regionOK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"] || '').includes(ep1RegionVal));
-        const ep1provinceOK = (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"] || '').includes(ep1ProvinceVal));
-        const ep1lguOK = (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"] || '').includes(ep1LGUVal));
-        const ep1barangayOK = (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"] || '').includes(ep1BarangayVal));
-        const ep2regionOK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"] || '').includes(ep2RegionVal));
-        const ep2provinceOK = (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"] || '').includes(ep2ProvinceVal));
-        const ep2lguOK = (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"] || '').includes(ep2LGUVal));
-        const ep2barangayOK = (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"] || '').includes(ep2BarangayVal));
+        // endpoint 1 fields (these should match specifically against endpoint1 columns)
+        const ep1regionOK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal));
+        const ep1provinceOK = (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal));
+        const ep1lguOK = (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal));
+        const ep1barangayOK = (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal));
+        // endpoint 2 fields
+        const ep2regionOK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal));
+        const ep2provinceOK = (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal));
+        const ep2lguOK = (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal));
+        const ep2barangayOK = (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal));
 
-        const routeTerm1 = nLower(row["ENDPOINT 1 TERMINAL"] || '');
-        const routeTerm2 = nLower(row["ENDPOINT 2 TERMINAL"] || '');
+        // Terminal matching (flexible):
+        const routeTerm1 = nLower(row["ENDPOINT 1 TERMINAL"]||'');
+        const routeTerm2 = nLower(row["ENDPOINT 2 TERMINAL"]||'');
         let terminalOK = true;
-        if (ep1TerminalVal && ep2TerminalVal) {
+        if(ep1TerminalVal && ep2TerminalVal){
+          // require both typed terminal strings to appear somewhere in the route's two terminal fields (order not important)
           const need = [ep1TerminalVal, ep2TerminalVal];
           terminalOK = need.every(req => (routeTerm1 && routeTerm1.includes(req)) || (routeTerm2 && routeTerm2.includes(req)));
-        } else if (ep1TerminalVal) {
+        } else if(ep1TerminalVal){
           terminalOK = (routeTerm1 && routeTerm1.includes(ep1TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep1TerminalVal));
-        } else if (ep2TerminalVal) {
+        } else if(ep2TerminalVal){
           terminalOK = (routeTerm1 && routeTerm1.includes(ep2TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep2TerminalVal));
         }
 
-        if (matchRoute && ep1regionOK && ep1provinceOK && ep1lguOK && ep1barangayOK && ep2regionOK && ep2provinceOK && ep2lguOK && ep2barangayOK && terminalOK) {
-          // IMPORTANT: Create the path based on the current radio selection
-          const rt = drawRoute(row);
-          if (rt) {
-            // Update the global routes array reference so interactions still work
-            const existingIdx = routes.findIndex(r => r.id === rt.id);
-            if(existingIdx > -1) routes[existingIdx] = rt;
-            visibleLayers.push(rt.layerGroup);
-          }
-        }
-      });
+        const endpointsOK = ep1regionOK && ep1provinceOK && ep1lguOK && ep1barangayOK && ep2regionOK && ep2provinceOK && ep2lguOK && ep2barangayOK && terminalOK;
 
+        if(matchRoute && endpointsOK){
+          rt.layerGroup.addTo(map);
+          visibleLayers.push(rt.layerGroup);
+        }
+      }
+
+      // Update terminal visibility (filter terminals by endpoint terminal names)
       updateTerminalVisibility(document.getElementById('ep1Terminal').value, document.getElementById('ep2Terminal').value);
 
-      if (visibleLayers.length) {
-        try {
-          const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
-          map.fitBounds(fg.getBounds(), { padding: [40, 40] });
-        } catch (e) {}
+      // Fit bounds to visible features (routes + visible terminals)
+      const routeLayers = visibleLayers.flatMap(g => g.getLayers());
+      const visibleTerminalMarkers = terminalMarkers.filter(t => map.hasLayer(t.marker)).map(t=>t.marker);
+      const allFeatures = [...routeLayers, ...visibleTerminalMarkers];
+      if(allFeatures.length){
+        try{
+          const fg = L.featureGroup(allFeatures);
+          map.fitBounds(fg.getBounds(),{padding:[40,40]});
+        }catch(e){}
       }
     }
 
@@ -729,88 +694,142 @@ function applyFilters() {
       showRouteListPanel(uniqueNames);
     }
 
-// 1. Handle Map Clicks
-    map.on('click', (e) => handlePointClick(e.latlng));
-
-    // 2. Load Terminals
-    Papa.parse(terminalCsvUrl, {
-      download: true,
-      header: true,
-      complete: function(results) {
-        drawTerminals(results.data);
-      }
+    // map click uses shared handler
+    map.on('click', (e) => {
+      handlePointClick(e.latlng);
     });
 
-    // 3. Load Routes & Setup Search (with Filter for empty paths)
-    Papa.parse(csvUrl, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: function(results) {
-        
-        // FILTER: This removes any row that doesn't have actual map coordinates
-        allData = results.data.filter(row => {
-          const p1 = (row["GEO PATH 1-1"] || "").trim();
-          const p2 = (row["GEO PATH 2-1"] || "").trim();
-          // We check for length > 10 to ensure it's a real coordinate string, not just "[]"
-          return p1.length > 10 || p2.length > 10;
-        });
+    // -----------------------
+    // SELECTION (by name from list)
+    // -----------------------
+    function selectRouteByName(name){
+      const target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize(name));
+      if(!target) return;
 
-        // DRAW: Add the valid routes to the map
-        allData.forEach(row => {
-          const rt = drawRoute(row);
-          if (rt) {
-            routes.push(rt);
-            visibleLayers.push(rt.layerGroup);
-          }
-        });
+      // remove previous details popup (keep list open)
+      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
 
-        // BUILD LISTS: Only use names from the filtered data
-        const routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
-        const regions = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]));
-        const provinces = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]));
-        const lgus = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 LGU"], r["ENDPOINT 2 LGU"]]));
-        const barangays = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]));
-        const terminalsList = uniqueSorted(allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]));
-
-        // ATTACH AUTOCOMPLETE
-        makeAutocomplete(document.getElementById('routeInput'), routeNames, document.getElementById('routeSuggestions'), (v) => addRouteChip(v));
-        
-        // EP 1 Suggestions
-        makeAutocomplete(document.getElementById('ep1Region'), regions, document.getElementById('ep1RegionSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1Province'), provinces, document.getElementById('ep1ProvinceSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1LGU'), lgus, document.getElementById('ep1LGUSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1Barangay'), barangays, document.getElementById('ep1BarangaySuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep1Terminal'), terminalsList, document.getElementById('ep1TerminalSuggestions'), ()=>{});
-
-        // EP 2 Suggestions
-        makeAutocomplete(document.getElementById('ep2Region'), regions, document.getElementById('ep2RegionSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2Province'), provinces, document.getElementById('ep2ProvinceSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2LGU'), lgus, document.getElementById('ep2LGUSuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2Barangay'), barangays, document.getElementById('ep2BarangaySuggestions'), ()=>{});
-        makeAutocomplete(document.getElementById('ep2Terminal'), terminalsList, document.getElementById('ep2TerminalSuggestions'), ()=>{});
-
-        // Center map
-        if(visibleLayers.length){
-          const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()));
-          try{ map.fitBounds(fg.getBounds(), {padding:[40,40]}); } catch(e){}
-        }
+      // unstyle previous
+      if(selectedRoute){
+        selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:2, opacity:0.95 }));
       }
-    });
 
-    // Final helper for clicking names in the route list
-    function selectRouteByName(name) {
-      const rt = routes.find(r => normalize(r.id) === normalize(name));
-      if (!rt) return;
-      clearSelectionAndPopups();
-      selectedRoute = rt;
-      rt.layerGroup.getLayers().forEach(poly => {
-        poly.setStyle({ color: 'cyan', weight: 8, opacity: 1 });
-        poly.bringToFront();
-      });
-      const group = L.featureGroup(rt.layerGroup.getLayers());
-      try { map.fitBounds(group.getBounds(), { padding: [50, 50] }); } catch(e){}
+      selectedRoute = target;
+      selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:6, opacity:1 }));
+      selectedRoute.layerGroup.getLayers().forEach(poly => poly.bringToFront());
+
+      const row = selectedRoute.row;
+
+      // CLASS uses header "CLASS" exactly (also try "Class")
+      const classVal = normalize(row["CLASS"]||row["Class"]||'');
+
+      // ROUTE LENGTH should come from Google Sheet. Try common header variants:
+      const lengthFromSheet = normalize(row["ROUTE LENGTH"]) || normalize(row["ROUTE LENGTH (KM)"]) || normalize(row["ROUTE LENGTH KM"]) || normalize(row["ROUTE LENGTH (km)"]) || normalize(row["ROUTE LENGTH (KM) "]) || '';
+      const lengthDisplay = lengthFromSheet ? (lengthFromSheet.match(/[a-zA-Z%]/) ? lengthFromSheet : lengthFromSheet + ' km') : 'N/A';
+
+      const html = `
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px">${normalize(row["ROUTE NAME"]||'')}</div>
+        <div><strong>DENO:</strong> ${normalize(row["DENO"]||'')}</div>
+        <div><strong>CLASS:</strong> ${classVal}</div>
+        <div><strong>ROUTE CLASS:</strong> ${normalize(row["ROUTE CLASSIFICATION (if LPTRP)"]||'')}</div>
+        <div><strong>NAU:</strong> ${normalize(row["NO. OF AUTHORIZED UNITS"]||'')}</div>
+        <div><strong>ROUTE LENGTH:</strong> ${lengthDisplay}</div>
+        <div><strong>BR. No.:</strong> ${normalize(row["BOARD RESOLUTION"]||'')}</div>
+        <div><strong>With LSO/LSR:</strong> ${normalize(row["WITH LSO/LSR"]||'')}</div>
+        <div><strong>MC No.:</strong> ${normalize(row["MEMORANDUM CIRCULAR"]||'')}</div>
+      `;
+
+      // place details popup at center of route bounds
+      const fg = L.featureGroup(selectedRoute.layerGroup.getLayers());
+      const bounds = fg.getBounds();
+      const center = bounds.getCenter();
+
+      detailsPopup = L.popup({
+        autoClose:false,
+        closeOnClick:false,
+        className:'details-popup',
+        offset: L.point(12, -14),
+        autoPan: true
+      }).setLatLng(center).setContent(html).addTo(map);
+
+      // ensure selected route bounds are visible
+      try{ map.fitBounds(bounds, { padding:[40,40] }); }catch(e){}
     }
+
+    // -----------------------
+    // LOAD DATA & wiring
+    // -----------------------
+    const suggestions = { routeNames:[], epRegion:[], epProvince:[], epLGU:[], epBarangay:[], epTerminal:[] };
+
+    // fetch routes + terminals in parallel, then parse and draw
+    Promise.all([fetch(csvUrl).then(r=>r.text()), fetch(terminalCsvUrl).then(r=>r.text())])
+      .then(([routesCsvText, terminalsCsvText])=>{
+        // parse using PapaParse (synchronous parse of string)
+        const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
+        const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+
+        allData = routesParsed;
+
+        // build suggestions (endpoints suggest from BOTH endpoint 1 & 2)
+        suggestions.routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
+        // endpoints from route sheet
+        const epRegionFromRoutes   = allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]);
+        const epProvinceFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]);
+        const epLGUFromRoutes      = allData.flatMap(r => [r["ENDPOINT 1 LGU"], r["ENDPOINT 2 LGU"]]);
+        const epBarangayFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]);
+        const epTerminalFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]);
+
+        // terminals names from Terminal sheet
+        const terminalNamesFromSheet = terminalsParsed.map(t => t["TERMINAL"] || t["Terminal"] || t["terminal"]).filter(Boolean);
+
+        suggestions.epRegion   = uniqueSorted(epRegionFromRoutes);
+        suggestions.epProvince = uniqueSorted(epProvinceFromRoutes);
+        suggestions.epLGU      = uniqueSorted(epLGUFromRoutes);
+        suggestions.epBarangay = uniqueSorted(epBarangayFromRoutes);
+        // combine route-endpoint terminal values + terminal masterlist names
+        suggestions.epTerminal = uniqueSorted([...epTerminalFromRoutes, ...terminalNamesFromSheet]);
+
+        // wire autocompletes
+        makeAutocomplete(
+          document.getElementById('routeInput'),
+          suggestions.routeNames,
+          document.getElementById('routeSuggestions'),
+          val=>{ document.getElementById('routeInput').value=''; addRouteChip(val); applyFilters(); }
+        );
+        // Enter to add quickly
+        document.getElementById('routeInput').addEventListener('keydown', (ev)=>{
+          if(ev.key === 'Enter'){ ev.preventDefault(); const q = ev.target.value.trim(); if(!q) return; const exact = suggestions.routeNames.find(s=>s.toLowerCase()===q.toLowerCase()); addRouteChip(exact||q); ev.target.value=''; applyFilters(); }
+        });
+
+        makeAutocomplete(document.getElementById('ep1Region'),  suggestions.epRegion,   document.getElementById('ep1RegionSuggestions'),   val=>{document.getElementById('ep1Region').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep1Province'),suggestions.epProvince, document.getElementById('ep1ProvinceSuggestions'), val=>{document.getElementById('ep1Province').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep1LGU'),     suggestions.epLGU,      document.getElementById('ep1LGUSuggestions'),      val=>{document.getElementById('ep1LGU').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep1Barangay'),suggestions.epBarangay, document.getElementById('ep1BarangaySuggestions'), val=>{document.getElementById('ep1Barangay').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep1Terminal'),suggestions.epTerminal, document.getElementById('ep1TerminalSuggestions'), val=>{document.getElementById('ep1Terminal').value=val; applyFilters();});
+
+        makeAutocomplete(document.getElementById('ep2Region'),  suggestions.epRegion,   document.getElementById('ep2RegionSuggestions'),   val=>{document.getElementById('ep2Region').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep2Province'),suggestions.epProvince, document.getElementById('ep2ProvinceSuggestions'), val=>{document.getElementById('ep2Province').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep2LGU'),     suggestions.epLGU,      document.getElementById('ep2LGUSuggestions'),      val=>{document.getElementById('ep2LGU').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep2Barangay'),suggestions.epBarangay, document.getElementById('ep2BarangaySuggestions'), val=>{document.getElementById('ep2Barangay').value=val; applyFilters();});
+        makeAutocomplete(document.getElementById('ep2Terminal'),suggestions.epTerminal, document.getElementById('ep2TerminalSuggestions'), val=>{document.getElementById('ep2Terminal').value=val; applyFilters();});
+
+        // draw routes
+        for(const row of allData){
+          const rt = drawRoute(row);
+          if(rt){ routes.push(rt); visibleLayers.push(rt.layerGroup); }
+        }
+
+        // draw terminals (terminal sheet)
+        drawTerminals(terminalsParsed);
+
+        // include terminals + routes in initial fit
+        const initialFeatures = visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker));
+        if(initialFeatures.length){
+          try{ map.fitBounds(L.featureGroup(initialFeatures).getBounds(),{padding:[40,40]}); }catch(e){}
+        }
+      })
+      .catch(err => { console.error('Failed to load CSVs:', err); });
+
   </script>
 </body>
 </html>
