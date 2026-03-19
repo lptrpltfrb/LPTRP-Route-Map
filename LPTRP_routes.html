@@ -212,17 +212,16 @@
     <div class="toggle-container">
       <div style="margin-bottom: 5px;"><strong>Map Display Settings:</strong></div>
       <label style="cursor:pointer; display:block; margin-bottom:4px;">
-        <input type="radio" name="pathView" value="both" checked onchange="applyFilters()"> Show Both Ways (Loop)
+        <input type="radio" name="pathView" value="outbound" onchange="applyFilters()"> Outbound Direction
       </label>
       <label style="cursor:pointer; display:block; margin-bottom:8px;">
-        <input type="radio" name="pathView" value="outbound" onchange="applyFilters()"> Outbound Path Only
+        <input type="radio" name="pathView" value="both" checked onchange="applyFilters()"> Both Directions
       </label>
       <hr>
       <label style="cursor:pointer; font-weight:bold;">
         <input type="checkbox" id="showTerminals" checked onchange="toggleTerminals()"> Show Terminals (Icons)
       </label>
     </div>
-
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
 
@@ -432,41 +431,53 @@
     // UPDATED GEO PATH JOINER (FOR LONG ROUTES)
     // -----------------------
 function drawRoute(row){
-      // 1. Combine strings for Outbound (1-x) and Returning (2-x)
+      // 1. Get the current toggle setting from the UI
+      const viewMode = document.querySelector('input[name="pathView"]:checked').value;
+
+      // 2. Combine strings for Outbound (1-x)
       let fullPath1 = "";
-      let fullPath2 = "";
       for(let i=1; i<=8; i++) {
         fullPath1 += (row["GEO PATH 1-" + i] || "");
-        fullPath2 += (row["GEO PATH 2-" + i] || "");
+      }
+      const segs1 = tryParseGeoPath(fullPath1);
+
+      // 3. Combine strings for Returning (2-x) ONLY if "both" is selected
+      let fullPath2 = "";
+      let segs2 = null;
+      if (viewMode === 'both') {
+        for(let i=1; i<=8; i++) {
+          fullPath2 += (row["GEO PATH 2-" + i] || "");
+        }
+        segs2 = tryParseGeoPath(fullPath2);
       }
 
-      const segs1 = tryParseGeoPath(fullPath1);
-      const segs2 = tryParseGeoPath(fullPath2);
-
-      // If no coordinates at all, skip
-      if((!segs1 || !segs1.length) && (!segs2 || !segs2.length)) return null;
+      // If no valid coordinates found for the selected mode, skip
+      if(!segs1 || !segs1.length) return null;
 
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
 
-      // --- SMART TOGGLE LOGIC ---
-      // This checks which button is selected in your new HTML panel
-      const viewMode = document.querySelector('input[name="pathView"]:checked').value;
-
       const addSegments = (segs) => {
         if(!segs) return;
         for(const seg of segs){
-          const poly = L.polyline(seg, { color: baseColor, weight: 2, opacity: 0.95 });
-          poly.on('click', (ev) => { L.DomEvent.stopPropagation(ev); handlePointClick(ev.latlng); });
+          const poly = L.polyline(seg, { 
+            color: baseColor, 
+            weight: 2, 
+            opacity: 0.95 
+          });
+          poly.on('click', (ev) => { 
+            L.DomEvent.stopPropagation(ev); 
+            handlePointClick(ev.latlng); 
+          });
           poly.addTo(group);
         }
       };
 
-      // Always draw Outbound (GEO PATH 1-x)
-      if(segs1) addSegments(segs1);
+      // Always draw Outbound
+      addSegments(segs1);
 
-      // ONLY draw Return (GEO PATH 2-x) if the user chose "Both"
+      // Draw Return ONLY if the user specifically asked for "both"
       if(viewMode === 'both' && segs2) {
         addSegments(segs2);
       }
@@ -474,15 +485,10 @@ function drawRoute(row){
       group.addTo(map);
       const id = routeName || normalize(row["DENO"]||'');
       
-      // We combine the coordinates so the "Hover" and "Search" still know where the route is
+      // Update the coordinates linked to this route so popups appear in the right spot
       let combinedSegs = (segs1 || []).concat((viewMode === 'both' ? segs2 : []) || []);
       
       return { row, segs: combinedSegs, layerGroup: group, baseColor, id };
-    }    function clearMapLayers(){
-      routes.forEach(rt => {
-        try{ map.removeLayer(rt.layerGroup); }catch(e){}
-      });
-      visibleLayers = [];
     }
 
     // -----------------------
