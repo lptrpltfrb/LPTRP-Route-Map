@@ -599,7 +599,7 @@ function drawRoute(row){
     // - if only ep1Terminal typed => match routes that have that terminal in either endpoint
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
-    function applyFilters(){
+function applyFilters(){
       const rSelected = selectedRouteNames.map(n=>nLower(n));
       const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
       const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
@@ -612,96 +612,80 @@ function drawRoute(row){
       const ep2BarangayVal=nLower(document.getElementById('ep2Barangay').value);
       const ep2TerminalVal=nLower(document.getElementById('ep2Terminal').value);
 
-      // reset selection/popups
+      // A. Clear selection and REMOVE existing route layers from the map
       clearSelectionAndPopups();
-      clearMapLayers();
+      routes.forEach(rt => map.removeLayer(rt.layerGroup));
+      
+      // B. Reset our internal lists so we can rebuild them fresh
+      routes = []; 
+      visibleLayers = [];
 
-      for(const rt of routes){
-        const row = rt.row;
+      // C. Re-check every row in your data
+      for(const row of allData){
         const rn = nLower(row["ROUTE NAME"]||'');
+        
+        // Filter logic
         const matchRoute = rSelected.length===0 || rSelected.includes(rn);
+        const ep1OK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal)) &&
+                      (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal)) &&
+                      (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal)) &&
+                      (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal));
+        
+        const ep2OK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal)) &&
+                      (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal)) &&
+                      (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal)) &&
+                      (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal));
 
-        // endpoint 1 fields (these should match specifically against endpoint1 columns)
-        const ep1regionOK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal));
-        const ep1provinceOK = (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal));
-        const ep1lguOK = (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal));
-        const ep1barangayOK = (!ep1BarangayVal || nLower(row["ENDPOINT 1 BARANGAY"]||'').includes(ep1BarangayVal));
-        // endpoint 2 fields
-        const ep2regionOK = (!ep2RegionVal || nLower(row["ENDPOINT 2 REGION"]||'').includes(ep2RegionVal));
-        const ep2provinceOK = (!ep2ProvinceVal || nLower(row["ENDPOINT 2 PROVINCE"]||'').includes(ep2ProvinceVal));
-        const ep2lguOK = (!ep2LGUVal || nLower(row["ENDPOINT 2 LGU"]||'').includes(ep2LGUVal));
-        const ep2barangayOK = (!ep2BarangayVal || nLower(row["ENDPOINT 2 BARANGAY"]||'').includes(ep2BarangayVal));
-
-        // Terminal matching (flexible):
         const routeTerm1 = nLower(row["ENDPOINT 1 TERMINAL"]||'');
         const routeTerm2 = nLower(row["ENDPOINT 2 TERMINAL"]||'');
         let terminalOK = true;
         if(ep1TerminalVal && ep2TerminalVal){
-          // require both typed terminal strings to appear somewhere in the route's two terminal fields (order not important)
-          const need = [ep1TerminalVal, ep2TerminalVal];
-          terminalOK = need.every(req => (routeTerm1 && routeTerm1.includes(req)) || (routeTerm2 && routeTerm2.includes(req)));
+          terminalOK = [ep1TerminalVal, ep2TerminalVal].every(req => (routeTerm1.includes(req)) || (routeTerm2.includes(req)));
         } else if(ep1TerminalVal){
-          terminalOK = (routeTerm1 && routeTerm1.includes(ep1TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep1TerminalVal));
+          terminalOK = routeTerm1.includes(ep1TerminalVal) || routeTerm2.includes(ep1TerminalVal);
         } else if(ep2TerminalVal){
-          terminalOK = (routeTerm1 && routeTerm1.includes(ep2TerminalVal)) || (routeTerm2 && routeTerm2.includes(ep2TerminalVal));
+          terminalOK = routeTerm1.includes(ep2TerminalVal) || routeTerm2.includes(ep2TerminalVal);
         }
 
-        const endpointsOK = ep1regionOK && ep1provinceOK && ep1lguOK && ep1barangayOK && ep2regionOK && ep2provinceOK && ep2lguOK && ep2barangayOK && terminalOK;
-
-        if(matchRoute && endpointsOK){
-          rt.layerGroup.addTo(map);
-          visibleLayers.push(rt.layerGroup);
+        // D. IF it passes filters, RUN drawRoute(row) which checks the Outbound/Both radio button
+        if(matchRoute && ep1OK && ep2OK && terminalOK){
+          const rt = drawRoute(row); 
+          if(rt) {
+            routes.push(rt);
+            visibleLayers.push(rt.layerGroup);
+          }
         }
       }
 
-      // Update terminal visibility (filter terminals by endpoint terminal names)
-      updateTerminalVisibility(document.getElementById('ep1Terminal').value, document.getElementById('ep2Terminal').value);
+      // Update terminal icons based on text search
+      updateTerminalVisibility(ep1TerminalVal, ep2TerminalVal);
 
-      // Fit bounds to visible features (routes + visible terminals)
+      // E. Fit Map to whatever is left
       const routeLayers = visibleLayers.flatMap(g => g.getLayers());
-      const visibleTerminalMarkers = terminalMarkers.filter(t => map.hasLayer(t.marker)).map(t=>t.marker);
-      const allFeatures = [...routeLayers, ...visibleTerminalMarkers];
+      const visibleT = terminalMarkers.filter(t => map.hasLayer(t.marker)).map(t=>t.marker);
+      const allFeatures = [...routeLayers, ...visibleT];
       if(allFeatures.length){
-        try{
-          const fg = L.featureGroup(allFeatures);
-          map.fitBounds(fg.getBounds(),{padding:[40,40]});
-        }catch(e){}
+        try { map.fitBounds(L.featureGroup(allFeatures).getBounds(),{padding:[40,40]}); } catch(e){}
       }
     }
 
-    function resetFilters(){
+function resetFilters(){
       // 1. Clear text inputs and chips
       selectedRouteNames=[]; 
       renderChips();
       document.querySelectorAll('.search-container input').forEach(i=>i.value='');
 
       // 2. Reset the Toggle Buttons to default
-      document.querySelector('input[name="pathView"][value="both"]').checked = true;
+      const bothRadio = document.querySelector('input[name="pathView"][value="both"]');
+      if(bothRadio) bothRadio.checked = true;
       document.getElementById('showTerminals').checked = true;
 
-      // 3. Clear Map
-      clearSelectionAndPopups();
-      clearMapLayers();
-
-      // 4. Re-draw everything (Both ways + Terminals)
-      routes.forEach(rt => { 
-        rt.layerGroup.addTo(map); 
-        visibleLayers.push(rt.layerGroup); 
-      });
+      // 3. Re-run applyFilters to rebuild the whole map from scratch
+      applyFilters();
       
-      // Ensure terminal layer is back on
+      // 4. Ensure terminal layer is back on
       if(!map.hasLayer(terminalLayerGroup)) {
         map.addLayer(terminalLayerGroup);
-      }
-      
-      terminalMarkers.forEach(t => { 
-        if(!map.hasLayer(t.marker)) t.marker.addTo(map); 
-      });
-
-      // 5. Zoom out to show the whole map
-      if(visibleLayers.length){
-        const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
-        try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
       }
     }
 
