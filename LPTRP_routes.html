@@ -612,20 +612,28 @@ function applyFilters(){
       const ep2BarangayVal=nLower(document.getElementById('ep2Barangay').value);
       const ep2TerminalVal=nLower(document.getElementById('ep2Terminal').value);
 
-      // A. Clear selection and REMOVE existing route layers from the map
+      // 1. Clear Map
       clearSelectionAndPopups();
-      routes.forEach(rt => map.removeLayer(rt.layerGroup));
+      routes.forEach(rt => { if(map.hasLayer(rt.layerGroup)) map.removeLayer(rt.layerGroup); });
       
-      // B. Reset our internal lists so we can rebuild them fresh
       routes = []; 
       visibleLayers = [];
 
-      // C. Re-check every row in your data
+      // 2. This is the "Loop through allData" part
       for(const row of allData){
-        const rn = nLower(row["ROUTE NAME"]||'');
         
-        // Filter logic
+        // --- SAFETY & STATUS FILTERS ---
+        // Skip if GEO PATH 1-1 is empty
+        if(!row["GEO PATH 1-1"] || row["GEO PATH 1-1"].trim() === "") continue;
+        
+        // Skip if STATUS is "Superseded"
+        const statusVal = nLower(row["STATUS"] || row["Status"] || '');
+        if(statusVal === "superseded") continue;
+        // -------------------------------
+
+        const rn = nLower(row["ROUTE NAME"]||'');
         const matchRoute = rSelected.length===0 || rSelected.includes(rn);
+        
         const ep1OK = (!ep1RegionVal || nLower(row["ENDPOINT 1 REGION"]||'').includes(ep1RegionVal)) &&
                       (!ep1ProvinceVal || nLower(row["ENDPOINT 1 PROVINCE"]||'').includes(ep1ProvinceVal)) &&
                       (!ep1LGUVal || nLower(row["ENDPOINT 1 LGU"]||'').includes(ep1LGUVal)) &&
@@ -647,7 +655,7 @@ function applyFilters(){
           terminalOK = routeTerm1.includes(ep2TerminalVal) || routeTerm2.includes(ep2TerminalVal);
         }
 
-        // D. IF it passes filters, RUN drawRoute(row) which checks the Outbound/Both radio button
+        // 3. Re-draw valid routes
         if(matchRoute && ep1OK && ep2OK && terminalOK){
           const rt = drawRoute(row); 
           if(rt) {
@@ -657,10 +665,9 @@ function applyFilters(){
         }
       }
 
-      // Update terminal icons based on text search
       updateTerminalVisibility(ep1TerminalVal, ep2TerminalVal);
 
-      // E. Fit Map to whatever is left
+      // 4. Fit bounds to results
       const routeLayers = visibleLayers.flatMap(g => g.getLayers());
       const visibleT = terminalMarkers.filter(t => map.hasLayer(t.marker)).map(t=>t.marker);
       const allFeatures = [...routeLayers, ...visibleT];
