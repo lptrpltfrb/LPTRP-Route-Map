@@ -46,6 +46,18 @@
       border-color:#2f78a0;
       box-shadow:0 0 4px rgba(47,120,160,0.4);
     }
+    .hidden { display: none !important; }
+    .search-mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
+    .mode-btn { 
+      flex: 1; padding: 8px; border: 1px solid #2f78a0; 
+      background: #fff; color: #2f78a0; cursor: pointer; border-radius: 4px;
+      font-weight: bold;
+    }
+    .mode-btn.active { background: #2f78a0; color: #fff; }
+    .toggle-container { 
+      background: #f9f9f9; padding: 10px; border-radius: 6px; 
+      margin-top: 10px; border: 1px solid #ddd; 
+    }
 
     .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:34px; padding:6px; border:1px solid #ddd; border-radius:4px; background:#fff; }
     .chip { background:#2f78a0; color:#fff; padding:4px 8px; border-radius:14px; display:inline-flex; gap:6px; align-items:center; font-size:12px; }
@@ -152,44 +164,68 @@
   <div class="north-arrow" title="North"></div>
 
   <div class="search-container" id="searchPanel">
-    <div class="search-section">
+    
+    <div class="search-mode-selector">
+      <button class="mode-btn active" id="btnModeRoute" onclick="setSearchMode('route')">By Route Name</button>
+      <button class="mode-btn" id="btnModeEndpoint" onclick="setSearchMode('endpoint')">By Endpoints</button>
+    </div>
+
+    <div id="sectionRouteSearch" class="search-section">
       <h4>Search by Route Name</h4>
       <div class="chips" id="routeChips"></div>
       <div class="suggestions" style="margin-top:8px;">
-        <input id="routeInput" type="text" placeholder="Type route name (suggests as you type)" class="small-input" autocomplete="off" />
+        <input id="routeInput" type="text" placeholder="Type route name..." class="small-input" autocomplete="off" />
         <div class="suggestions-list" id="routeSuggestions"></div>
       </div>
     </div>
 
-    <div class="search-section">
+    <div id="sectionEndpointSearch" class="search-section hidden">
       <h4>Search by Endpoints</h4>
-      <!-- Endpoint 1 -->
-      <label>Endpoint 1 Region</label>
+      
+      <div style="background: #f0f4f7; padding: 5px; border-radius: 4px; margin-bottom: 5px;"><strong>Endpoint 1</strong></div>
+      <label>Region</label>
       <div class="suggestions"><input id="ep1Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep1RegionSuggestions"></div></div>
-      <label>Endpoint 1 Province</label>
+      <label>Province</label>
       <div class="suggestions"><input id="ep1Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep1ProvinceSuggestions"></div></div>
-      <label>Endpoint 1 LGU</label>
+      <label>LGU</label>
       <div class="suggestions"><input id="ep1LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep1LGUSuggestions"></div></div>
-      <label>Endpoint 1 Barangay</label>
+      <label>Barangay</label>
       <div class="suggestions"><input id="ep1Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep1BarangaySuggestions"></div></div>
-      <label>Endpoint 1 Terminal</label>
+      <label>Terminal</label>
       <div class="suggestions"><input id="ep1Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep1TerminalSuggestions"></div></div>
+      
       <hr>
-      <!-- Endpoint 2 -->
-      <label>Endpoint 2 Region</label>
+
+      <div style="background: #f0f4f7; padding: 5px; border-radius: 4px; margin-bottom: 5px;"><strong>Endpoint 2</strong></div>
+      <label>Region</label>
       <div class="suggestions"><input id="ep2Region" type="text" class="small-input" placeholder="Type region..." autocomplete="off" /><div class="suggestions-list" id="ep2RegionSuggestions"></div></div>
-      <label>Endpoint 2 Province</label>
+      <label>Province</label>
       <div class="suggestions"><input id="ep2Province" type="text" class="small-input" placeholder="Type province..." autocomplete="off" /><div class="suggestions-list" id="ep2ProvinceSuggestions"></div></div>
-      <label>Endpoint 2 LGU</label>
+      <label>LGU</label>
       <div class="suggestions"><input id="ep2LGU" type="text" class="small-input" placeholder="Type LGU..." autocomplete="off" /><div class="suggestions-list" id="ep2LGUSuggestions"></div></div>
-      <label>Endpoint 2 Barangay</label>
+      <label>Barangay</label>
       <div class="suggestions"><input id="ep2Barangay" type="text" class="small-input" placeholder="Type barangay..." autocomplete="off" /><div class="suggestions-list" id="ep2BarangaySuggestions"></div></div>
-      <label>Endpoint 2 Terminal</label>
+      <label>Terminal</label>
       <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
+    </div>
+
+    <div class="toggle-container">
+      <div style="margin-bottom: 5px;"><strong>Map Display Settings:</strong></div>
+      <label style="cursor:pointer; display:block; margin-bottom:4px;">
+        <input type="radio" name="pathView" value="both" checked onchange="applyFilters()"> Show Both Ways (Loop)
+      </label>
+      <label style="cursor:pointer; display:block; margin-bottom:8px;">
+        <input type="radio" name="pathView" value="outbound" onchange="applyFilters()"> Outbound Path Only
+      </label>
+      <hr>
+      <label style="cursor:pointer; font-weight:bold;">
+        <input type="checkbox" id="showTerminals" checked onchange="toggleTerminals()"> Show Terminals (Icons)
+      </label>
     </div>
 
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
+
   </div>
 
   <!-- Scripts -->
@@ -395,63 +431,54 @@
 // -----------------------
     // UPDATED GEO PATH JOINER (FOR LONG ROUTES)
     // -----------------------
-    function drawRoute(row){
-      // 1. COMBINE "GOING" PATH (Parts 1-1 through 1-8)
+function drawRoute(row){
+      // 1. Combine strings for Outbound (1-x) and Returning (2-x)
       let fullPath1 = "";
-      for(let i=1; i<=8; i++) {
-        let columnName = "GEO PATH 1-" + i;
-        fullPath1 += (row[columnName] || "");
-      }
-
-      // 2. COMBINE "RETURNING" PATH (Parts 2-1 through 2-8)
       let fullPath2 = "";
       for(let i=1; i<=8; i++) {
-        let columnName = "GEO PATH 2-" + i;
-        fullPath2 += (row[columnName] || "");
+        fullPath1 += (row["GEO PATH 1-" + i] || "");
+        fullPath2 += (row["GEO PATH 2-" + i] || "");
       }
 
-      // Turn the long text strings into actual map coordinates
       const segs1 = tryParseGeoPath(fullPath1);
       const segs2 = tryParseGeoPath(fullPath2);
 
-      // If both directions are empty, skip this row
+      // If no coordinates at all, skip
       if((!segs1 || !segs1.length) && (!segs2 || !segs2.length)) return null;
 
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
 
-      // Helper to draw the lines on the map
+      // --- SMART TOGGLE LOGIC ---
+      // This checks which button is selected in your new HTML panel
+      const viewMode = document.querySelector('input[name="pathView"]:checked').value;
+
       const addSegments = (segs) => {
         if(!segs) return;
         for(const seg of segs){
-          // We use weight: 2 to keep lines thin and clean
-          const poly = L.polyline(seg, { 
-            color: baseColor, 
-            weight: 2, 
-            opacity: 0.95 
-          });
-          poly.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            handlePointClick(ev.latlng);
-          });
+          const poly = L.polyline(seg, { color: baseColor, weight: 2, opacity: 0.95 });
+          poly.on('click', (ev) => { L.DomEvent.stopPropagation(ev); handlePointClick(ev.latlng); });
           poly.addTo(group);
         }
       };
 
-      // Draw both the "Going" and "Returning" lines
-      addSegments(segs1);
-      addSegments(segs2);
+      // Always draw Outbound (GEO PATH 1-x)
+      if(segs1) addSegments(segs1);
+
+      // ONLY draw Return (GEO PATH 2-x) if the user chose "Both"
+      if(viewMode === 'both' && segs2) {
+        addSegments(segs2);
+      }
 
       group.addTo(map);
       const id = routeName || normalize(row["DENO"]||'');
       
-      // Combine the coordinates so the "Search" can find the whole route
-      let combinedSegs = (segs1 || []).concat(segs2 || []);
+      // We combine the coordinates so the "Hover" and "Search" still know where the route is
+      let combinedSegs = (segs1 || []).concat((viewMode === 'both' ? segs2 : []) || []);
       
       return { row, segs: combinedSegs, layerGroup: group, baseColor, id };
-    }
-    function clearMapLayers(){
+    }    function clearMapLayers(){
       routes.forEach(rt => {
         try{ map.removeLayer(rt.layerGroup); }catch(e){}
       });
@@ -631,13 +658,35 @@
     }
 
     function resetFilters(){
-      selectedRouteNames=[]; renderChips();
+      // 1. Clear text inputs and chips
+      selectedRouteNames=[]; 
+      renderChips();
       document.querySelectorAll('.search-container input').forEach(i=>i.value='');
+
+      // 2. Reset the Toggle Buttons to default
+      document.querySelector('input[name="pathView"][value="both"]').checked = true;
+      document.getElementById('showTerminals').checked = true;
+
+      // 3. Clear Map
       clearSelectionAndPopups();
       clearMapLayers();
-      routes.forEach(rt => { rt.layerGroup.addTo(map); visibleLayers.push(rt.layerGroup); });
-      // show all terminals
-      terminalMarkers.forEach(t => { if(!map.hasLayer(t.marker)) t.marker.addTo(map); });
+
+      // 4. Re-draw everything (Both ways + Terminals)
+      routes.forEach(rt => { 
+        rt.layerGroup.addTo(map); 
+        visibleLayers.push(rt.layerGroup); 
+      });
+      
+      // Ensure terminal layer is back on
+      if(!map.hasLayer(terminalLayerGroup)) {
+        map.addLayer(terminalLayerGroup);
+      }
+      
+      terminalMarkers.forEach(t => { 
+        if(!map.hasLayer(t.marker)) t.marker.addTo(map); 
+      });
+
+      // 5. Zoom out to show the whole map
       if(visibleLayers.length){
         const fg = L.featureGroup(visibleLayers.flatMap(g => g.getLayers()).concat(terminalMarkers.map(t=>t.marker)));
         try{ map.fitBounds(fg.getBounds(),{padding:[40,40]}); }catch(e){}
@@ -809,7 +858,10 @@
         allData = routesParsed;
 
         // build suggestions (endpoints suggest from BOTH endpoint 1 & 2)
-        suggestions.routeNames = uniqueSorted(allData.map(r => r["ROUTE NAME"]));
+        // Only suggest routes that actually have coordinate data in GEO PATH 1-1
+suggestions.routeNames = uniqueSorted(
+  allData.filter(r => r["GEO PATH 1-1"] && r["GEO PATH 1-1"].trim() !== "").map(r => r["ROUTE NAME"])
+);
         // endpoints from route sheet
         const epRegionFromRoutes   = allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]);
         const epProvinceFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]);
@@ -867,6 +919,28 @@
         }
       })
       .catch(err => { console.error('Failed to load CSVs:', err); });
+
+// This handles switching between "By Route" and "By Endpoint" tabs
+    function setSearchMode(mode) {
+      document.getElementById('sectionRouteSearch').classList.toggle('hidden', mode !== 'route');
+      document.getElementById('sectionEndpointSearch').classList.toggle('hidden', mode !== 'endpoint');
+      
+      document.getElementById('btnModeRoute').classList.toggle('active', mode === 'route');
+      document.getElementById('btnModeEndpoint').classList.toggle('active', mode === 'endpoint');
+      
+      // Reset filters so searches don't "bleed" into each other
+      resetFilters(); 
+    }
+
+    // This turns the Terminal Icons on and off
+    function toggleTerminals() {
+      const show = document.getElementById('showTerminals').checked;
+      if (show) { 
+        if (!map.hasLayer(terminalLayerGroup)) map.addLayer(terminalLayerGroup); 
+      } else { 
+        if (map.hasLayer(terminalLayerGroup)) map.removeLayer(terminalLayerGroup); 
+      }
+    }
 
   </script>
 </body>
