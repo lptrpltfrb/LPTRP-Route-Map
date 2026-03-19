@@ -431,33 +431,34 @@
     // UPDATED GEO PATH JOINER (FOR LONG ROUTES)
     // -----------------------
 function drawRoute(row){
-      // 1. Get the current toggle setting from the UI
+      // 1. Check which display mode is selected in the search panel
       const viewMode = document.querySelector('input[name="pathView"]:checked').value;
 
-      // 2. Combine strings for Outbound (1-x)
-      let fullPath1 = "";
+      // 2. ALWAYS combine strings for Outbound (GEO PATH 1-1 to 1-8)
+      let outboundPath = "";
       for(let i=1; i<=8; i++) {
-        fullPath1 += (row["GEO PATH 1-" + i] || "");
+        outboundPath += (row["GEO PATH 1-" + i] || "");
       }
-      const segs1 = tryParseGeoPath(fullPath1);
+      const outboundSegs = tryParseGeoPath(outboundPath);
 
-      // 3. Combine strings for Returning (2-x) ONLY if "both" is selected
-      let fullPath2 = "";
-      let segs2 = null;
+      // 3. ONLY combine strings for Return (GEO PATH 2-1 to 2-8) if mode is "both"
+      let returnSegs = null;
       if (viewMode === 'both') {
+        let returnPath = "";
         for(let i=1; i<=8; i++) {
-          fullPath2 += (row["GEO PATH 2-" + i] || "");
+          returnPath += (row["GEO PATH 2-" + i] || "");
         }
-        segs2 = tryParseGeoPath(fullPath2);
+        returnSegs = tryParseGeoPath(returnPath);
       }
 
-      // If no valid coordinates found for the selected mode, skip
-      if(!segs1 || !segs1.length) return null;
+      // If there are no outbound coordinates, we can't draw the route
+      if(!outboundSegs || !outboundSegs.length) return null;
 
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
 
+      // Helper function to draw the lines
       const addSegments = (segs) => {
         if(!segs) return;
         for(const seg of segs){
@@ -474,21 +475,26 @@ function drawRoute(row){
         }
       };
 
-      // Always draw Outbound
-      addSegments(segs1);
+      // DRAWING LOGIC:
+      // Always draw Outbound (1-1 to 1-8)
+      addSegments(outboundSegs);
 
-      // Draw Return ONLY if the user specifically asked for "both"
-      if(viewMode === 'both' && segs2) {
-        addSegments(segs2);
+      // ONLY draw Return (2-1 to 2-8) if "both" is selected
+      if(viewMode === 'both' && returnSegs) {
+        addSegments(returnSegs);
       }
 
       group.addTo(map);
       const id = routeName || normalize(row["DENO"]||'');
       
-      // Update the coordinates linked to this route so popups appear in the right spot
-      let combinedSegs = (segs1 || []).concat((viewMode === 'both' ? segs2 : []) || []);
+      // We store the segments for searching/clicking. 
+      // If mode is outbound, we ONLY store outbound segments.
+      let finalSegs = outboundSegs;
+      if(viewMode === 'both' && returnSegs) {
+        finalSegs = outboundSegs.concat(returnSegs);
+      }
       
-      return { row, segs: combinedSegs, layerGroup: group, baseColor, id };
+      return { row, segs: finalSegs, layerGroup: group, baseColor, id };
     }
 
     // -----------------------
