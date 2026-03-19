@@ -392,65 +392,27 @@
       }
     }
 
-// -----------------------
-    // UPDATED GEO PATH JOINER (FOR LONG ROUTES)
-    // -----------------------
     function drawRoute(row){
-      // 1. COMBINE "GOING" PATH (Parts 1-1 through 1-8)
-      let fullPath1 = "";
-      for(let i=1; i<=8; i++) {
-        let columnName = "GEO PATH 1-" + i;
-        fullPath1 += (row[columnName] || "");
-      }
-
-      // 2. COMBINE "RETURNING" PATH (Parts 2-1 through 2-8)
-      let fullPath2 = "";
-      for(let i=1; i<=8; i++) {
-        let columnName = "GEO PATH 2-" + i;
-        fullPath2 += (row[columnName] || "");
-      }
-
-      // Turn the long text strings into actual map coordinates
-      const segs1 = tryParseGeoPath(fullPath1);
-      const segs2 = tryParseGeoPath(fullPath2);
-
-      // If both directions are empty, skip this row
-      if((!segs1 || !segs1.length) && (!segs2 || !segs2.length)) return null;
-
+      const segs = tryParseGeoPath(row["GEO PATH 1-1"]);
+      if(!segs || !segs.length) return null;
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
-
-      // Helper to draw the lines on the map
-      const addSegments = (segs) => {
-        if(!segs) return;
-        for(const seg of segs){
-          // We use weight: 2 to keep lines thin and clean
-          const poly = L.polyline(seg, { 
-            color: baseColor, 
-            weight: 2, 
-            opacity: 0.95 
-          });
-          poly.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            handlePointClick(ev.latlng);
-          });
-          poly.addTo(group);
-        }
-      };
-
-      // Draw both the "Going" and "Returning" lines
-      addSegments(segs1);
-      addSegments(segs2);
-
+      for(const seg of segs){
+        // thinner lines: weight 2
+        const poly = L.polyline(seg, { color: baseColor, weight: 2, opacity: 0.95 });
+        // click on segment should show list for that clicked point (not immediately select top route)
+        poly.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          handlePointClick(ev.latlng);
+        });
+        poly.addTo(group);
+      }
       group.addTo(map);
       const id = routeName || normalize(row["DENO"]||'');
-      
-      // Combine the coordinates so the "Search" can find the whole route
-      let combinedSegs = (segs1 || []).concat(segs2 || []);
-      
-      return { row, segs: combinedSegs, layerGroup: group, baseColor, id };
+      return { row, segs, layerGroup: group, baseColor, id };
     }
+
     function clearMapLayers(){
       routes.forEach(rt => {
         try{ map.removeLayer(rt.layerGroup); }catch(e){}
@@ -871,3 +833,4 @@
   </script>
 </body>
 </html>
+
