@@ -245,14 +245,43 @@
     // Train routes CSV
     const trainCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=168170160&single=true&output=csv";
 
-   // Train layer and stations
-   let trainLayerGroup = L.layerGroup().addTo(map);
-   let trainStations = [];
 
 function drawTrainRoutes(data){
     trainLayerGroup.clearLayers();
     trainStations = [];
-    // ...your polyline and marker code...
+
+    data.forEach(row => {
+        const segs = tryParseGeoPath(row["GEO PATH"]);
+        if(!segs || !segs.length) return;
+
+        segs.forEach(seg => {
+            L.polyline(seg, {
+                color: "#555",
+                weight: 4,
+                dashArray: "8,6",
+                opacity: 0.9
+            }).addTo(trainLayerGroup);
+        });
+
+        const lat = parseFloat(row["LATITUDE"]);
+        const lng = parseFloat(row["LONGITUDE"]);
+        const name = normalize(row["STATION"] || row["Station"]);
+
+        if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
+            const icon = L.divIcon({
+                html: '🚉',
+                className: '',
+                iconSize: [24,24],
+                iconAnchor: [12,12]
+            });
+
+            const marker = L.marker([lat,lng], { icon: icon })
+                .bindPopup(`<b>${name}</b>`);
+
+            marker.addTo(trainLayerGroup);
+            trainStations.push(marker);
+        }
+    });
 }
 
     // Toggle display of train routes
@@ -343,6 +372,10 @@ function toggleTrains(){
     const map = L.map('map', { preferCanvas:true }).setView([13,122],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
+
+   // Train layer and stations
+   let trainLayerGroup = L.layerGroup().addTo(map);
+   let trainStations = [];
 
     let allData = [];
     let routes = []; // { row, segs, layerGroup, baseColor, id }
@@ -876,14 +909,29 @@ function resetFilters(){
     const suggestions = { routeNames:[], epRegion:[], epProvince:[], epLGU:[], epBarangay:[], epTerminal:[] };
 
     // fetch routes + terminals in parallel, then parse and draw
-    Promise.all([fetch(csvUrl).then(r=>r.text()), fetch(terminalCsvUrl).then(r=>r.text())])
-      .then(([routesCsvText, terminalsCsvText])=>{
-        // parse using PapaParse (synchronous parse of string)
-        const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
-        const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+Promise.all([
+  fetch(csvUrl).then(r=>r.text()),
+  fetch(terminalCsvUrl).then(r=>r.text())
+])
+.then(([routesCsvText, terminalsCsvText])=>{
 
+  const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
+  const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+
+  // ✅ MOVE TRAIN PARSE HERE (best practice)
+  Papa.parse(trainCsvUrl, {
+      download: true,
+      header: true,
+      complete: function(results){
+          drawTrainRoutes(results.data);
+      }
   });
 
+  allData = routesParsed;
+
+  // (KEEP EVERYTHING BELOW EXACTLY HERE — suggestions, autocomplete, drawRoute, drawTerminals, etc.)
+
+});
 // -----------------------
 // TRAIN ROUTES CSV
 // -----------------------
