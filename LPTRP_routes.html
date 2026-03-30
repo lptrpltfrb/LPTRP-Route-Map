@@ -209,7 +209,7 @@
       <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
-    <div class="toggle-container">
+      <div class="toggle-container">
       <div style="margin-bottom: 5px;"><strong>Map Display Settings:</strong></div>
       <label style="cursor:pointer; display:block; margin-bottom:4px;">
         <input type="radio" name="pathView" value="outbound" onchange="applyFilters()"> Outbound Direction
@@ -221,7 +221,10 @@
       <label style="cursor:pointer; font-weight:bold;">
         <input type="checkbox" id="showTerminals" checked onchange="toggleTerminals()"> Show Terminals (Icons)
       </label>
-    </div>
+      <label style="cursor:pointer; font-weight:bold;">
+        <input type="checkbox" id="showTrains" checked onchange="toggleTrains()"> Show Train Routes
+      </label>
+</div>    
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
 
@@ -239,6 +242,26 @@
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1233383270&single=true&output=csv";
     // Terminals CSV (Terminal tab)
     const terminalCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1448318988&single=true&output=csv";
+    // Train routes CSV
+    const trainCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=168170160&single=true&output=csv";
+
+   // Train layer and stations
+   let trainLayerGroup = L.layerGroup().addTo(map);
+   let trainStations = [];
+
+function drawTrainRoutes(data){
+    trainLayerGroup.clearLayers();
+    trainStations = [];
+    // ...your polyline and marker code...
+}
+
+    // Toggle display of train routes
+function toggleTrains(){
+    const show = document.getElementById("showTrains").checked;
+    if(show) map.addLayer(trainLayerGroup);
+    else map.removeLayer(trainLayerGroup);
+}
+
 
     // Palette (route coloring)
     const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
@@ -592,6 +615,7 @@ function drawRoute(row){
       }
     }
 
+
     // -----------------------
     // FILTERS
     // -----------------------
@@ -857,6 +881,19 @@ function resetFilters(){
         // parse using PapaParse (synchronous parse of string)
         const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
         const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+
+  });
+
+// -----------------------
+// TRAIN ROUTES CSV
+// -----------------------
+Papa.parse(trainCsvUrl, {
+    download: true,
+    header: true,
+    complete: function(results){
+        drawTrainRoutes(results.data);
+    }
+});
 
         allData = routesParsed;
 
