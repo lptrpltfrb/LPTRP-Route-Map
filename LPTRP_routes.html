@@ -252,15 +252,27 @@ function drawTrainRoutes(data){
 
     data.forEach(row => {
         const segs = tryParseGeoPath(row["GEO PATH"]);
+        trainRoutes.push({
+    segs: segs
+});
         if(!segs || !segs.length) return;
 
         segs.forEach(seg => {
-            L.polyline(seg, {
-                color: "#555",
-                weight: 4,
-                dashArray: "8,6",
-                opacity: 0.9
-            }).addTo(trainLayerGroup);
+            // base rail (dark)
+L.polyline(seg, {
+    color: "#222",
+    weight: 6,
+    opacity: 1
+}).addTo(trainLayerGroup);
+
+// sleepers effect (light dashed overlay)
+L.polyline(seg, {
+    color: "#bbb",
+    weight: 2,
+    dashArray: "2,10",
+    opacity: 1
+}).addTo(trainLayerGroup);
+
         });
 
         const lat = parseFloat(row["LATITUDE"]);
@@ -269,12 +281,21 @@ function drawTrainRoutes(data){
 
         if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
             const icon = L.divIcon({
-                html: '🚉',
-                className: '',
-                iconSize: [24,24],
-                iconAnchor: [12,12]
-            });
-
+                const icon = L.divIcon({
+    className: '',
+    html: `
+        <div style="
+            width:18px;
+            height:18px;
+            background:#fff;
+            border:3px solid #000;
+            border-radius:50%;
+            box-shadow:0 0 3px rgba(0,0,0,0.5);
+        "></div>
+    `,
+    iconSize: [18,18],
+    iconAnchor: [9,9]
+});
             const marker = L.marker([lat,lng], { icon: icon })
                 .bindPopup(`<b>${name}</b>`);
 
@@ -381,6 +402,7 @@ function toggleTrains(){
     let routes = []; // { row, segs, layerGroup, baseColor, id }
     let visibleLayers = [];
     let selectedRoute = null;
+    let trainRoutes = []; // for hover detection
 
     // Terminals
     let terminals = []; // { row, marker }
@@ -757,6 +779,27 @@ function resetFilters(){
     // HOVER / OVERLAP
     // -----------------------
     function routesAtPoint(latlng, pxTol=6){
+    function trainAtPoint(latlng, pxTol=6){
+    const P = map.latLngToLayerPoint(latlng);
+    let near = false;
+
+    for(const tr of trainRoutes){
+        for(const seg of tr.segs){
+            for(let i=1;i<seg.length;i++){
+                const A = map.latLngToLayerPoint(seg[i-1]);
+                const B = map.latLngToLayerPoint(seg[i]);
+                const d = distPointToSeg(P,A,B);
+                if(d <= pxTol){
+                    near = true;
+                    break;
+                }
+            }
+            if(near) break;
+        }
+        if(near) break;
+    }
+    return near;
+}
       const P = map.latLngToLayerPoint(latlng);
       const found = [];
       for(const rt of routes){
@@ -811,22 +854,41 @@ function resetFilters(){
       }
     }
 
-    map.on('mousemove', (e)=>{
-      const near = routesAtPoint(e.latlng, 6);
-      if(near.length){
-        setHoverHighlights(near);
-        hoverPopup.setLatLng(e.latlng).setContent(String(near.length));
+map.on('mousemove', (e)=>{
+    const nearRoutes = routesAtPoint(e.latlng, 6);
+    const nearTrain = trainAtPoint(e.latlng, 6);
+
+    // Highlight normal routes
+    if(nearRoutes.length){
+        setHoverHighlights(nearRoutes);
+        hoverPopup.setLatLng(e.latlng).setContent(String(nearRoutes.length));
         if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
-      } else {
+    } else {
         if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup);
         for(const rt of routes){
-          if(!selectedRoute || rt !== selectedRoute){
-            rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 }));
-          }
+            if(!selectedRoute || rt !== selectedRoute){
+                rt.layerGroup.getLayers().forEach(poly => 
+                    poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 })
+                );
+            }
         }
-      }
-    });
+    }
 
+    // Highlight train routes (simple glow effect)
+    if(nearTrain){
+        trainLayerGroup.eachLayer(layer=>{
+            if(layer instanceof L.Polyline){
+                layer.setStyle({ color: "#00ffff", weight: 6 });
+            }
+        });
+    } else {
+        trainLayerGroup.eachLayer(layer=>{
+            if(layer instanceof L.Polyline){
+                layer.setStyle({ color: "#222", weight: 6 });
+            }
+        });
+    }
+});
     // Shared handler for clicks (polyline click and map click)
     function handlePointClick(latlng){
       const near = routesAtPoint(latlng, 6);
