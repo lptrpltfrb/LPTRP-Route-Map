@@ -252,16 +252,80 @@ function drawTrainRoutes(data){
     trainStations = [];
     trainRoutes = [];
 
-    data.forEach(row => {
+data.forEach(row => {
+
+    const type = nLower(row["TYPE"]);
+
+    // -------------------------
+    // DRAW TRAIN LINE
+    // -------------------------
+    if(type === "line"){
 
         const segs = tryParseGeoPath(row["GEO PATH"]);
 
+        if(!segs || !segs.length) return;
+
         const trainObj = {
-            name: normalize(row["LINE"] || row["ROUTE NAME"] || "Train Line"),
+            name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line"),
             segs: segs,
             layers: []
         };
 
+        trainRoutes.push(trainObj);
+
+        segs.forEach(seg => {
+
+            const base = L.polyline(seg, {
+                color: "#222",
+                weight: 6,
+                opacity: 1
+            }).addTo(trainLayerGroup);
+
+            const sleeper = L.polyline(seg, {
+                color: "#bbb",
+                weight: 2,
+                dashArray: "2,10",
+                opacity: 1
+            }).addTo(trainLayerGroup);
+
+            trainObj.layers.push(base, sleeper);
+        });
+    }
+
+    // -------------------------
+    // DRAW STATIONS
+    // -------------------------
+    if(type === "station"){
+
+        const lat = parseFloat(row["LAT"] || row["LATITUDE"]);
+        const lng = parseFloat(row["LNG"] || row["LONGITUDE"]);
+        const name = normalize(row["STATION NAME"] || row["STATION"]);
+
+        if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
+
+            const icon = L.divIcon({
+                className: '',
+                html: `<div style="
+                        width:16px;
+                        height:16px;
+                        background:#007bff;
+                        border:2px solid #fff;
+                        border-radius:50%;
+                        box-shadow:0 0 3px rgba(0,0,0,0.5);
+                       "></div>`,
+                iconSize: [16,16],
+                iconAnchor: [8,8]
+            });
+
+            const marker = L.marker([lat,lng], { icon })
+                .bindPopup(`<b>${name}</b>`);
+
+            marker.addTo(trainLayerGroup);
+            trainStations.push(marker);
+        }
+    }
+
+});
         trainRoutes.push(trainObj);
 
         if(!segs || !segs.length) return;
@@ -286,9 +350,9 @@ function drawTrainRoutes(data){
         });
 
         // station marker
-        const lat = parseFloat(row["LATITUDE"]);
-        const lng = parseFloat(row["LONGITUDE"]);
-        const name = normalize(row["STATION"] || row["Station"]);
+           const lat = parseFloat(row["LAT"] || row["LATITUDE"]);
+           const lng = parseFloat(row["LNG"] || row["LONGITUDE"]);
+           const name = normalize(row["STATION NAME"] || row["STATION"] || row["Station"]);;
 
         if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
 
@@ -418,6 +482,7 @@ function toggleTrains(){
     let routes = []; // { row, segs, layerGroup, baseColor, id }
     let visibleLayers = [];
     let selectedRoute = null;
+    let allData = [];
     let trainRoutes = []; // for hover detection
 
     // Terminals
@@ -858,6 +923,12 @@ function routesAtPoint(latlng, pxTol=6){
     }
 
     function clearSelectionAndPopups(){
+if(selectedTrain){
+  selectedTrain.layers.forEach(l=>{
+    l.setStyle({ color: "#222", weight: 6 });
+  });
+  selectedTrain = null;
+}
       if(selectedRoute){
         selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:2, opacity:0.95 }));
         selectedRoute = null;
@@ -912,32 +983,31 @@ function handlePointClick(latlng){
   // -------------------------------
   // TRAIN CLICK DETECTION
   // -------------------------------
-  const clickedTrain = trainRoutes.find(tr=>{
-    return tr.segs.some(seg=>{
-      for(let i=1;i<seg.length;i++){
-        const A = map.latLngToLayerPoint(seg[i-1]);
-        const B = map.latLngToLayerPoint(seg[i]);
-        const P = map.latLngToLayerPoint(latlng);
-        if(distPointToSeg(P,A,B) <= 6) return true;
-      }
-      return false;
-    });
+const clickedTrain = trainRoutes.find(tr=>{
+  return tr.segs && tr.segs.some(seg=>{
+    for(let i=1;i<seg.length;i++){
+      const A = map.latLngToLayerPoint(seg[i-1]);
+      const B = map.latLngToLayerPoint(seg[i]);
+      const P = map.latLngToLayerPoint(latlng);
+      if(distPointToSeg(P,A,B) <= 6) return true;
+    }
+    return false;
+  });
+});
+
+if(clickedTrain){
+  clearSelectionAndPopups();
+
+  selectedTrain = clickedTrain;
+
+  clickedTrain.layers.forEach(l=>{
+    l.setStyle({ color: "#00ffff", weight: 8 });
+    l.bringToFront();
   });
 
-  if(clickedTrain){
-    clearSelectionAndPopups();
-
-    // highlight train
-    clickedTrain.layers.forEach(l=>{
-      l.setStyle({ color: "#00ffff", weight: 8 });
-      l.bringToFront();
-    });
-
-    // show name (bottom right panel)
-    showRouteListPanel([clickedTrain.name]);
-
-    return; // stop here so it doesn't run bus logic
-  }
+  showRouteListPanel([clickedTrain.name]);
+  return;
+}
 
   // -------------------------------
   // BUS ROUTES (existing logic)
