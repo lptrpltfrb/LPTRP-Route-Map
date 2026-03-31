@@ -280,23 +280,22 @@ L.polyline(seg, {
         const name = normalize(row["STATION"] || row["Station"]);
 
         if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
-            const icon = L.divIcon({
-                const icon = L.divIcon({
-    className: '',
-    html: `
-        <div style="
-            width:18px;
-            height:18px;
-            background:#fff;
-            border:3px solid #000;
-            border-radius:50%;
-            box-shadow:0 0 3px rgba(0,0,0,0.5);
-        "></div>
-    `,
-    iconSize: [18,18],
-    iconAnchor: [9,9]
-});
-            const marker = L.marker([lat,lng], { icon: icon })
+           const icon = L.divIcon({
+               className: '',
+               html: `
+                   <div style="
+                      width:18px;
+                      height:18px;
+                      background:#fff;
+                      border:3px solid #000;
+                      border-radius:50%;
+                      box-shadow:0 0 3px rgba(0,0,0,0.5);
+                   "></div>
+                `,
+                iconSize: [18,18],
+                iconAnchor: [9,9]
+            });            
+const marker = L.marker([lat,lng], { icon: icon })
                 .bindPopup(`<b>${name}</b>`);
 
             marker.addTo(trainLayerGroup);
@@ -778,8 +777,7 @@ function resetFilters(){
     // -----------------------
     // HOVER / OVERLAP
     // -----------------------
-    function routesAtPoint(latlng, pxTol=6){
-    function trainAtPoint(latlng, pxTol=6){
+     function trainAtPoint(latlng, pxTol=6){
     const P = map.latLngToLayerPoint(latlng);
     let near = false;
 
@@ -800,6 +798,9 @@ function resetFilters(){
     }
     return near;
 }
+
+function routesAtPoint(latlng, pxTol=6){
+
       const P = map.latLngToLayerPoint(latlng);
       const found = [];
       for(const rt of routes){
