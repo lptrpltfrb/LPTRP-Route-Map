@@ -918,19 +918,9 @@ Promise.all([
   const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
   const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
 
-  // ✅ MOVE TRAIN PARSE HERE (best practice)
-Promise.all([
-  fetch(csvUrl).then(r=>r.text()),
-  fetch(terminalCsvUrl).then(r=>r.text())
-])
-.then(([routesCsvText, terminalsCsvText])=>{
-
-  const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
-  const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
-
   allData = routesParsed;
 
-  // ✅ Train parsing (ONLY ONCE)
+  // Load train routes
   Papa.parse(trainCsvUrl, {
     download: true,
     header: true,
@@ -939,26 +929,36 @@ Promise.all([
     }
   });
 
-  // ✅ EVERYTHING BELOW MUST STAY INSIDE THIS BLOCK
-
-  // suggestions
+  // Suggestions
   suggestions.routeNames = uniqueSorted(
     allData.filter(r => r["GEO PATH 1-1"] && r["GEO PATH 1-1"].trim() !== "")
            .map(r => r["ROUTE NAME"])
   );
 
-  // ... (ALL your autocomplete, filters, drawRoute loop, etc.)
+  const epRegionFromRoutes   = allData.flatMap(r => [r["ENDPOINT 1 REGION"], r["ENDPOINT 2 REGION"]]);
+  const epProvinceFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 PROVINCE"], r["ENDPOINT 2 PROVINCE"]]);
+  const epLGUFromRoutes      = allData.flatMap(r => [r["ENDPOINT 1 LGU"], r["ENDPOINT 2 LGU"]]);
+  const epBarangayFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 BARANGAY"], r["ENDPOINT 2 BARANGAY"]]);
+  const epTerminalFromRoutes = allData.flatMap(r => [r["ENDPOINT 1 TERMINAL"], r["ENDPOINT 2 TERMINAL"]]);
 
-  // draw routes
+  const terminalNamesFromSheet = terminalsParsed.map(t => t["TERMINAL"] || t["Terminal"] || t["terminal"]).filter(Boolean);
+
+  suggestions.epRegion   = uniqueSorted(epRegionFromRoutes);
+  suggestions.epProvince = uniqueSorted(epProvinceFromRoutes);
+  suggestions.epLGU      = uniqueSorted(epLGUFromRoutes);
+  suggestions.epBarangay = uniqueSorted(epBarangayFromRoutes);
+  suggestions.epTerminal = uniqueSorted([...epTerminalFromRoutes, ...terminalNamesFromSheet]);
+
+  // Draw routes
   for(const row of allData){
     const rt = drawRoute(row);
     if(rt){ routes.push(rt); visibleLayers.push(rt.layerGroup); }
   }
 
-  // draw terminals
+  // Draw terminals
   drawTerminals(terminalsParsed);
 
-  // fit bounds
+  // Fit bounds
   const initialFeatures = visibleLayers.flatMap(g => g.getLayers())
     .concat(terminalMarkers.map(t=>t.marker));
 
@@ -967,8 +967,7 @@ Promise.all([
   }
 
 })
-.catch(err => console.error('Failed to load CSVs:', err));
-  allData = routesParsed;
+.catch(err => console.error('Failed to load CSVs:', err));  allData = routesParsed;
 
   // (KEEP EVERYTHING BELOW EXACTLY HERE — suggestions, autocomplete, drawRoute, drawTerminals, etc.)
 
@@ -976,13 +975,6 @@ Promise.all([
 // -----------------------
 // TRAIN ROUTES CSV
 // -----------------------
-Papa.parse(trainCsvUrl, {
-    download: true,
-    header: true,
-    complete: function(results){
-        drawTrainRoutes(results.data);
-    }
-});
 
         allData = routesParsed;
 
