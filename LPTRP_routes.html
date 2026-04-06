@@ -284,28 +284,29 @@ function drawTrainRoutes(data){
 
             segs.forEach(seg => {
 
-const railBase = L.polyline(seg, {
-  color: "#000",
-  weight: 6,
-  opacity: 1
-}).addTo(trainLayerGroup);
+                const railBase = L.polyline(seg, {
+                    color: "#000",
+                    weight: 6,
+                    opacity: 1
+                }).addTo(trainLayerGroup);
 
-// sleepers (ties)
-const sleepers = L.polyline(seg, {
-  color: "#999",
-  weight: 3,
-  dashArray: "4,8",
-  opacity: 1
-}).addTo(trainLayerGroup);
+                const sleepers = L.polyline(seg, {
+                    color: "#999",
+                    weight: 3,
+                    dashArray: "4,8",
+                    opacity: 1
+                }).addTo(trainLayerGroup);
 
-// center highlight (optional, gives rail feel)
-const railHighlight = L.polyline(seg, {
-  color: "#fff",
-  weight: 1,
-  opacity: 0.7
-}).addTo(trainLayerGroup);
+                const railHighlight = L.polyline(seg, {
+                    color: "#fff",
+                    weight: 1,
+                    opacity: 0.7
+                }).addTo(trainLayerGroup);
 
-trainObj.layers.push(railBase, sleepers, railHighlight);
+                trainObj.layers.push(railBase, sleepers, railHighlight);
+            });
+        }
+
         // -------------------------
         // STATIONS
         // -------------------------
@@ -314,16 +315,14 @@ trainObj.layers.push(railBase, sleepers, railHighlight);
             const lat = parseFloat(row["LAT"]);
             const lng = parseFloat(row["LNG"]);
             const name = normalize(row["STATION NAME"]);
-const line = normalize(row["LINE"] || row["ROUTE NAME"] || "");
-
-const popupHtml = `
-  <div style="font-weight:700">${name}</div>
-  <div style="font-style:italic">(${line} Sta.)</div>
-`;
-
-marker.bindPopup(popupHtml);
+            const line = normalize(row["LINE"] || row["ROUTE NAME"] || "");
 
             if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
+
+                const popupHtml = `
+                  <div style="font-weight:700">${name}</div>
+                  <div style="font-style:italic">(${line} Sta.)</div>
+                `;
 
                 const marker = L.circleMarker([lat,lng], {
                     radius: 6,
@@ -331,7 +330,7 @@ marker.bindPopup(popupHtml);
                     fillColor: "#007bff",
                     fillOpacity: 1,
                     weight: 2
-                }).bindPopup(`<b>${name}</b>`);
+                }).bindPopup(popupHtml);
 
                 marker.addTo(trainLayerGroup);
                 trainStations.push(marker);
@@ -340,7 +339,6 @@ marker.bindPopup(popupHtml);
 
     });
 }
-
 // -----------------------
 // TOGGLE TRAIN LAYER
 // -----------------------
