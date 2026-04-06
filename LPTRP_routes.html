@@ -12,6 +12,15 @@
     html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
     #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
 
+.station-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #111;
+  white-space: nowrap;
+  transform: translate(6px, -6px);
+  pointer-events: none;
+}
+
     /* ----- Filter box (kept like your working layout) ----- */
     .search-container {
       position: absolute;
@@ -232,6 +241,7 @@
 
   <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
@@ -259,35 +269,58 @@ function drawTrainRoutes(data){
         // -------------------------
         // TRAIN LINE
         // -------------------------
-        if(type === "line"){
+if(type === "line"){
 
-            const segs = tryParseGeoPath(row["GEO PATH"]);
-            if(!segs || !segs.length) return;
+    const segs = tryParseGeoPath(row["GEO PATH"]);
+    if(!segs || !segs.length) return;
 
-            const trainObj = {
-                name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line"),
-                segs: segs,
-                layers: []
-            };
+    const trainObj = {
+        name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line"),
+        segs: segs,
+        layers: []
+    };
 
-            trainRoutes.push(trainObj);
+    trainRoutes.push(trainObj);
 
-            segs.forEach(seg => {
+    segs.forEach(seg => {
 
-                const base = L.polyline(seg, {
-                    color: "#222",
-                    weight: 6
-                }).addTo(trainLayerGroup);
+        // MAIN RAIL (dark)
+        const base = L.polyline(seg, {
+            color: "#222",
+            weight: 6
+        }).addTo(trainLayerGroup);
 
-                const sleeper = L.polyline(seg, {
-                    color: "#bbb",
-                    weight: 2,
-                    dashArray: "2,10"
-                }).addTo(trainLayerGroup);
+        // INNER RAIL (light highlight)
+        const inner = L.polyline(seg, {
+            color: "#aaa",
+            weight: 2
+        }).addTo(trainLayerGroup);
 
-                trainObj.layers.push(base, sleeper);
-            });
-        }
+        // SLEEPERS (perpendicular)
+        const decorator = L.polylineDecorator(base, {
+            patterns: [
+                {
+                    offset: 0,
+                    repeat: 20,
+                    symbol: L.Symbol.marker({
+                        rotate: true,
+                        markerOptions: {
+                            icon: L.divIcon({
+                                html: `<div style="
+                                    width:10px;
+                                    height:2px;
+                                    background:#bbb;
+                                "></div>`
+                            })
+                        }
+                    })
+                }
+            ]
+        }).addTo(trainLayerGroup);
+
+        trainObj.layers.push(base, inner, decorator);
+    });
+}
 
         // -------------------------
         // STATIONS
@@ -300,21 +333,16 @@ function drawTrainRoutes(data){
 
             if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
 
-                const marker = L.circleMarker([lat,lng], {
-                    radius: 6,
-                    color: "#fff",
-                    fillColor: "#007bff",
-                    fillOpacity: 1,
-                    weight: 2
-                }).bindPopup(`<b>${name}</b>`);
+const marker = L.circleMarker([lat,lng], {
+    radius: 6,
+    color: "#fff",
+    fillColor: "#007bff",
+    fillOpacity: 1,
+    weight: 2
+}).bindPopup(`<b>${name}</b>`);
 
-                marker.addTo(trainLayerGroup);
-                trainStations.push(marker);
-            }
-        }
-
-    });
-}
+marker.addTo(trainLayerGroup);
+trainStations.push(marker);
 
 // -----------------------
 // TOGGLE TRAIN LAYER
@@ -899,20 +927,27 @@ map.on('mousemove', (e)=>{
     }
 
     // Highlight train routes (simple glow effect)
-    if(nearTrain){
-        trainLayerGroup.eachLayer(layer=>{
+if(nearTrain){
+    trainRoutes.forEach(tr=>{
+        tr.layers.forEach((layer, i)=>{
             if(layer instanceof L.Polyline){
-                layer.setStyle({ color: "#00ffff", weight: 6 });
+                if(i === 0){ // base only
+                    layer.setStyle({ color: "#00ffff", weight: 7 });
+                }
             }
         });
-    } else {
-        trainLayerGroup.eachLayer(layer=>{
+    });
+} else {
+    trainRoutes.forEach(tr=>{
+        tr.layers.forEach((layer, i)=>{
             if(layer instanceof L.Polyline){
-                layer.setStyle({ color: "#222", weight: 6 });
+                if(i === 0){
+                    layer.setStyle({ color: "#222", weight: 6 });
+                }
             }
         });
-    }
-});
+    });
+}});
 function handlePointClick(latlng){
 
   // -------------------------------
