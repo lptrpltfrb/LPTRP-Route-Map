@@ -242,6 +242,7 @@
 
   <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
@@ -284,24 +285,31 @@ function drawTrainRoutes(data){
 
             segs.forEach(seg => {
 
-                const railBase = L.polyline(seg, {
-                    color: "#000",
-                    weight: 6,
-                    opacity: 1
-                }).addTo(trainLayerGroup);
+const railBase = L.polyline(seg, {
+    color: "#000",
+    weight: 6,
+    opacity: 1
+}).addTo(trainLayerGroup);
 
-                const sleepers = L.polyline(seg, {
-                    color: "#999",
-                    weight: 3,
-                    dashArray: "4,8",
-                    opacity: 1
-                }).addTo(trainLayerGroup);
+// Add perpendicular "ties" along the line
+L.polylineDecorator(railBase, {
+    patterns: [
+        {
+            offset: 0,
+            repeat: 16,             // distance between ties in pixels
+            symbol: L.Symbol.dash({
+                pixelSize: 8,       // tie length
+                pathOptions: { color: '#999', weight: 3 }
+            })
+        }
+    ]
+}).addTo(trainLayerGroup);
 
-                const railHighlight = L.polyline(seg, {
-                    color: "#fff",
-                    weight: 1,
-                    opacity: 0.7
-                }).addTo(trainLayerGroup);
+const railHighlight = L.polyline(seg, {
+    color: "#fff",
+    weight: 1,
+    opacity: 0.7
+}).addTo(trainLayerGroup);
 
                 trainObj.layers.push(railBase, sleepers, railHighlight);
             });
