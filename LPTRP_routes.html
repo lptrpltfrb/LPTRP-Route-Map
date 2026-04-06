@@ -269,58 +269,53 @@ function drawTrainRoutes(data){
         // -------------------------
         // TRAIN LINE
         // -------------------------
-if(type === "line"){
+        if(type === "line"){
 
-    const segs = tryParseGeoPath(row["GEO PATH"]);
-    if(!segs || !segs.length) return;
+            const segs = tryParseGeoPath(row["GEO PATH"]);
+            if(!segs || !segs.length) return;
 
-    const trainObj = {
-        name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line"),
-        segs: segs,
-        layers: []
-    };
+            const trainObj = {
+                name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line"),
+                segs: segs,
+                layers: []
+            };
 
-    trainRoutes.push(trainObj);
+            trainRoutes.push(trainObj);
 
-    segs.forEach(seg => {
+            segs.forEach(seg => {
 
-        // MAIN RAIL (dark)
-        const base = L.polyline(seg, {
-            color: "#222",
-            weight: 6
-        }).addTo(trainLayerGroup);
+                const base = L.polyline(seg, {
+                    color: "#222",
+                    weight: 6
+                }).addTo(trainLayerGroup);
 
-        // INNER RAIL (light highlight)
-        const inner = L.polyline(seg, {
-            color: "#aaa",
-            weight: 2
-        }).addTo(trainLayerGroup);
+                const inner = L.polyline(seg, {
+                    color: "#aaa",
+                    weight: 2
+                }).addTo(trainLayerGroup);
 
-        // SLEEPERS (perpendicular)
-        const decorator = L.polylineDecorator(base, {
-            patterns: [
-                {
-                    offset: 0,
-                    repeat: 20,
-                    symbol: L.Symbol.marker({
-                        rotate: true,
-                        markerOptions: {
-                            icon: L.divIcon({
-                                html: `<div style="
-                                    width:10px;
-                                    height:2px;
-                                    background:#bbb;
-                                "></div>`
-                            })
-                        }
-                    })
-                }
-            ]
-        }).addTo(trainLayerGroup);
+                const decorator = L.polylineDecorator(base, {
+                    patterns: [{
+                        offset: 0,
+                        repeat: 20,
+                        symbol: L.Symbol.marker({
+                            rotate: true,
+                            markerOptions: {
+                                icon: L.divIcon({
+                                    html: `<div style="
+                                        width:10px;
+                                        height:2px;
+                                        background:#bbb;
+                                    "></div>`
+                                })
+                            }
+                        })
+                    }]
+                }).addTo(trainLayerGroup);
 
-        trainObj.layers.push(base, inner, decorator);
-    });
-}
+                trainObj.layers.push(base, inner, decorator);
+            });
+        }
 
         // -------------------------
         // STATIONS
@@ -333,28 +328,34 @@ if(type === "line"){
 
             if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
 
-const marker = L.circleMarker([lat,lng], {
-    radius: 6,
-    color: "#fff",
-    fillColor: "#007bff",
-    fillOpacity: 1,
-    weight: 2
-}).bindPopup(`<b>${name}</b>`);
+                const marker = L.circleMarker([lat,lng], {
+                    radius: 6,
+                    color: "#fff",
+                    fillColor: "#007bff",
+                    fillOpacity: 1,
+                    weight: 2
+                }).bindPopup(`<b>${name}</b>`);
 
-marker.addTo(trainLayerGroup);
-trainStations.push(marker);
+                marker.addTo(trainLayerGroup);
+                trainStations.push(marker);
+
+                // label
+                L.marker([lat,lng], {
+                    icon: L.divIcon({
+                        className: 'station-label',
+                        html: `<div>${name}</div>`
+                    })
+                }).addTo(trainLayerGroup);
+            }
+        }
+
+    }); // ✅ CLOSE forEach
+
+} // ✅ CLOSE function
 
 // -----------------------
 // TOGGLE TRAIN LAYER
 // -----------------------
-function toggleTrains(){
-    const show = document.getElementById("showTrains").checked;
-    if(show) {
-        if (!map.hasLayer(trainLayerGroup)) map.addLayer(trainLayerGroup);
-    } else {
-        if (map.hasLayer(trainLayerGroup)) map.removeLayer(trainLayerGroup);
-    }
-}
 
     // Palette (route coloring)
     const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
@@ -1178,6 +1179,15 @@ Promise.all([
         if (map.hasLayer(terminalLayerGroup)) map.removeLayer(terminalLayerGroup); 
       }
     }
+function toggleTrains(){
+    const show = document.getElementById("showTrains").checked;
+    if(show) {
+        if (!map.hasLayer(trainLayerGroup)) map.addLayer(trainLayerGroup);
+    } else {
+        if (map.hasLayer(trainLayerGroup)) map.removeLayer(trainLayerGroup);
+    }
+}
+
 
   </script>
 </body>
