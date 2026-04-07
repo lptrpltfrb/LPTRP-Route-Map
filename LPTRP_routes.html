@@ -882,6 +882,35 @@ function trainsAtPoint(latlng, pxTol=6){
 
     return found;
 }
+
+function routesAtPoint(latlng, pxTol=6){
+
+    const P = map.latLngToLayerPoint(latlng);
+    const found = [];
+
+    for(const rt of routes){
+        let near = false;
+
+        for(const seg of rt.segs){
+            for(let i=1;i<seg.length;i++){
+                const A = map.latLngToLayerPoint(seg[i-1]);
+                const B = map.latLngToLayerPoint(seg[i]);
+                const d = distPointToSeg(P,A,B);
+
+                if(d <= pxTol){
+                    near = true;
+                    break;
+                }
+            }
+            if(near) break;
+        }
+
+        if(near) found.push(rt);
+    }
+
+    return found;
+}
+
     function setHoverHighlights(rtList){
       const newIds = new Set(rtList.map(r=>r.id));
       for(const rt of routes){
@@ -901,8 +930,7 @@ function trainsAtPoint(latlng, pxTol=6){
 if(selectedTrain){
   selectedTrain.layers.forEach((l,i)=>{
     if(l instanceof L.Polyline){
-      if(i === 0){
-        l.setStyle({ color:"#222", weight:6 });
+    l.setStyle({ color:"#222", weight:6 });
       }
     }
   });
@@ -989,20 +1017,22 @@ function handlePointClick(latlng){
   // TRAIN CLICK DETECTION
   // -------------------------------
 const clickedTrains = trainsAtPoint(latlng, 6);
+const nearRoutes = routesAtPoint(latlng, 6);
 
-if(clickedTrains.length){
+if(!clickedTrains.length && !nearRoutes.length){
     clearSelectionAndPopups();
-
-    selectedTrain = clickedTrains[0]; // or handle multiple if needed
-
-    selectedTrain.layers.forEach(l=>{
-        l.setStyle({ color:"#00ffff", weight:8 });
-        l.bringToFront();
-    });
-
-    showRouteListPanel(clickedTrains.map(t=>t.name));
     return;
 }
+
+clearSelectionAndPopups();
+
+const names = [
+    ...clickedTrains.map(t=>t.name),
+    ...nearRoutes.map(rt => normalize(rt.row["ROUTE NAME"]||''))
+];
+
+showRouteListPanel([...new Set(names)]);
+
   // -------------------------------
   // BUS ROUTES (existing logic)
   // -------------------------------
