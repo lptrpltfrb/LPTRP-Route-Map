@@ -12,15 +12,6 @@
     html,body{height:100%;margin:0;padding:0;background:#f5f6f7}
     #map { width: 1200px; height: 750px; margin: 10px auto; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
 
-.station-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #111;
-  white-space: nowrap;
-  transform: translate(6px, -6px);
-  pointer-events: none;
-}
-
     /* ----- Filter box (kept like your working layout) ----- */
     .search-container {
       position: absolute;
@@ -241,7 +232,6 @@
 
   <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
@@ -285,36 +275,17 @@ function drawTrainRoutes(data){
             segs.forEach(seg => {
 
                 const base = L.polyline(seg, {
-                    pane: 'trainLinesPane',
                     color: "#222",
                     weight: 6
                 }).addTo(trainLayerGroup);
 
-                const inner = L.polyline(seg, {
-                    color: "#aaa",
-                    weight: 2
+                const sleeper = L.polyline(seg, {
+                    color: "#bbb",
+                    weight: 2,
+                    dashArray: "2,10"
                 }).addTo(trainLayerGroup);
 
-                const decorator = L.polylineDecorator(base, {
-                    patterns: [{
-                        offset: 0,
-                        repeat: 20,
-                        symbol: L.Symbol.marker({
-                            rotate: true,
-                            markerOptions: {
-                                icon: L.divIcon({
-                                    html: `<div style="
-                                        width:10px;
-                                        height:2px;
-                                        background:#bbb;
-                                    "></div>`
-                                })
-                            }
-                        })
-                    }]
-                }).addTo(trainLayerGroup);
-
-                trainObj.layers.push(base, inner, decorator);
+                trainObj.layers.push(base, sleeper);
             });
         }
 
@@ -329,39 +300,33 @@ function drawTrainRoutes(data){
 
             if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
 
-const marker = L.circleMarker([lat,lng], {
-    pane: 'trainStationsPane',
-    radius: 6,
-    color: "#fff",
-    fillColor: "#007bff",
-    fillOpacity: 1,
-    weight: 2
-}).bindPopup(`<b>${name}</b>`).addTo(map); // NOT trainLayerGroup
-
-trainStations.push(marker);
+                const marker = L.circleMarker([lat,lng], {
+                    radius: 6,
+                    color: "#fff",
+                    fillColor: "#007bff",
+                    fillOpacity: 1,
+                    weight: 2
+                }).bindPopup(`<b>${name}</b>`);
 
                 marker.addTo(trainLayerGroup);
                 trainStations.push(marker);
-
-                // label
-L.marker([lat,lng], {
-    pane: 'trainStationsPane',
-    interactive: false,
-    icon: L.divIcon({
-        className: 'station-label',
-        html: `<div>${name}</div>`
-    })
-}).addTo(map);
             }
         }
 
-    }); // ✅ CLOSE forEach
-
-} // ✅ CLOSE function
+    });
+}
 
 // -----------------------
 // TOGGLE TRAIN LAYER
 // -----------------------
+function toggleTrains(){
+    const show = document.getElementById("showTrains").checked;
+    if(show) {
+        if (!map.hasLayer(trainLayerGroup)) map.addLayer(trainLayerGroup);
+    } else {
+        if (map.hasLayer(trainLayerGroup)) map.removeLayer(trainLayerGroup);
+    }
+}
 
     // Palette (route coloring)
     const PALETTE = ['#0b3d91','#1b5e20','#b71c1c','#ff6f00','#4a148c','#3e2723','#263238','#006064','#004d40','#0d47a1'];
@@ -443,11 +408,6 @@ L.marker([lat,lng], {
     const map = L.map('map', { preferCanvas:true }).setView([13,122],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
-    map.createPane('trainLinesPane');
-    map.createPane('trainStationsPane');
-
-map.getPane('trainLinesPane').style.zIndex = 400;
-map.getPane('trainStationsPane').style.zIndex = 650; // ABOVE routes
 
    // Train layer and stations
    let trainLayerGroup = L.layerGroup().addTo(map);
@@ -856,60 +816,31 @@ function resetFilters(){
     return near;
 }
 
-function trainsAtPoint(latlng, pxTol=6){
-
-    const P = map.latLngToLayerPoint(latlng);
-    const found = [];
-
-    for(const tr of trainRoutes){
-        let near = false;
-
-        for(const seg of tr.segs){
-            for(let i=1;i<seg.length;i++){
-                const A = map.latLngToLayerPoint(seg[i-1]);
-                const B = map.latLngToLayerPoint(seg[i]);
-                const d = distPointToSeg(P,A,B);
-                if(d <= pxTol){
-                    near = true;
-                    break;
-                }
-            }
-            if(near) break;
-        }
-
-        if(near) found.push(tr);
-    }
-
-    return found;
-}
-
 function routesAtPoint(latlng, pxTol=6){
 
-    const P = map.latLngToLayerPoint(latlng);
-    const found = [];
-
-    for(const rt of routes){
+      const P = map.latLngToLayerPoint(latlng);
+      const found = [];
+      for(const rt of routes){
+        if(!map.hasLayer(rt.layerGroup)) continue;
         let near = false;
-
         for(const seg of rt.segs){
-            for(let i=1;i<seg.length;i++){
-                const A = map.latLngToLayerPoint(seg[i-1]);
-                const B = map.latLngToLayerPoint(seg[i]);
-                const d = distPointToSeg(P,A,B);
-
-                if(d <= pxTol){
-                    near = true;
-                    break;
-                }
-            }
-            if(near) break;
+          for(let i=1;i<seg.length;i++){
+            const A = map.latLngToLayerPoint(seg[i-1]);
+            const B = map.latLngToLayerPoint(seg[i]);
+            const d = distPointToSeg(P,A,B);
+            if(d <= pxTol){ near = true; break; }
+          }
+          if(near) break;
         }
-
         if(near) found.push(rt);
+      }
+      const byName = new Map();
+      for(const f of found){
+        const name = normalize(f.row["ROUTE NAME"]||'');
+        if(!byName.has(name)) byName.set(name, f);
+      }
+      return Array.from(byName.values());
     }
-
-    return found;
-}
 
     function setHoverHighlights(rtList){
       const newIds = new Set(rtList.map(r=>r.id));
@@ -928,14 +859,12 @@ function routesAtPoint(latlng, pxTol=6){
 
     function clearSelectionAndPopups(){
 if(selectedTrain){
-  selectedTrain.layers.forEach((l,i)=>{
-    if(l instanceof L.Polyline){
-    l.setStyle({ color:"#222", weight:6 });
-      }
-    }
+  selectedTrain.layers.forEach(l=>{
+    l.setStyle({ color: "#222", weight: 6 });
   });
   selectedTrain = null;
-}      if(selectedRoute){
+}
+      if(selectedRoute){
         selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:2, opacity:0.95 }));
         selectedRoute = null;
       }
@@ -951,7 +880,7 @@ if(selectedTrain){
 
 map.on('mousemove', (e)=>{
     const nearRoutes = routesAtPoint(e.latlng, 6);
-    const nearTrains = trainsAtPoint(e.latlng, 6);
+    const nearTrain = trainAtPoint(e.latlng, 6);
 
     // Highlight normal routes
     if(nearRoutes.length){
@@ -970,68 +899,50 @@ map.on('mousemove', (e)=>{
     }
 
     // Highlight train routes (simple glow effect)
-if(nearTrains.length){
-
-    // reset all trains first
-    trainRoutes.forEach(tr=>{
-        tr.layers.forEach((layer,i)=>{
-            if(layer instanceof L.Polyline && i===0){
-                layer.setStyle({ color:"#222", weight:6 });
-            }
-        });
-    });
-
-    // highlight only overlapping trains
-    nearTrains.forEach(tr=>{
-        tr.layers.forEach((layer,i)=>{
-            if(layer instanceof L.Polyline && i===0){
-                layer.setStyle({ color:"#00ffff", weight:7 });
-                layer.bringToFront();
-            }
-        });
-    });
-
-    // INCLUDE trains in overlap count
-    const total = nearRoutes.length + nearTrains.length;
-
-    hoverPopup
-        .setLatLng(e.latlng)
-        .setContent(String(total));
-
-    if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
-
-} else {
-    trainRoutes.forEach(tr=>{
-        tr.layers.forEach((layer, i)=>{
+    if(nearTrain){
+        trainLayerGroup.eachLayer(layer=>{
             if(layer instanceof L.Polyline){
-                if(i === 0){
-                    layer.setStyle({ color: "#222", weight: 6 });
-                }
+                layer.setStyle({ color: "#00ffff", weight: 6 });
             }
         });
-    });
-}});
+    } else {
+        trainLayerGroup.eachLayer(layer=>{
+            if(layer instanceof L.Polyline){
+                layer.setStyle({ color: "#222", weight: 6 });
+            }
+        });
+    }
+});
 function handlePointClick(latlng){
 
   // -------------------------------
   // TRAIN CLICK DETECTION
   // -------------------------------
-const clickedTrains = trainsAtPoint(latlng, 6);
-const nearRoutes = routesAtPoint(latlng, 6);
+const clickedTrain = trainRoutes.find(tr=>{
+  return tr.segs && tr.segs.some(seg=>{
+    for(let i=1;i<seg.length;i++){
+      const A = map.latLngToLayerPoint(seg[i-1]);
+      const B = map.latLngToLayerPoint(seg[i]);
+      const P = map.latLngToLayerPoint(latlng);
+      if(distPointToSeg(P,A,B) <= 6) return true;
+    }
+    return false;
+  });
+});
 
-if(!clickedTrains.length && !nearRoutes.length){
-    clearSelectionAndPopups();
-    return;
+if(clickedTrain){
+  clearSelectionAndPopups();
+
+  selectedTrain = clickedTrain;
+
+  clickedTrain.layers.forEach(l=>{
+    l.setStyle({ color: "#00ffff", weight: 8 });
+    l.bringToFront();
+  });
+
+  showRouteListPanel([clickedTrain.name]);
+  return;
 }
-
-clearSelectionAndPopups();
-
-const names = [
-    ...clickedTrains.map(t=>t.name),
-    ...nearRoutes.map(rt => normalize(rt.row["ROUTE NAME"]||''))
-];
-
-showRouteListPanel([...new Set(names)]);
 
   // -------------------------------
   // BUS ROUTES (existing logic)
@@ -1232,15 +1143,6 @@ Promise.all([
         if (map.hasLayer(terminalLayerGroup)) map.removeLayer(terminalLayerGroup); 
       }
     }
-function toggleTrains(){
-    const show = document.getElementById("showTrains").checked;
-    if(show) {
-        if (!map.hasLayer(trainLayerGroup)) map.addLayer(trainLayerGroup);
-    } else {
-        if (map.hasLayer(trainLayerGroup)) map.removeLayer(trainLayerGroup);
-    }
-}
-
 
   </script>
 </body>
