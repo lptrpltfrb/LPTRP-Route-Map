@@ -272,22 +272,24 @@ function drawTrainRoutes(data){
 
             trainRoutes.push(trainObj);
 
-            segs.forEach(seg => {
+segs.forEach(seg => {
 
-                const base = L.polyline(seg, {
-                    color: "#222",
-                    weight: 6
-                }).addTo(trainLayerGroup);
+    const base = L.polyline(seg, {
+        color: "#222",
+        weight: 5,
+        opacity: 0.9
+    }).addTo(trainLayerGroup);
 
-                const sleeper = L.polyline(seg, {
-                    color: "#bbb",
-                    weight: 2,
-                    dashArray: "2,10"
-                }).addTo(trainLayerGroup);
+    const sleeper = L.polyline(seg, {
+        color: "#fff",
+        weight: 2,
+        dashArray: "1,8",
+        opacity: 0.9
+    }).addTo(trainLayerGroup);
 
-                trainObj.layers.push(base, sleeper);
-            });
-        }
+    trainObj.layers.push(base, sleeper);
+});       
+}
 
         // -------------------------
         // STATIONS
@@ -318,11 +320,11 @@ const icon = L.divIcon({
     className: '',
     html: `
       <div style="
-        width:18px;
-        height:18px;
-        background:#007bff;
+        width:14px;
+        height:14px;
+        background:#555;
         border:2px solid #fff;
-        border-radius:4px;
+        border-radius:50%;
         display:flex;
         align-items:center;
         justify-content:center;
@@ -331,8 +333,8 @@ const icon = L.divIcon({
         font-weight:bold;
       ">🚆</div>
     `,
-    iconSize: [18,18],
-    iconAnchor: [9,9]
+    iconSize: [14,14],
+    iconAnchor: [7,7]
 });
 
 const marker = L.marker([lat,lng], { icon })
