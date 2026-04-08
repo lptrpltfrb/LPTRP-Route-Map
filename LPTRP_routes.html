@@ -300,7 +300,12 @@ function drawTrainRoutes(data){
 
             if(!Number.isNaN(lat) && !Number.isNaN(lng) && name){
 
-const lineName = normalize(row["LINE"] || row["ROUTE NAME"] || "");
+const lineName =
+  normalize(row["LINE"]) ||
+  normalize(row["LINE NAME"]) ||
+  normalize(row["ROUTE NAME"]) ||
+  normalize(row["NAME"]) ||
+  "Train";
 
 const popupHtml = `
   <div style="text-align:center;">
