@@ -825,16 +825,20 @@ function resetFilters(){
     // -----------------------
     // HOVER / OVERLAP
     // -----------------------
-     function trainAtPoint(latlng, pxTol=6){
+function trainAtPoint(latlng, pxTol=6){
+
     const P = map.latLngToLayerPoint(latlng);
-    let near = false;
+    const found = [];
 
     for(const tr of trainRoutes){
+        let near = false;
+
         for(const seg of tr.segs){
             for(let i=1;i<seg.length;i++){
                 const A = map.latLngToLayerPoint(seg[i-1]);
                 const B = map.latLngToLayerPoint(seg[i]);
                 const d = distPointToSeg(P,A,B);
+
                 if(d <= pxTol){
                     near = true;
                     break;
@@ -842,11 +846,12 @@ function resetFilters(){
             }
             if(near) break;
         }
-        if(near) break;
-    }
-    return near;
-}
 
+        if(near) found.push(tr);
+    }
+
+    return found; // ✅ now returns ARRAY (like routes)
+}
 function routesAtPoint(latlng, pxTol=6){
 
       const P = map.latLngToLayerPoint(latlng);
@@ -909,28 +914,37 @@ if(selectedTrain){
       }
     }
 
-map.on('mousemove', (e)=>{
-    const nearRoutes = routesAtPoint(e.latlng, 6);
-    const nearTrain = trainAtPoint(e.latlng, 6);
+map.on('mousemove', (e) => {
 
-    // Highlight normal routes
-    if(nearRoutes.length){
+    const nearRoutes = routesAtPoint(e.latlng, 6);
+    const nearTrains = trainAtPoint(e.latlng, 6);
+
+    const total = nearRoutes.length + nearTrains.length;
+
+    if(total){
+
         setHoverHighlights(nearRoutes);
-        hoverPopup.setLatLng(e.latlng).setContent(String(nearRoutes.length));
+
+        hoverPopup
+            .setLatLng(e.latlng)
+            .setContent(String(total));
+
         if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
+
     } else {
         if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup);
+
         for(const rt of routes){
             if(!selectedRoute || rt !== selectedRoute){
-                rt.layerGroup.getLayers().forEach(poly => 
+                rt.layerGroup.getLayers().forEach(poly =>
                     poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 })
                 );
             }
         }
     }
 
-    // Highlight train routes (simple glow effect)
-    if(nearTrain){
+    // TRAIN highlight (fix variable name too)
+    if(nearTrains.length){
         trainLayerGroup.eachLayer(layer=>{
             if(layer instanceof L.Polyline){
                 layer.setStyle({ color: "#00ffff", weight: 6 });
@@ -943,7 +957,10 @@ map.on('mousemove', (e)=>{
             }
         });
     }
+
 });
+
+
 function handlePointClick(latlng){
 
   // -------------------------------
@@ -978,17 +995,31 @@ if(clickedTrain){
   // -------------------------------
   // BUS ROUTES (existing logic)
   // -------------------------------
-  const near = routesAtPoint(latlng, 6);
+// -------------------------------
+// BUS + TRAIN CLICK (FIXED)
+// -------------------------------
+const nearRoutes = routesAtPoint(latlng, 6);
+const nearTrains = trainAtPoint(latlng, 6);
 
-  if(!near.length){
+if(!nearRoutes.length && !nearTrains.length){
     clearSelectionAndPopups();
     return;
-  }
-
-  clearSelectionAndPopups();
-  const uniqueNames = [...new Set(near.map(rt => normalize(rt.row["ROUTE NAME"]||'')).filter(Boolean))];
-  showRouteListPanel(uniqueNames);
 }
+
+clearSelectionAndPopups();
+
+// Route names
+const routeNames = nearRoutes
+  .map(rt => normalize(rt.row["ROUTE NAME"]||''))
+  .filter(Boolean);
+
+// Train names
+const trainNames = nearTrains.map(tr => tr.name);
+
+// Combine
+const allNames = [...new Set([...routeNames, ...trainNames])];
+
+showRouteListPanel(allNames);}
     // map click uses shared handler
     map.on('click', (e) => {
       handlePointClick(e.latlng);
@@ -998,9 +1029,34 @@ if(clickedTrain){
     // SELECTION (by name from list)
     // -----------------------
     function selectRouteByName(name){
-      const target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize(name));
-      if(!target) return;
+// 🔍 Check normal routes first
+let target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize(name));
 
+// 🔍 If not found, check train routes
+if(!target){
+  const train = trainRoutes.find(tr => normalize(tr.name) === normalize(name));
+
+  if(train){
+
+    // clear previous train highlight
+    if(selectedTrain){
+      selectedTrain.layers.forEach(l=>{
+        l.setStyle({ color:"#222", weight:6 });
+      });
+    }
+
+    selectedTrain = train;
+
+    train.layers.forEach(l=>{
+      l.setStyle({ color:"#00ffff", weight:8 });
+      l.bringToFront();
+    });
+
+    return; // ✅ STOP here (train handled)
+  }
+
+  return;
+}
       // remove previous details popup (keep list open)
       if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
 
