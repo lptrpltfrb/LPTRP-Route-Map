@@ -883,21 +883,55 @@ function routesAtPoint(latlng, pxTol=6){
       return Array.from(byName.values());
     }
 
-    function setHoverHighlights(rtList){
-      const newIds = new Set(rtList.map(r=>r.id));
-      for(const rt of routes){
-        if(!map.hasLayer(rt.layerGroup)) continue;
-        if(!newIds.has(rt.id) && (!selectedRoute || rt !== selectedRoute)){
-          rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 }));
-        }
-      }
-      for(const rt of rtList){
-        if(selectedRoute && rt === selectedRoute) continue;
-        rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color:'yellow', weight:6, opacity:1 }));
-        rt.layerGroup.getLayers().forEach(poly => poly.bringToFront());
-      }
-    }
+function setHoverHighlights(rtList){
+  const newIds = new Set(rtList.map(r=>r.id));
 
+  for(const rt of routes){
+    if(!map.hasLayer(rt.layerGroup)) continue;
+    if(!newIds.has(rt.id) && (!selectedRoute || rt !== selectedRoute)){
+      rt.layerGroup.getLayers().forEach(poly =>
+        poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 })
+      );
+    }
+  }
+
+  for(const rt of rtList){
+    if(selectedRoute && rt === selectedRoute) continue;
+    rt.layerGroup.getLayers().forEach(poly =>
+      poly.setStyle({ color:'yellow', weight:6, opacity:1 })
+    );
+    rt.layerGroup.getLayers().forEach(poly => poly.bringToFront());
+  }
+}
+
+// ✅ ADD HERE ↓↓↓
+function highlightTrainHover(trainList){
+
+  // reset all first
+  trainRoutes.forEach(tr=>{
+    tr.layers.forEach(l=>{
+      l.setStyle({ color:"#222", weight:5 });
+    });
+  });
+
+  // highlight only hovered
+  trainList.forEach(tr=>{
+    tr.layers.forEach(l=>{
+      l.setStyle({ color:"#00ffff", weight:7 });
+      l.bringToFront();
+    });
+  });
+}
+
+function clearTrainHover(){
+  trainRoutes.forEach(tr=>{
+    if(selectedTrain && tr === selectedTrain) return;
+
+    tr.layers.forEach(l=>{
+      l.setStyle({ color:"#222", weight:5 });
+    });
+  });
+}
     function clearSelectionAndPopups(){
 if(selectedTrain){
   selectedTrain.layers.forEach(l=>{
@@ -919,34 +953,44 @@ if(selectedTrain){
       }
     }
 
-map.on('mousemove', (e) => {
+map.on('mousemove', (e)=>{
 
-    const nearRoutes = routesAtPoint(e.latlng, 6);
-    const nearTrains = trainAtPoint(e.latlng, 6);
+  const nearRoutes = routesAtPoint(e.latlng, 6);
+  const nearTrains = trainAtPoint(e.latlng, 6);
 
-    const total = nearRoutes.length + nearTrains.length;
+  const total = nearRoutes.length + nearTrains.length;
 
-    if(total){
+  if(total){
 
-        setHoverHighlights(nearRoutes);
+    // ✅ Highlight PUV
+    setHoverHighlights(nearRoutes);
 
-        hoverPopup
-            .setLatLng(e.latlng)
-            .setContent(String(total));
+    // ✅ Highlight ONLY nearby train routes
+    highlightTrainHover(nearTrains);
 
-        if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
+    // ✅ Show combined count
+    hoverPopup
+      .setLatLng(e.latlng)
+      .setContent(String(total));
 
-    } else {
-        if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup);
+    if(!map.hasLayer(hoverPopup)) hoverPopup.addTo(map);
 
-        for(const rt of routes){
-            if(!selectedRoute || rt !== selectedRoute){
-                rt.layerGroup.getLayers().forEach(poly =>
-                    poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 })
-                );
-            }
-        }
+  } else {
+
+    if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup);
+
+    clearTrainHover();
+
+    for(const rt of routes){
+      if(!selectedRoute || rt !== selectedRoute){
+        rt.layerGroup.getLayers().forEach(poly => 
+          poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 })
+        );
+      }
     }
+  }
+
+});
 
     // TRAIN highlight (fix variable name too)
     if(nearTrains.length){
