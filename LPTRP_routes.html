@@ -1041,25 +1041,49 @@ let target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize
 if(!target){
   const train = trainRoutes.find(tr => normalize(tr.name) === normalize(name));
 
-  if(train){
+if(train){
 
-    // clear previous train highlight
-    if(selectedTrain){
-      selectedTrain.layers.forEach(l=>{
-        l.setStyle({ color:"#222", weight:6 });
-      });
-    }
-
-    selectedTrain = train;
-
-    train.layers.forEach(l=>{
-      l.setStyle({ color:"#00ffff", weight:8 });
-      l.bringToFront();
+  // clear previous
+  if(selectedTrain){
+    selectedTrain.layers.forEach(l=>{
+      l.setStyle({ color:"#222", weight:6 });
     });
-
-    return; // ✅ STOP here (train handled)
   }
 
+  selectedTrain = train;
+
+  // highlight
+  train.layers.forEach(l=>{
+    l.setStyle({ color:"#00ffff", weight:8 });
+    l.bringToFront();
+  });
+
+  // ✅ ZOOM TO TRAIN ROUTE
+  const fg = L.featureGroup(train.layers);
+  const bounds = fg.getBounds();
+
+  try{
+    map.fitBounds(bounds, { padding:[40,40] });
+  }catch(e){}
+
+  // (optional) show simple popup like PUV
+  if(detailsPopup){
+    try{ map.removeLayer(detailsPopup); }catch(e){}
+  }
+
+  const center = bounds.getCenter();
+
+  detailsPopup = L.popup({
+    autoClose:false,
+    closeOnClick:false,
+    className:'details-popup'
+  })
+  .setLatLng(center)
+  .setContent(`<b>${train.name}</b><br>Train Route`)
+  .addTo(map);
+
+  return; // ✅ STOP here
+}
   return;
 }
       // remove previous details popup (keep list open)
