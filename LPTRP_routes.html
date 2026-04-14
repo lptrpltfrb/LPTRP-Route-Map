@@ -591,7 +591,7 @@ function drawRoute(row){
         for(const seg of segs){
           const poly = L.polyline(seg, { 
             color: baseColor, 
-            weight: 2, 
+            weight: 4, 
             opacity: 0.95 
           });
           poly.on('click', (ev) => { 
@@ -857,7 +857,7 @@ function trainAtPoint(latlng, pxTol=6){
 
     return found; // ✅ now returns ARRAY (like routes)
 }
-function routesAtPoint(latlng, pxTol=6){
+function routesAtPoint(latlng, pxTol=10){
 
       const P = map.latLngToLayerPoint(latlng);
       const found = [];
@@ -955,7 +955,7 @@ if(selectedTrain){
 
 map.on('mousemove', (e)=>{
 
-  const nearRoutes = routesAtPoint(e.latlng, 6);
+  const nearRoutes = routesAtPoint(e.latlng, 10);
   const nearTrains = trainAtPoint(e.latlng, 6);
 
   const total = nearRoutes.length + nearTrains.length;
