@@ -451,6 +451,8 @@ function toggleTrains(){
     let selectedTrain = null;
     let trainRoutes = []; // for hover detection
 
+    let dataLoaded = false;
+
     // Terminals
     let terminals = []; // { row, marker }
     let terminalLayerGroup = L.layerGroup();
@@ -726,6 +728,9 @@ function drawRoute(row){
     // - if only ep2Terminal typed => same
     // - if both typed => require route to reference both terminal names (in any endpoint)
 function applyFilters(){
+
+      if(!dataLoaded) return;
+
       const rSelected = selectedRouteNames.map(n=>nLower(n));
       const ep1RegionVal=nLower(document.getElementById('ep1Region').value);
       const ep1ProvinceVal=nLower(document.getElementById('ep1Province').value);
@@ -1122,17 +1127,27 @@ Promise.all([
   const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
   const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
 
+  console.log("Routes:", routesParsed.length);      
+  console.log("Terminals:", terminalsParsed.length);
+
   allData = routesParsed;
 
   // Load train routes
-  Papa.parse(trainCsvUrl, {
-    download: true,
-    header: true,
-    complete: function(results){
-      drawTrainRoutes(results.data);
-    }
-  });
+Papa.parse(trainCsvUrl, {
+  download: true,
+  header: true,
+  complete: function(results){
 
+    console.log("Train rows:", results.data.length); // ✅ DEBUG
+
+    if(!results.data || !results.data.length){
+      console.warn("⚠️ No train data loaded");
+      return;
+    }
+
+    drawTrainRoutes(results.data);
+  }
+});
   // -----------------------
   // BUILD SUGGESTIONS
   // -----------------------
@@ -1205,6 +1220,12 @@ Promise.all([
   if(initialFeatures.length){
     map.fitBounds(L.featureGroup(initialFeatures).getBounds(),{padding:[40,40]});
   }
+
+dataLoaded = true;    
+applyFilters();    
+
+let dataLoaded = false;    
+
 
 })
 .catch(err => console.error('Failed to load CSVs:', err));
