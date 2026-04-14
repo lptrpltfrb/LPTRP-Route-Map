@@ -992,23 +992,6 @@ map.on('mousemove', (e)=>{
 
 });
 
-    // TRAIN highlight (fix variable name too)
-    if(nearTrains.length){
-        trainLayerGroup.eachLayer(layer=>{
-            if(layer instanceof L.Polyline){
-                layer.setStyle({ color: "#00ffff", weight: 6 });
-            }
-        });
-    } else {
-        trainLayerGroup.eachLayer(layer=>{
-            if(layer instanceof L.Polyline){
-                layer.setStyle({ color: "#222", weight: 6 });
-            }
-        });
-    }
-
-});
-
 
 function handlePointClick(latlng){
 
@@ -1291,8 +1274,6 @@ Papa.parse(trainCsvUrl, {
 
 dataLoaded = true;    
 applyFilters();    
-
-let dataLoaded = false;    
 
 
 })
