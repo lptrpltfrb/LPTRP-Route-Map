@@ -862,7 +862,7 @@ function routesAtPoint(latlng, pxTol=10){
       const P = map.latLngToLayerPoint(latlng);
       const found = [];
       for(const rt of routes){
-        if(!map.hasLayer(rt.layerGroup)) continue;
+      
         let near = false;
         for(const seg of rt.segs){
           for(let i=1;i<seg.length;i++){
