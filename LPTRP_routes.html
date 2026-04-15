@@ -402,6 +402,8 @@ function toggleTrains(){
     }
     function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
+
+
     // Haversine (if ever needed)
     function haversine(a,b){
       const R=6371000;
@@ -955,10 +957,16 @@ if(selectedTrain){
 
 map.on('mousemove', (e)=>{
 
-  const nearRoutes = routesAtPoint(e.latlng, 10);
-  const nearTrains = trainAtPoint(e.latlng, 6);
+const baseTol = getDynamicTolerance();
 
-  const total = nearRoutes.length + nearTrains.length;
+const nearTrains = trainAtPoint(e.latlng, baseTol);
+
+// 👇 expand PUV detection if train is nearby
+const puvTol = nearTrains.length ? baseTol * 1.8 : baseTol;
+
+const nearRoutes = routesAtPoint(e.latlng, puvTol);
+
+const total = nearRoutes.length + nearTrains.length;
 
   if(total){
 
@@ -1030,8 +1038,14 @@ if(clickedTrain){
 // -------------------------------
 // BUS + TRAIN CLICK (FIXED)
 // -------------------------------
-const nearRoutes = routesAtPoint(latlng, 10);
-const nearTrains = trainAtPoint(latlng, 10);
+const baseTol = getDynamicTolerance();
+
+const nearTrains = trainAtPoint(latlng, baseTol);
+
+// 👇 expand PUV detection if clicking near train
+const puvTol = nearTrains.length ? baseTol * 1.8 : baseTol;
+
+const nearRoutes = routesAtPoint(latlng, puvTol);
 
 if(!nearRoutes.length && !nearTrains.length){
     clearSelectionAndPopups();
