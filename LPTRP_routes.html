@@ -1006,31 +1006,6 @@ function handlePointClick(latlng){
   // -------------------------------
   // TRAIN CLICK DETECTION
   // -------------------------------
-const clickedTrain = trainRoutes.find(tr=>{
-  return tr.segs && tr.segs.some(seg=>{
-    for(let i=1;i<seg.length;i++){
-      const A = map.latLngToLayerPoint(seg[i-1]);
-      const B = map.latLngToLayerPoint(seg[i]);
-      const P = map.latLngToLayerPoint(latlng);
-      if(distPointToSeg(P,A,B) <= 6) return true;
-    }
-    return false;
-  });
-});
-
-if(clickedTrain){
-  clearSelectionAndPopups();
-
-  selectedTrain = clickedTrain;
-
-  clickedTrain.layers.forEach(l=>{
-    l.setStyle({ color: "#00ffff", weight: 8 });
-    l.bringToFront();
-  });
-
-  showRouteListPanel([clickedTrain.name]);
-  return;
-}
 
   // -------------------------------
   // BUS ROUTES (existing logic)
@@ -1039,6 +1014,7 @@ if(clickedTrain){
 // BUS + TRAIN CLICK (FIXED)
 // -------------------------------
 const baseTol = getDynamicTolerance();
+const nearTrains = trainAtPoint(latlng, baseTol);
 
 const nearTrains = trainAtPoint(latlng, baseTol);
 
@@ -1064,6 +1040,7 @@ const trainNames = nearTrains.map(tr => tr.name);
 
 // Combine
 const allNames = [...new Set([...routeNames, ...trainNames])];
+showRouteListPanel(allNames);
 
 showRouteListPanel(allNames);}
     // map click uses shared handler
