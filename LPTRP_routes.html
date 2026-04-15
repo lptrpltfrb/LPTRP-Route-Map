@@ -402,8 +402,6 @@ function toggleTrains(){
     }
     function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
-
-
     // Haversine (if ever needed)
     function haversine(a,b){
       const R=6371000;
@@ -593,7 +591,7 @@ function drawRoute(row){
         for(const seg of segs){
           const poly = L.polyline(seg, { 
             color: baseColor, 
-            weight: 4, 
+            weight: 2, 
             opacity: 0.95 
           });
           poly.on('click', (ev) => { 
@@ -859,12 +857,12 @@ function trainAtPoint(latlng, pxTol=6){
 
     return found; // ✅ now returns ARRAY (like routes)
 }
-function routesAtPoint(latlng, pxTol=10){
+function routesAtPoint(latlng, pxTol=6){
 
       const P = map.latLngToLayerPoint(latlng);
       const found = [];
       for(const rt of routes){
-      
+        if(!map.hasLayer(rt.layerGroup)) continue;
         let near = false;
         for(const seg of rt.segs){
           for(let i=1;i<seg.length;i++){
@@ -957,16 +955,10 @@ if(selectedTrain){
 
 map.on('mousemove', (e)=>{
 
-const baseTol = getDynamicTolerance();
+  const nearRoutes = routesAtPoint(e.latlng, 6);
+  const nearTrains = trainAtPoint(e.latlng, 6);
 
-const nearTrains = trainAtPoint(e.latlng, baseTol);
-
-// 👇 expand PUV detection if train is nearby
-const puvTol = nearTrains.length ? baseTol * 1.8 : baseTol;
-
-const nearRoutes = routesAtPoint(e.latlng, puvTol);
-
-const total = nearRoutes.length + nearTrains.length;
+  const total = nearRoutes.length + nearTrains.length;
 
   if(total){
 
@@ -1006,6 +998,31 @@ function handlePointClick(latlng){
   // -------------------------------
   // TRAIN CLICK DETECTION
   // -------------------------------
+const clickedTrain = trainRoutes.find(tr=>{
+  return tr.segs && tr.segs.some(seg=>{
+    for(let i=1;i<seg.length;i++){
+      const A = map.latLngToLayerPoint(seg[i-1]);
+      const B = map.latLngToLayerPoint(seg[i]);
+      const P = map.latLngToLayerPoint(latlng);
+      if(distPointToSeg(P,A,B) <= 6) return true;
+    }
+    return false;
+  });
+});
+
+if(clickedTrain){
+  clearSelectionAndPopups();
+
+  selectedTrain = clickedTrain;
+
+  clickedTrain.layers.forEach(l=>{
+    l.setStyle({ color: "#00ffff", weight: 8 });
+    l.bringToFront();
+  });
+
+  showRouteListPanel([clickedTrain.name]);
+  return;
+}
 
   // -------------------------------
   // BUS ROUTES (existing logic)
@@ -1013,15 +1030,8 @@ function handlePointClick(latlng){
 // -------------------------------
 // BUS + TRAIN CLICK (FIXED)
 // -------------------------------
-const baseTol = getDynamicTolerance();
-const nearTrains = trainAtPoint(latlng, baseTol);
-
-const nearTrains = trainAtPoint(latlng, baseTol);
-
-// 👇 expand PUV detection if clicking near train
-const puvTol = nearTrains.length ? baseTol * 1.8 : baseTol;
-
-const nearRoutes = routesAtPoint(latlng, puvTol);
+const nearRoutes = routesAtPoint(latlng, 6);
+const nearTrains = trainAtPoint(latlng, 6);
 
 if(!nearRoutes.length && !nearTrains.length){
     clearSelectionAndPopups();
@@ -1040,7 +1050,6 @@ const trainNames = nearTrains.map(tr => tr.name);
 
 // Combine
 const allNames = [...new Set([...routeNames, ...trainNames])];
-showRouteListPanel(allNames);
 
 showRouteListPanel(allNames);}
     // map click uses shared handler
