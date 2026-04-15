@@ -998,31 +998,45 @@ function handlePointClick(latlng){
   // -------------------------------
   // TRAIN CLICK DETECTION
   // -------------------------------
-const clickedTrain = trainRoutes.find(tr=>{
-  return tr.segs && tr.segs.some(seg=>{
-    for(let i=1;i<seg.length;i++){
-      const A = map.latLngToLayerPoint(seg[i-1]);
-      const B = map.latLngToLayerPoint(seg[i]);
-      const P = map.latLngToLayerPoint(latlng);
-      if(distPointToSeg(P,A,B) <= 6) return true;
-    }
-    return false;
+// -------------------------------
+// REMOVE single-train detection
+// -------------------------------
+
+// const clickedTrain = ... ❌ DELETE THIS WHOLE BLOCK
+
+// -------------------------------
+// UNIFIED DETECTION (TRAIN + PUV)
+// -------------------------------
+const nearRoutes = routesAtPoint(latlng, 6);
+const nearTrains = trainAtPoint(latlng, 6);
+
+if(!nearRoutes.length && !nearTrains.length){
+  clearSelectionAndPopups();
+  return;
+}
+
+clearSelectionAndPopups();
+
+// Highlight trains
+nearTrains.forEach(tr=>{
+  tr.layers.forEach(l=>{
+    l.setStyle({ color:"#00ffff", weight:8 });
+    l.bringToFront();
   });
 });
 
-if(clickedTrain){
-  clearSelectionAndPopups();
+// Route names
+const routeNames = nearRoutes
+  .map(rt => normalize(rt.row["ROUTE NAME"]||''))
+  .filter(Boolean);
 
-  selectedTrain = clickedTrain;
+// Train names
+const trainNames = nearTrains.map(tr => tr.name);
 
-  clickedTrain.layers.forEach(l=>{
-    l.setStyle({ color: "#00ffff", weight: 8 });
-    l.bringToFront();
-  });
+// Combine BOTH
+const allNames = [...new Set([...routeNames, ...trainNames])];
 
-  showRouteListPanel([clickedTrain.name]);
-  return;
-}
+showRouteListPanel(allNames);
 
   // -------------------------------
   // BUS ROUTES (existing logic)
