@@ -995,51 +995,6 @@ map.on('mousemove', (e)=>{
 
 function handlePointClick(latlng){
 
-  // -------------------------------
-  // TRAIN CLICK DETECTION
-  // -------------------------------
-// -------------------------------
-// REMOVE single-train detection
-// -------------------------------
-
-// const clickedTrain = ... ❌ DELETE THIS WHOLE BLOCK
-
-// -------------------------------
-// UNIFIED DETECTION (TRAIN + PUV)
-// -------------------------------
-const nearRoutes = routesAtPoint(latlng, 6);
-const nearTrains = trainAtPoint(latlng, 6);
-
-if(!nearRoutes.length && !nearTrains.length){
-  clearSelectionAndPopups();
-  return;
-}
-
-clearSelectionAndPopups();
-
-// Highlight trains
-nearTrains.forEach(tr=>{
-  tr.layers.forEach(l=>{
-    l.setStyle({ color:"#00ffff", weight:8 });
-    l.bringToFront();
-  });
-});
-
-// Route names
-const routeNames = nearRoutes
-  .map(rt => normalize(rt.row["ROUTE NAME"]||''))
-  .filter(Boolean);
-
-// Train names
-const trainNames = nearTrains.map(tr => tr.name);
-
-// Combine BOTH
-const allNames = [...new Set([...routeNames, ...trainNames])];
-
-showRouteListPanel(allNames);
-
-function handlePointClick(latlng){
-
   const nearRoutes = routesAtPoint(latlng, 6);
   const nearTrains = trainAtPoint(latlng, 6);
 
