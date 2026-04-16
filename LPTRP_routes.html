@@ -120,6 +120,24 @@
       font-family: Arial, Helvetica, sans-serif;
       font-size: 13px;
     }
+
+.details-panel {
+  position: absolute;
+  right: 440px; /* beside the route list */
+  bottom: 12px;
+  z-index: 5000;
+  min-width: 300px;
+  max-width: 420px;
+  max-height: 360px;
+  overflow:auto;
+  background: rgba(255,255,255,0.98);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+  padding: 10px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+}
+
     .route-list-panel .header { font-weight:700; margin-bottom:8px; }
     .route-list-panel .route-item { padding:6px 8px; border-radius:6px; cursor:pointer; }
     .route-list-panel .route-item:hover { background:#f0f8ff; }
@@ -461,6 +479,7 @@ function toggleTrains(){
     const hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count', autoPan:false});
     let detailsPopup = null;
     let routeListPanel = null;
+    let detailsPanel = null;
 
     // -----------------------
     // ROUTE LIST PANEL (lower-right)
@@ -491,6 +510,37 @@ function toggleTrains(){
         routeListPanel = null;
       }
     }
+
+function showDetailsPanel(html){
+
+  if(detailsPanel){
+    detailsPanel.innerHTML = buildDetailsHTML(html);
+    return;
+  }
+
+  detailsPanel = document.createElement('div');
+  detailsPanel.className = 'details-panel';
+  detailsPanel.innerHTML = buildDetailsHTML(html);
+
+  map.getContainer().appendChild(detailsPanel);
+}
+
+function hideDetailsPanel(){
+  if(detailsPanel && detailsPanel.parentNode){
+    detailsPanel.parentNode.removeChild(detailsPanel);
+    detailsPanel = null;
+  }
+}
+
+function buildDetailsHTML(content){
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <strong>Route Details</strong>
+      <button onclick="hideDetailsPanel()" style="border:none;background:none;cursor:pointer;font-size:16px">✖</button>
+    </div>
+    ${content}
+  `;
+}
 
     // -----------------------
     // FILTER helpers
@@ -944,7 +994,7 @@ if(selectedTrain){
         selectedRoute = null;
       }
       try{ if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup); }catch(e){}
-      if(detailsPopup){ try{ map.removeLayer(detailsPopup); }catch(e){} detailsPopup = null; }
+  hideDetailsPanel();
       hideRouteListPanel();
       for(const rt of routes){
         if(map.hasLayer(rt.layerGroup)){
@@ -1121,13 +1171,7 @@ if(train){
       const bounds = fg.getBounds();
       const center = bounds.getCenter();
 
-      detailsPopup = L.popup({
-        autoClose:false,
-        closeOnClick:false,
-        className:'details-popup',
-        offset: L.point(12, -14),
-        autoPan: true
-      }).setLatLng(center).setContent(html).addTo(map);
+showDetailsPanel(html);
 
       // ensure selected route bounds are visible
       try{ map.fitBounds(bounds, { padding:[40,40] }); }catch(e){}
