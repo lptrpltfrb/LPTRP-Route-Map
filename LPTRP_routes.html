@@ -283,7 +283,7 @@ function drawTrainRoutes(data){
             if(!segs || !segs.length) return;
 
             const trainObj = {
-                name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line"),
+                name: normalize(row["NAME"] || row["LINE"] || row["ROUTE NAME"] || "Train Line").toUpperCase(),
                 segs: segs,
                 layers: []
             };
@@ -1069,7 +1069,7 @@ function handlePointClick(latlng){
     .filter(Boolean);
 
   // Train names
-  const trainNames = nearTrains.map(tr => tr.name);
+  const trainNames = nearTrains.map(tr => normalize(tr.name));
 
   // Combine BOTH
   const allNames = [...new Set([...routeNames, ...trainNames])];
@@ -1086,7 +1086,9 @@ let target = routes.find(rt => normalize(rt.row["ROUTE NAME"]||'') === normalize
 
 // 🔍 If not found, check train routes
 if(!target){
-  const train = trainRoutes.find(tr => normalize(tr.name) === normalize(name));
+  const train = trainRoutes.find(tr => 
+  normalize(tr.name).toUpperCase() === normalize(name).toUpperCase()
+);
 
 if(train){
 
