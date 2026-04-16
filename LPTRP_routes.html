@@ -648,12 +648,29 @@ function drawRoute(row){
       const addSegments = (segs) => {
         if(!segs) return;
         for(const seg of segs){
-          const poly = L.polyline(seg, { 
-            color: baseColor, 
-            weight: 2, 
-            opacity: 0.95 
-          });
-          poly.on('click', (ev) => { 
+const addSegments = (segs, type) => {
+  if(!segs) return;
+
+  for(const seg of segs){
+
+    const isOutbound = (type === 'outbound');
+
+    const poly = L.polyline(seg, { 
+      color: baseColor,
+      weight: isOutbound ? 4 : 2,          // thicker outbound
+      opacity: isOutbound ? 1 : 0.7,       // lighter return
+      dashArray: isOutbound ? null : "6,8" // dashed return
+    });
+
+    poly.on('click', (ev) => { 
+      L.DomEvent.stopPropagation(ev); 
+      handlePointClick(ev.latlng); 
+    });
+
+    poly.addTo(group);
+  }
+};          
+            poly.on('click', (ev) => { 
             L.DomEvent.stopPropagation(ev); 
             handlePointClick(ev.latlng); 
           });
@@ -663,13 +680,12 @@ function drawRoute(row){
 
       // DRAWING LOGIC:
       // Always draw Outbound (1-1 to 1-8)
-      addSegments(outboundSegs);
+      addSegments(outboundSegs, 'outbound');
 
       // ONLY draw Return (2-1 to 2-8) if "both" is selected
-      if(viewMode === 'both' && returnSegs) {
-        addSegments(returnSegs);
-      }
-
+if(viewMode === 'both' && returnSegs) {
+  addSegments(returnSegs, 'return');
+}
       group.addTo(map);
       const id = routeName || normalize(row["DENO"]||'');
       
