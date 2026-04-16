@@ -292,19 +292,28 @@ function drawTrainRoutes(data){
 
 segs.forEach(seg => {
 
-    const base = L.polyline(seg, {
-        color: "#222",
-        weight: 5,
-        opacity: 0.9
-    }).addTo(trainLayerGroup);
+const base = L.polyline(seg, {
+    color: "#222",
+    weight: 5,
+    opacity: 0.9
+})
+.on('click', (ev) => {
+    L.DomEvent.stopPropagation(ev);
+    handlePointClick(ev.latlng);
+})
+.addTo(trainLayerGroup);
 
-    const sleeper = L.polyline(seg, {
-        color: "#fff",
-        weight: 2,
-        dashArray: "1,8",
-        opacity: 0.9
-    }).addTo(trainLayerGroup);
-
+const sleeper = L.polyline(seg, {
+    color: "#fff",
+    weight: 2,
+    dashArray: "1,8",
+    opacity: 0.9
+})
+.on('click', (ev) => {
+    L.DomEvent.stopPropagation(ev);
+    handlePointClick(ev.latlng);
+})
+.addTo(trainLayerGroup);
     trainObj.layers.push(base, sleeper);
 });       
 }
