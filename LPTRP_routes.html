@@ -643,12 +643,7 @@ function drawRoute(row){
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
-
-      // Helper function to draw the lines
-      const addSegments = (segs) => {
-        if(!segs) return;
-        for(const seg of segs){
-const addSegments = (segs, type) => {
+      const addSegments = (segs, type) => {
   if(!segs) return;
 
   for(const seg of segs){
@@ -657,9 +652,9 @@ const addSegments = (segs, type) => {
 
     const poly = L.polyline(seg, { 
       color: baseColor,
-      weight: isOutbound ? 4 : 2,          // thicker outbound
-      opacity: isOutbound ? 1 : 0.7,       // lighter return
-      dashArray: isOutbound ? null : "6,8" // dashed return
+      weight: isOutbound ? 4 : 2,
+      opacity: isOutbound ? 1 : 0.7,
+      dashArray: isOutbound ? null : "6,8"
     });
 
     poly.on('click', (ev) => { 
@@ -669,18 +664,18 @@ const addSegments = (segs, type) => {
 
     poly.addTo(group);
   }
-};          
-            poly.on('click', (ev) => { 
-            L.DomEvent.stopPropagation(ev); 
-            handlePointClick(ev.latlng); 
-          });
-          poly.addTo(group);
-        }
-      };
+};
+
+
+// Helper function to draw the lines
 
       // DRAWING LOGIC:
       // Always draw Outbound (1-1 to 1-8)
       addSegments(outboundSegs, 'outbound');
+
+if(viewMode === 'both' && returnSegs) {
+  addSegments(returnSegs, 'return');
+}
 
       // ONLY draw Return (2-1 to 2-8) if "both" is selected
 if(viewMode === 'both' && returnSegs) {
