@@ -991,26 +991,42 @@ function clearTrainHover(){
     });
   });
 }
-    function clearSelectionAndPopups(){
-if(selectedTrain){
-  selectedTrain.layers.forEach(l=>{
-    l.setStyle({ color: "#222", weight: 6 });
-  });
-  selectedTrain = null;
-}
-      if(selectedRoute){
-        selectedRoute.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: selectedRoute.baseColor, weight:2, opacity:0.95 }));
-        selectedRoute = null;
-      }
-      try{ if(map.hasLayer(hoverPopup)) map.removeLayer(hoverPopup); }catch(e){}
+
+function clearSelectionAndPopups(){
+
+  if(selectedTrain){
+    selectedTrain.layers.forEach(l=>{
+      l.setStyle({ color: "#222", weight: 6 });
+    });
+    selectedTrain = null;
+  }
+
+  if(selectedRoute){
+    selectedRoute.layerGroup.getLayers().forEach(poly => 
+      poly.setStyle({ color: selectedRoute.baseColor, weight:2, opacity:0.95 })
+    );
+    selectedRoute = null;
+  }
+
+  // REMOVE popup (old system)
+  if(detailsPopup){
+    try{ map.removeLayer(detailsPopup); }catch(e){}
+    detailsPopup = null;
+  }
+
+  // REMOVE side panel (new system)
   hideDetailsPanel();
-      hideRouteListPanel();
-      for(const rt of routes){
-        if(map.hasLayer(rt.layerGroup)){
-          rt.layerGroup.getLayers().forEach(poly => poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 }));
-        }
-      }
+
+  hideRouteListPanel();
+
+  for(const rt of routes){
+    if(map.hasLayer(rt.layerGroup)){
+      rt.layerGroup.getLayers().forEach(poly => 
+        poly.setStyle({ color: rt.baseColor, weight:2, opacity:0.95 })
+      );
     }
+  }
+}
 
 map.on('mousemove', (e)=>{
 
@@ -1051,6 +1067,9 @@ map.on('mousemove', (e)=>{
 
 });
 
+map.on('click', (e) => {
+  handlePointClick(e.latlng);
+});
 
 function handlePointClick(latlng){
 
@@ -1131,15 +1150,14 @@ if(train){
 
   const center = bounds.getCenter();
 
-  detailsPopup = L.popup({
-    autoClose:false,
-    closeOnClick:false,
-    className:'details-popup'
-  })
-  .setLatLng(center)
-  .setContent(`<b>${train.name}</b><br>Train Route`)
-  .addTo(map);
+const html = `
+  <div style="font-size:16px;font-weight:700;margin-bottom:6px">
+    ${train.name}
+  </div>
+  <div><strong>Type:</strong> Train Route</div>
+`;
 
+showDetailsPanel(html);
   return; // ✅ STOP here
 }
   return;
