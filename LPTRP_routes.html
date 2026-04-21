@@ -227,22 +227,30 @@
       <div class="suggestions"><input id="ep2Terminal" type="text" class="small-input" placeholder="Type terminal..." autocomplete="off" /><div class="suggestions-list" id="ep2TerminalSuggestions"></div></div>
     </div>
 
-      <div class="toggle-container">
-      <div style="margin-bottom: 5px;"><strong>Map Display Settings:</strong></div>
-      <label style="cursor:pointer; display:block; margin-bottom:4px;">
-        <input type="radio" name="pathView" value="outbound" onchange="applyFilters()"> Outbound Direction
-      </label>
-      <label style="cursor:pointer; display:block; margin-bottom:8px;">
-        <input type="radio" name="pathView" value="both" checked onchange="applyFilters()"> Both Directions
-      </label>
-      <hr>
-      <label style="cursor:pointer; font-weight:bold;">
-        <input type="checkbox" id="showTerminals" checked onchange="toggleTerminals()"> Show Terminals (Icons)
-      </label>
-      <label style="cursor:pointer; font-weight:bold;">
-        <input type="checkbox" id="showTrains" checked onchange="toggleTrains()"> Show Train Routes
-      </label>
-</div>    
+<div class="toggle-container">
+  <div style="margin-bottom: 5px;"><strong>Map Display Settings:</strong></div>
+
+<label>
+  <input type="radio" name="pathView" value="dir1" onchange="applyFilters()"> Direction 1
+</label>
+
+<label>
+  <input type="radio" name="pathView" value="dir2" onchange="applyFilters()"> Direction 2
+</label>
+
+<label>
+  <input type="radio" name="pathView" value="both" checked onchange="applyFilters()"> Both Directions
+</label>
+  <hr>
+
+  <label style="cursor:pointer; font-weight:bold;">
+    <input type="checkbox" id="showTerminals" checked onchange="toggleTerminals()"> Show Terminals (Icons)
+  </label>
+
+  <label style="cursor:pointer; font-weight:bold;">
+    <input type="checkbox" id="showTrains" checked onchange="toggleTrains()"> Show Train Routes
+  </label>
+</div>   
     <button class="btn apply" onclick="applyFilters()">🔍 Apply Filters</button>
     <button class="btn clear" onclick="resetFilters()">♻️ Clear Filters</button>
 
@@ -262,6 +270,7 @@
     const terminalCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1448318988&single=true&output=csv";
     // Train routes CSV
     const trainCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=168170160&single=true&output=csv";
+    const stopsCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCBsc0sCJs7FXH1Q1XEiCuMrV_ckVg9tcMvozYThFJfqpcOPdlo6YqxBYf6I1zHO0-yQZ_vz3knSS/pub?gid=1968348596&single=true&output=csv";
 
 
 function drawTrainRoutes(data){
@@ -273,6 +282,10 @@ function drawTrainRoutes(data){
     data.forEach(row => {
 
         const type = nLower(row["TYPE"]);
+        const dir = nLower(row["DIRECTION"]);
+
+        if(viewMode === "dir1" && dir !== "from origin" && dir !== "loop") return;
+        if(viewMode === "dir2" && dir !== "to origin" && dir !== "loop") return;
 
         // -------------------------
         // TRAIN LINE
@@ -473,6 +486,7 @@ function toggleTrains(){
 
     let allData = [];
     let routes = []; // { row, segs, layerGroup, baseColor, id }
+    let stopsParsed = [];
     let visibleLayers = [];
     let selectedRoute = null;
     let selectedTrain = null;
@@ -484,6 +498,9 @@ function toggleTrains(){
     let terminals = []; // { row, marker }
     let terminalLayerGroup = L.layerGroup();
     let terminalMarkers = [];
+
+    let stopsLayerGroup = L.layerGroup().addTo(map);
+    let endpointsLayerGroup = L.layerGroup().addTo(map);
 
     const hoverPopup = L.popup({autoClose:false, closeButton:false, className:'hover-count', autoPan:false});
     let detailsPopup = null;
@@ -618,7 +635,8 @@ function buildDetailsHTML(content){
     // -----------------------
 function drawRoute(row){
       // 1. Check which display mode is selected in the search panel
-      const viewMode = document.querySelector('input[name="pathView"]:checked').value;
+      const viewModeEl = document.querySelector('input[name="pathView"]:checked');
+      const viewMode = viewModeEl ? viewModeEl.value : 'both';
 
       // 2. ALWAYS combine strings for Outbound (GEO PATH 1-1 to 1-8)
       let outboundPath = "";
@@ -672,10 +690,6 @@ function drawRoute(row){
       // DRAWING LOGIC:
       // Always draw Outbound (1-1 to 1-8)
       addSegments(outboundSegs, 'outbound');
-
-if(viewMode === 'both' && returnSegs) {
-  addSegments(returnSegs, 'return');
-}
 
       // ONLY draw Return (2-1 to 2-8) if "both" is selected
 if(viewMode === 'both' && returnSegs) {
@@ -774,6 +788,70 @@ if(viewMode === 'both' && returnSegs) {
       terminalLayerGroup.addTo(map);
     }
 
+    function drawStopsAndEndpoints(data){
+
+  // clear old layers
+  stopsLayerGroup.clearLayers();
+  endpointsLayerGroup.clearLayers();
+
+  const viewModeEl = document.querySelector('input[name="pathView"]:checked');
+  const viewMode = viewModeEl ? viewModeEl.value : 'both';
+
+  data.forEach(row => {
+
+    const type = (row["TYPE"] || "").toLowerCase().trim();
+    const direction = (row["DIRECTION"] || "").toLowerCase().trim();
+
+    const lat = parseFloat(row["STOP (LAT)"] || row["ENDPT (LAT)"]);
+    const lng = parseFloat(row["STOP (LONG)"] || row["EDPPT (LONG)"]);
+
+    if(isNaN(lat) || isNaN(lng)) return;
+
+    // -------------------------
+    // FILTER BY DIRECTION
+    // -------------------------
+    if(viewMode === "dir1" && direction !== "from origin") return;
+    if(viewMode === "dir2" && direction !== "to origin") return;
+
+    // -------------------------
+    // ENDPOINTS
+    // -------------------------
+    if(type === "endpoint"){
+
+      const name = row["ENDPOINT"] || "";
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: 6,
+        color: "#000",
+        weight: 1,
+        fillColor: "#ff0000",
+        fillOpacity: 0.9
+      }).bindPopup(`<b>${name}</b><br>Endpoint`);
+
+      marker.addTo(endpointsLayerGroup);
+    }
+
+    // -------------------------
+    // STOPS
+    // -------------------------
+    if(type === "stops" || type === "stop"){
+
+      const name = row["STOP"] || "";
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: 4,
+        color: "#000",
+        weight: 1,
+        fillColor: "#0066ff",
+        fillOpacity: 0.8
+      }).bindPopup(`${name}`);
+
+      marker.addTo(stopsLayerGroup);
+    }
+
+  });
+}
+
     // Filter/show/hide terminal markers according to Endpoint Terminal filters
     function updateTerminalVisibility(ep1TermVal, ep2TermVal){
       const v1 = nLower(ep1TermVal);
@@ -788,7 +866,6 @@ if(viewMode === 'both' && returnSegs) {
         }
       }
     }
-
 
     // -----------------------
     // FILTERS
@@ -1225,34 +1302,28 @@ showDetailsPanel(html);
     // fetch routes + terminals in parallel, then parse and draw
 Promise.all([
   fetch(csvUrl).then(r=>r.text()),
-  fetch(terminalCsvUrl).then(r=>r.text())
+  fetch(terminalCsvUrl).then(r=>r.text()),
+  fetch(stopsCsvUrl).then(r=>r.text()),
+  fetch(trainCsvUrl).then(r=>r.text())  
 ])
-.then(([routesCsvText, terminalsCsvText])=>{
+.then(([routesCsvText, terminalsCsvText, stopsCsvText, trainCsvText])=>{
 
   const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
   const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+  const stopsParsedLocal = Papa.parse(stopsCsvText, { header:true, skipEmptyLines:true }).data;
+  const trainParsed = Papa.parse(trainCsvText, { header:true, skipEmptyLines:true }).data;
 
-  console.log("Routes:", routesParsed.length);      
+  stopsParsed = stopsParsedLocal;
+
+  drawStopsAndEndpoints(stopsParsed);
+  drawTrainRoutes(trainParsed);
+
+  console.log("Routes:", routesParsed.length);
   console.log("Terminals:", terminalsParsed.length);
+  console.log("Trains:", trainParsed.length);
 
   allData = routesParsed;
 
-  // Load train routes
-Papa.parse(trainCsvUrl, {
-  download: true,
-  header: true,
-  complete: function(results){
-
-    console.log("Train rows:", results.data.length); // ✅ DEBUG
-
-    if(!results.data || !results.data.length){
-      console.warn("⚠️ No train data loaded");
-      return;
-    }
-
-    drawTrainRoutes(results.data);
-  }
-});
   // -----------------------
   // BUILD SUGGESTIONS
   // -----------------------
