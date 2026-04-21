@@ -444,6 +444,43 @@ function toggleTrains(){
     }
     function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
+function updateMarkerSizes(){
+
+  const z = map.getZoom();
+
+  const terminalSize = Math.max(6, Math.min(14, z * 1.2));
+  const stationSize  = Math.max(6, Math.min(12, z * 1.0));
+
+  terminals.forEach(t => {
+    const type = normalize(t.row["TYPE"] || "");
+    t.marker.setIcon(createTerminalDivIcon(type, terminalSize));
+  });
+
+  trainStations.forEach(m => {
+    const icon = L.divIcon({
+      className: '',
+html: `
+  <div style="
+    width:${stationSize}px;
+    height:${stationSize}px;
+    background:#555;
+    border:2px solid #fff;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:${Math.max(8, stationSize * 0.7)}px;
+    color:#fff;
+  ">🚆</div>
+`,      iconSize: [stationSize, stationSize],
+      iconAnchor: [stationSize/2, stationSize/2]
+    });
+
+    m.setIcon(icon);
+  });
+
+}
+
     // Haversine (if ever needed)
     function haversine(a,b){
       const R=6371000;
@@ -479,6 +516,7 @@ function toggleTrains(){
     // MAP
     // -----------------------
     const map = L.map('map', { preferCanvas:true }).setView([13,122],6);
+    map.on('zoomend', updateMarkerSizes);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
@@ -1319,6 +1357,9 @@ Promise.all([
 
   drawStopsAndEndpoints(stopsParsed);
   drawTrainRoutes(trainParsed);
+  drawTerminals(terminalsParsed);
+
+  updateMarkerSizes();
 
   console.log("Routes:", routesParsed.length);
   console.log("Terminals:", terminalsParsed.length);
