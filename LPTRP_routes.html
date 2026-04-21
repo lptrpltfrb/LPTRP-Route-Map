@@ -1306,19 +1306,21 @@ Promise.all([
   fetch(stopsCsvUrl).then(r=>r.text()),
   fetch(trainCsvUrl).then(r=>r.text())  
 ])
-.then(([routesCsvText, terminalsCsvText, stopsCsvText])=>{
+.then(([routesCsvText, terminalsCsvText, stopsCsvText, trainCsvText])=>{
 
   const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
   const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+  const stopsParsedLocal = Papa.parse(stopsCsvText, { header:true, skipEmptyLines:true }).data;
   const trainParsed = Papa.parse(trainCsvText, { header:true, skipEmptyLines:true }).data;
-  stopsParsed = Papa.parse(stopsCsvText, { header:true, skipEmptyLines:true }).data;
+
+  stopsParsed = stopsParsedLocal;
+
   drawStopsAndEndpoints(stopsParsed);
+  drawTrainRoutes(trainParsed);
 
-
-drawTrainRoutes(trainParsed);
-
-  console.log("Routes:", routesParsed.length);      
+  console.log("Routes:", routesParsed.length);
   console.log("Terminals:", terminalsParsed.length);
+  console.log("Trains:", trainParsed.length);
 
   allData = routesParsed;
 
