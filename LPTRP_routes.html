@@ -1303,36 +1303,25 @@ showDetailsPanel(html);
 Promise.all([
   fetch(csvUrl).then(r=>r.text()),
   fetch(terminalCsvUrl).then(r=>r.text()),
-  fetch(stopsCsvUrl).then(r=>r.text()) 
+  fetch(stopsCsvUrl).then(r=>r.text()),
+  fetch(trainCsvUrl).then(r=>r.text())  
 ])
 .then(([routesCsvText, terminalsCsvText, stopsCsvText])=>{
 
   const routesParsed = Papa.parse(routesCsvText, { header:true, skipEmptyLines:true }).data;
   const terminalsParsed = Papa.parse(terminalsCsvText, { header:true, skipEmptyLines:true }).data;
+  const trainParsed = Papa.parse(trainCsvText, { header:true, skipEmptyLines:true }).data;
   stopsParsed = Papa.parse(stopsCsvText, { header:true, skipEmptyLines:true }).data;
   drawStopsAndEndpoints(stopsParsed);
+
+
+drawTrainRoutes(trainParsed);
 
   console.log("Routes:", routesParsed.length);      
   console.log("Terminals:", terminalsParsed.length);
 
   allData = routesParsed;
 
-  // Load train routes
-Papa.parse(trainCsvUrl, {
-  download: true,
-  header: true,
-  complete: function(results){
-
-    console.log("Train rows:", results.data.length); // ✅ DEBUG
-
-    if(!results.data || !results.data.length){
-      console.warn("⚠️ No train data loaded");
-      return;
-    }
-
-    drawTrainRoutes(results.data);
-  }
-});
   // -----------------------
   // BUILD SUGGESTIONS
   // -----------------------
