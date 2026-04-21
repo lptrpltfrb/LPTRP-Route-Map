@@ -275,10 +275,12 @@
 
 function drawTrainRoutes(data){
 
+    const viewModeEl = document.querySelector('input[name="pathView"]:checked');
+    const viewMode = viewModeEl ? viewModeEl.value : 'both';
+
     trainLayerGroup.clearLayers();
     trainStations = [];
     trainRoutes = [];
-
     data.forEach(row => {
 
         const type = nLower(row["TYPE"]);
