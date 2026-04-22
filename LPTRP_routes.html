@@ -851,11 +851,25 @@ if(viewMode === 'both' && returnSegs) {
 
   data.forEach(row => {
 
+    console.log("TYPE:", row["TYPE"]); 
+
     const type = (row["TYPE"] || "").toLowerCase().trim();
     const direction = (row["DIRECTION"] || "").toLowerCase().trim();
 
-    const lat = parseFloat(row["STOP (LAT)"] || row["ENDPT (LAT)"]);
-    const lng = parseFloat(row["STOP (LONG)"] || row["EDPPT (LONG)"]);
+const lat = parseFloat(
+  row["STOP (LAT)"] ||
+  row["STOP LAT"] ||
+  row["LAT"] ||
+  row["ENDPT (LAT)"]
+);
+
+const lng = parseFloat(
+  row["STOP (LONG)"] ||
+  row["STOP (LNG)"] ||
+  row["LONG"] ||
+  row["LNG"] ||
+  row["ENDPT (LONG)"]
+);
 
     if(isNaN(lat) || isNaN(lng)) return;
 
@@ -873,11 +887,11 @@ if(viewMode === 'both' && returnSegs) {
       const name = row["ENDPOINT"] || "";
 
       const marker = L.circleMarker([lat, lng], {
-        radius: 6,
+        radius: 8,
         color: "#000",
-        weight: 1,
+        weight: 2,
         fillColor: "#ff0000",
-        fillOpacity: 0.9
+        fillOpacity: 1
       }).bindPopup(`<b>${name}</b><br>Endpoint`);
 
       marker.addTo(endpointsLayerGroup);
@@ -886,7 +900,7 @@ if(viewMode === 'both' && returnSegs) {
     // -------------------------
     // STOPS
     // -------------------------
-    if(type === "stops" || type === "stop"){
+    if(type.includes("stop")){
 
       const name = row["STOP"] || "";
 
@@ -904,6 +918,9 @@ if(viewMode === 'both' && returnSegs) {
     }
 
   });
+
+console.log("Stops layer count:", stopsLayerGroup.getLayers().length);
+
 }
 
     // Filter/show/hide terminal markers according to Endpoint Terminal filters
