@@ -257,8 +257,9 @@
   </div>
 
   <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
     // -----------------------
@@ -444,6 +445,55 @@ function toggleTrains(){
     }
     function uniqueSorted(arr){ return [...new Set(arr.map(v=>normalize(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
+function updateMarkerSizes(){
+
+  const z = map.getZoom();
+
+  const terminalSize = Math.max(6, Math.min(14, z * 1.2));
+  const stationSize  = Math.max(6, Math.min(12, z * 1.0));
+
+  terminals.forEach(t => {
+    const type = normalize(t.row["TYPE"] || "");
+    t.marker.setIcon(createTerminalDivIcon(type, terminalSize));
+  });
+
+  trainStations.forEach(m => {
+    const icon = L.divIcon({
+      className: '',
+html: `
+  <div style="
+    width:${stationSize}px;
+    height:${stationSize}px;
+    background:#555;
+    border:2px solid #fff;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:${Math.max(8, stationSize * 0.7)}px;
+    color:#fff;
+  ">🚆</div>
+`,      iconSize: [stationSize, stationSize],
+      iconAnchor: [stationSize/2, stationSize/2]
+    });
+
+    m.setIcon(icon);
+
+stopsLayerGroup.eachLayer(m => {
+
+  const z = map.getZoom();
+  const stopSize = Math.max(3, Math.min(8, z * 0.6));
+
+  m.setStyle({
+    radius: stopSize
+  });
+
+});
+
+  });
+
+}
+
     // Haversine (if ever needed)
     function haversine(a,b){
       const R=6371000;
@@ -479,6 +529,9 @@ function toggleTrains(){
     // MAP
     // -----------------------
     const map = L.map('map', { preferCanvas:true }).setView([13,122],6);
+    console.log("Decorator:", L.polylineDecorator);
+    console.log("Symbol:", L.Symbol);
+    map.on('zoomend', updateMarkerSizes);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
     L.control.scale({position:'bottomleft',metric:true}).addTo(map);
 
@@ -670,20 +723,36 @@ function drawRoute(row){
 
     const isOutbound = (type === 'outbound');
 
-    const poly = L.polyline(seg, { 
-      color: baseColor,
-      weight: isOutbound ? 4 : 2,
-      opacity: isOutbound ? 1 : 0.7,
-      dashArray: isOutbound ? null : "6,8"
-    });
+const poly = L.polyline(seg, { 
+  color: baseColor,
+  weight: isOutbound ? 4 : 2,
+  opacity: isOutbound ? 1 : 0.7,
+  dashArray: isOutbound ? null : "6,8"
+}).addTo(group);
 
-    poly.on('click', (ev) => { 
-      L.DomEvent.stopPropagation(ev); 
-      handlePointClick(ev.latlng); 
-    });
+// ✅ arrows follow this line
+// SAFE ARROWS (will not crash if plugin missing)
+if (L.polylineDecorator && L.Symbol && L.Symbol.arrowHead) {
 
-    poly.addTo(group);
-  }
+  L.polylineDecorator(poly, {
+    patterns: [
+      {
+        offset: 30,
+        repeat: 80,
+        symbol: L.Symbol.arrowHead({
+          pixelSize: isOutbound ? 6 : 4,
+          pathOptions: {
+            color: baseColor,
+            weight: 1,
+            opacity: 0.7,
+            fillOpacity: 0.7
+          }
+        })
+      }
+    ]
+  }).addTo(group);
+
+}
 };
 
 
@@ -801,11 +870,25 @@ if(viewMode === 'both' && returnSegs) {
 
   data.forEach(row => {
 
+    console.log("TYPE:", row["TYPE"]); 
+
     const type = (row["TYPE"] || "").toLowerCase().trim();
     const direction = (row["DIRECTION"] || "").toLowerCase().trim();
 
-    const lat = parseFloat(row["STOP (LAT)"] || row["ENDPT (LAT)"]);
-    const lng = parseFloat(row["STOP (LONG)"] || row["EDPPT (LONG)"]);
+const lat = parseFloat(
+  row["STOP (LAT)"] ||
+  row["STOP LAT"] ||
+  row["LAT"] ||
+  row["ENDPT (LAT)"]
+);
+
+const lng = parseFloat(
+  row["STOP (LONG)"] ||
+  row["STOP (LNG)"] ||
+  row["LONG"] ||
+  row["LNG"] ||
+  row["ENDPT (LONG)"]
+);
 
     if(isNaN(lat) || isNaN(lng)) return;
 
@@ -823,11 +906,11 @@ if(viewMode === 'both' && returnSegs) {
       const name = row["ENDPOINT"] || "";
 
       const marker = L.circleMarker([lat, lng], {
-        radius: 6,
+        radius: 8,
         color: "#000",
-        weight: 1,
+        weight: 2,
         fillColor: "#ff0000",
-        fillOpacity: 0.9
+        fillOpacity: 1
       }).bindPopup(`<b>${name}</b><br>Endpoint`);
 
       marker.addTo(endpointsLayerGroup);
@@ -836,12 +919,12 @@ if(viewMode === 'both' && returnSegs) {
     // -------------------------
     // STOPS
     // -------------------------
-    if(type === "stops" || type === "stop"){
+    if(type.includes("stop")){
 
       const name = row["STOP"] || "";
 
       const marker = L.circleMarker([lat, lng], {
-        radius: 4,
+        radius: 6,
         color: "#000",
         weight: 1,
         fillColor: "#0066ff",
@@ -849,9 +932,14 @@ if(viewMode === 'both' && returnSegs) {
       }).bindPopup(`${name}`);
 
       marker.addTo(stopsLayerGroup);
+      marker.bringToFront();
+
     }
 
   });
+
+console.log("Stops layer count:", stopsLayerGroup.getLayers().length);
+
 }
 
     // Filter/show/hide terminal markers according to Endpoint Terminal filters
@@ -1319,6 +1407,9 @@ Promise.all([
 
   drawStopsAndEndpoints(stopsParsed);
   drawTrainRoutes(trainParsed);
+  drawTerminals(terminalsParsed);
+
+  updateMarkerSizes();
 
   console.log("Routes:", routesParsed.length);
   console.log("Terminals:", terminalsParsed.length);
