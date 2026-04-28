@@ -716,45 +716,43 @@ function drawRoute(row){
       const routeName = normalize(row["ROUTE NAME"] || row["DENO"] || '');
       const baseColor = colorFromString(routeName || (row["DENO"]||''));
       const group = L.layerGroup();
-      const addSegments = (segs, type) => {
+const addSegments = (segs, type) => {
   if(!segs) return;
 
   for(const seg of segs){
 
     const isOutbound = (type === 'outbound');
 
-const poly = L.polyline(seg, { 
-  color: baseColor,
-  weight: isOutbound ? 4 : 2,
-  opacity: isOutbound ? 1 : 0.7,
-  dashArray: isOutbound ? null : "6,8"
-}).addTo(group);
+    const poly = L.polyline(seg, { 
+      color: baseColor,
+      weight: isOutbound ? 4 : 2,
+      opacity: isOutbound ? 1 : 0.7,
+      dashArray: isOutbound ? null : "6,8"
+    }).addTo(group);
 
-// ✅ arrows follow this line
-// SAFE ARROWS (will not crash if plugin missing)
-if (L.polylineDecorator && L.Symbol && L.Symbol.arrowHead) {
-
-  L.polylineDecorator(poly, {
-    patterns: [
-      {
-        offset: 30,
-        repeat: 80,
-        symbol: L.Symbol.arrowHead({
-          pixelSize: isOutbound ? 6 : 4,
-          pathOptions: {
-            color: baseColor,
-            weight: 1,
-            opacity: 0.7,
-            fillOpacity: 0.7
+    // SAFE ARROWS
+    if (L.polylineDecorator && L.Symbol && L.Symbol.arrowHead) {
+      L.polylineDecorator(poly, {
+        patterns: [
+          {
+            offset: 30,
+            repeat: 80,
+            symbol: L.Symbol.arrowHead({
+              pixelSize: isOutbound ? 6 : 4,
+              pathOptions: {
+                color: baseColor,
+                weight: 1,
+                opacity: 0.7,
+                fillOpacity: 0.7
+              }
+            })
           }
-        })
-      }
-    ]
-  }).addTo(group);
+        ]
+      }).addTo(group);
+    }
 
-}
-};
-
+  } // ✅ CLOSE FOR LOOP HERE
+}; // ✅ CLOSE FUNCTION HERE
 
 // Helper function to draw the lines
 
