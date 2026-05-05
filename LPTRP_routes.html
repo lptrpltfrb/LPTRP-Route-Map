@@ -450,50 +450,47 @@ function updateMarkerSizes(){
 
   const terminalSize = Math.max(6, Math.min(14, z * 1.2));
   const stationSize  = Math.max(6, Math.min(12, z * 1.0));
+  const stopSize     = Math.max(3, Math.min(8, z * 0.6));
 
+  // terminals
   terminals.forEach(t => {
     const type = normalize(t.row["TYPE"] || "");
     t.marker.setIcon(createTerminalDivIcon(type, terminalSize));
   });
 
+  // train stations
   trainStations.forEach(m => {
     const icon = L.divIcon({
       className: '',
-html: `
-  <div style="
-    width:${stationSize}px;
-    height:${stationSize}px;
-    background:#555;
-    border:2px solid #fff;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:${Math.max(8, stationSize * 0.7)}px;
-    color:#fff;
-  ">🚆</div>
-`,      iconSize: [stationSize, stationSize],
+      html: `
+        <div style="
+          width:${stationSize}px;
+          height:${stationSize}px;
+          background:#555;
+          border:2px solid #fff;
+          border-radius:50%;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-size:${Math.max(8, stationSize * 0.7)}px;
+          color:#fff;
+        ">🚆</div>
+      `,
+      iconSize: [stationSize, stationSize],
       iconAnchor: [stationSize/2, stationSize/2]
     });
 
     m.setIcon(icon);
-
-stopsLayerGroup.eachLayer(m => {
-
-  const z = map.getZoom();
-  const stopSize = Math.max(3, Math.min(8, z * 0.6));
-
-  m.setStyle({
-    radius: stopSize
   });
 
-});
-
+  // stops
+  stopsLayerGroup.eachLayer(layer => {
+    if(layer.setStyle){
+      layer.setStyle({ radius: stopSize });
+    }
   });
 
-}
-
-    // Haversine (if ever needed)
+}    // Haversine (if ever needed)
     function haversine(a,b){
       const R=6371000;
       const dLat=(b.lat-a.lat)*Math.PI/180;
