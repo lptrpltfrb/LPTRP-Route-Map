@@ -912,6 +912,7 @@ marker.addTo(endpointsLayerGroup);
 
 // keep above routes
 marker.on('add', () => marker.bringToFront());
+}
 
     // -------------------------
     // STOPS
@@ -1508,17 +1509,10 @@ applyFilters();
     }
 
     // This turns the Terminal Icons on and off
-    function toggleTerminals() {
-  // disabled (terminals removed)
-}
-      const show = document.getElementById('showTerminals').checked;
-      if (show) { 
-        if (!map.hasLayer(terminalLayerGroup)) map.addLayer(terminalLayerGroup); 
-      } else { 
-        if (map.hasLayer(terminalLayerGroup)) map.removeLayer(terminalLayerGroup); 
-      }
-    }
 
+function toggleTerminals() {
+  // terminals disabled — do nothing
+}
   </script>
 </body>
 </html>
