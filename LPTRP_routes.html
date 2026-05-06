@@ -762,6 +762,10 @@ if(viewMode === 'both' && returnSegs) {
   addSegments(returnSegs, 'return');
 }
       group.addTo(map);
+// force stops above THIS route draw
+if(map.hasLayer(stopsLayerGroup)) stopsLayerGroup.bringToFront();
+if(map.hasLayer(endpointsLayerGroup)) endpointsLayerGroup.bringToFront();
+
       const id = routeName || normalize(row["DENO"]||'');
       
       // We store the segments for searching/clicking. 
@@ -901,17 +905,17 @@ const lng = parseFloat(
       const name = row["ENDPOINT"] || "";
 
 // define size BEFORE marker
-const stopSize = 4; // reduced size
+const stopSize = 6; // reduced size
 
 const marker = L.circleMarker([lat, lng], {
   radius: stopSize,
   color: "#000",
   weight: 1,
-  fillColor: "#0066ff",
+  fillColor: "#ff8800",
   fillOpacity: 0.9
 }).bindPopup(`${name}`);
 
-marker.addTo(stopsLayerGroup);
+marker.addTo(endpointsLayerGroup);
 
 // always on top
 marker.on('add', () => marker.bringToFront());
@@ -925,7 +929,7 @@ marker.on('add', () => marker.bringToFront());
       const name = row["STOP"] || "";
 
 const marker = L.circleMarker([lat, lng], {
-  radius: 4,                // ~60% smaller
+  radius: 3,                // ~60% smaller
   color: "#000",
   weight: 1,
   fillColor: "#0066ff",
@@ -1058,6 +1062,9 @@ setTimeout(() => {
   if(map.hasLayer(stopsLayerGroup)) stopsLayerGroup.bringToFront();
   if(map.hasLayer(endpointsLayerGroup)) endpointsLayerGroup.bringToFront();
 }, 0);
+
+}
+
 function resetFilters(){
       // 1. Clear text inputs and chips
       selectedRouteNames=[]; 
