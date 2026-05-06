@@ -734,7 +734,7 @@ const addSegments = (segs, type) => {
       patterns: [
         {
           offset: '10%',
-          repeat: '12%',
+          repeat: '5%',
           symbol: L.Symbol.arrowHead({
             pixelSize: 6,
             pathOptions: {
@@ -900,16 +900,18 @@ const lng = parseFloat(
 
       const name = row["ENDPOINT"] || "";
 
-      const marker = L.circleMarker([lat, lng], {
-        radius: 8,
-        color: "#000",
-        weight: 2,
-        fillColor: "#ff0000",
-        fillOpacity: 1
-      }).bindPopup(`<b>${name}</b><br>Endpoint`);
+const marker = L.circleMarker([lat, lng], {
+  radius: 6,                 // slightly bigger than stops
+  color: "#000",
+  weight: 2,
+  fillColor: "#ff8800",      // different color from stops
+  fillOpacity: 1
+}).bindPopup(`<b>${name}</b><br>Endpoint`);
 
-      marker.addTo(endpointsLayerGroup);
-    }
+marker.addTo(endpointsLayerGroup);
+
+// keep above routes
+marker.on('add', () => marker.bringToFront());
 
     // -------------------------
     // STOPS
@@ -918,17 +920,18 @@ const lng = parseFloat(
 
       const name = row["STOP"] || "";
 
-      const marker = L.circleMarker([lat, lng], {
-        radius: 6,
-        color: "#000",
-        weight: 1,
-        fillColor: "#0066ff",
-        fillOpacity: 0.8
-      }).bindPopup(`${name}`);
+const marker = L.circleMarker([lat, lng], {
+  radius: 4,                // ~60% smaller
+  color: "#000",
+  weight: 1,
+  fillColor: "#0066ff",
+  fillOpacity: 0.9
+}).bindPopup(`${name}`);
 
-      marker.addTo(stopsLayerGroup);
-      marker.bringToFront();
+marker.addTo(stopsLayerGroup);
 
+// ALWAYS stay above routes
+marker.on('add', () => marker.bringToFront());
     }
 
   });
@@ -1028,7 +1031,7 @@ function applyFilters(){
         }
       }
 
-      updateTerminalVisibility(ep1TerminalVal, ep2TerminalVal);
+     // updateTerminalVisibility(ep1TerminalVal, ep2TerminalVal);
 
       // 4. Fit bounds to results
       const routeLayers = visibleLayers.flatMap(g => g.getLayers());
@@ -1402,7 +1405,7 @@ Promise.all([
 
   drawStopsAndEndpoints(stopsParsed);
   drawTrainRoutes(trainParsed);
-  drawTerminals(terminalsParsed);
+// drawTerminals(terminalsParsed);
 
   updateMarkerSizes();
 
@@ -1476,7 +1479,7 @@ Promise.all([
     if(rt){ routes.push(rt); visibleLayers.push(rt.layerGroup); }
   }
 
-  drawTerminals(terminalsParsed);
+ // drawTerminals(terminalsParsed);
 
   const initialFeatures = visibleLayers.flatMap(g => g.getLayers())
     .concat(terminalMarkers.map(t=>t.marker));
@@ -1506,6 +1509,8 @@ applyFilters();
 
     // This turns the Terminal Icons on and off
     function toggleTerminals() {
+  // disabled (terminals removed)
+}
       const show = document.getElementById('showTerminals').checked;
       if (show) { 
         if (!map.hasLayer(terminalLayerGroup)) map.addLayer(terminalLayerGroup); 
