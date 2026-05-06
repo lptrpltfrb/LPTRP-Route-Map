@@ -450,7 +450,7 @@ function updateMarkerSizes(){
 
   const terminalSize = Math.max(6, Math.min(14, z * 1.2));
   const stationSize  = Math.max(6, Math.min(12, z * 1.0));
-  const stopSize     = Math.max(3, Math.min(8, z * 0.6));
+  const stopSize     = Math.max(2, Math.min(8, z * 0.4));
 
   // terminals
   terminals.forEach(t => {
@@ -900,17 +900,20 @@ const lng = parseFloat(
 
       const name = row["ENDPOINT"] || "";
 
+// define size BEFORE marker
+const stopSize = 4; // reduced size
+
 const marker = L.circleMarker([lat, lng], {
-  radius: 6,                 // slightly bigger than stops
+  radius: stopSize,
   color: "#000",
-  weight: 2,
-  fillColor: "#ff8800",      // different color from stops
-  fillOpacity: 1
-}).bindPopup(`<b>${name}</b><br>Endpoint`);
+  weight: 1,
+  fillColor: "#0066ff",
+  fillOpacity: 0.9
+}).bindPopup(`${name}`);
 
-marker.addTo(endpointsLayerGroup);
+marker.addTo(stopsLayerGroup);
 
-// keep above routes
+// always on top
 marker.on('add', () => marker.bringToFront());
 }
 
@@ -939,8 +942,13 @@ marker.on('add', () => marker.bringToFront());
 
 console.log("Stops layer count:", stopsLayerGroup.getLayers().length);
 
-}
+// keep stops & endpoints above routes
+setTimeout(() => {
+  stopsLayerGroup.bringToFront();
+  endpointsLayerGroup.bringToFront();
+}, 0);
 
+}
     // Filter/show/hide terminal markers according to Endpoint Terminal filters
     function updateTerminalVisibility(ep1TermVal, ep2TermVal){
       const v1 = nLower(ep1TermVal);
