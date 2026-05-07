@@ -762,9 +762,6 @@ if(viewMode === 'both' && returnSegs) {
   addSegments(returnSegs, 'return');
 }
       group.addTo(map);
-// force stops above THIS route draw
-if(map.hasLayer(stopsLayerGroup)) stopsLayerGroup.bringToFront();
-if(map.hasLayer(endpointsLayerGroup)) endpointsLayerGroup.bringToFront();
 
       const id = routeName || normalize(row["DENO"]||'');
       
@@ -946,12 +943,6 @@ marker.on('add', () => marker.bringToFront());
 
 console.log("Stops layer count:", stopsLayerGroup.getLayers().length);
 
-// keep stops & endpoints above routes
-setTimeout(() => {
-  stopsLayerGroup.bringToFront();
-  endpointsLayerGroup.bringToFront();
-}, 0);
-
 }
     // Filter/show/hide terminal markers according to Endpoint Terminal filters
     function updateTerminalVisibility(ep1TermVal, ep2TermVal){
@@ -1056,12 +1047,6 @@ if(allFeatures.length){
     map.fitBounds(L.featureGroup(allFeatures).getBounds(), { padding:[40,40] }); 
   } catch(e){}
 }
-
-// ✅ force stops & endpoints above routes
-setTimeout(() => {
-  if(map.hasLayer(stopsLayerGroup)) stopsLayerGroup.bringToFront();
-  if(map.hasLayer(endpointsLayerGroup)) endpointsLayerGroup.bringToFront();
-}, 0);
 
 }
 
