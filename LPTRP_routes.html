@@ -730,7 +730,7 @@ const addSegments = (segs, type) => {
     }).addTo(group);
 
     // DRAW ARROWS (subtle)
-    const decorator = L.polylineDecorator(seg, {
+    const decorator = L.polylineDecorator(poly, {
       patterns: [
         {
           offset: '10%',
@@ -746,7 +746,7 @@ const addSegments = (segs, type) => {
           })
         }
       ]
-    }).addTo(map);
+    }).addTo(group);
 
   }
 };
