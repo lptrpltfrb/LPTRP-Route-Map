@@ -1048,6 +1048,14 @@ if(allFeatures.length){
   } catch(e){}
 }
 
+
+// re-add overlays so they stay above routes
+map.removeLayer(stopsLayerGroup);
+map.removeLayer(endpointsLayerGroup);
+
+stopsLayerGroup.addTo(map);
+endpointsLayerGroup.addTo(map);
+
 }
 
 function resetFilters(){
