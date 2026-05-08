@@ -909,8 +909,8 @@ const lng = parseFloat(
 // -------------------------
 // ENDPOINTS
 // -------------------------
-if(type === "endpoint"){
-
+if(type.includes("endpoint"))
+{
   const lat = parseFloat(row["ENDPT (LAT)"]);
   const lng = parseFloat(row["ENDPT (LNG)"]);
 
