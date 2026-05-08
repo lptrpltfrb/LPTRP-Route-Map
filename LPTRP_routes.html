@@ -906,48 +906,59 @@ const lng = parseFloat(
     if(viewMode === "dir1" && direction !== "from origin") return;
     if(viewMode === "dir2" && direction !== "to origin") return;
 
-    // -------------------------
-    // ENDPOINTS
-    // -------------------------
-    if(type === "endpoint"){
+// -------------------------
+// ENDPOINTS
+// -------------------------
+if(type === "endpoint"){
 
-      const name = row["ENDPOINT"] || "";
+  const lat = parseFloat(row["ENDPT (LAT)"]);
+  const lng = parseFloat(row["ENDPT (LNG)"]);
 
-// define size BEFORE marker
-const stopSize = 6; // reduced size
+  if(isNaN(lat) || isNaN(lng)) return;
 
-const marker = L.circleMarker([lat, lng], {
-  pane: 'stopsPane',
-  radius: stopSize,
-  color: "#000",
-  weight: 1,
-  fillColor: "#ff8800",
-  fillOpacity: 0.9
-}).bindPopup(`${name}`);
+  const name = row["ENDPOINT"] || "";
+  const endptType = row["ENDPT TYPE"] || "";
 
-marker.addTo(endpointsLayerGroup);
+  const marker = L.circleMarker([lat, lng], {
+    pane: 'stopsPane',
+    radius: 6,
+    color: "#000",
+    weight: 1,
+    fillColor: "#ff8800",
+    fillOpacity: 0.9
+  }).bindPopup(`
+    <b>${name}</b><br>
+    ${endptType}
+  `);
+
+  marker.addTo(endpointsLayerGroup);
 
 // always on top
 marker.on('add', () => marker.bringToFront());
 }
 
-    // -------------------------
-    // STOPS
-    // -------------------------
-    if(type.includes("stop")){
+// -------------------------
+// STOPS
+// -------------------------
+if(type.includes("stop")){
 
-      const name = row["STOP"] || "";
+  const lat = parseFloat(row["STOP (LAT)"]);
+  const lng = parseFloat(row["STOP (LNG)"]);
 
-const marker = L.circleMarker([lat, lng], {
-  pane: 'stopsPane',
-  radius: 3,                // ~60% smaller
-  color: "#000",
-  weight: 1,
-  fillColor: "#0066ff",
-  fillOpacity: 0.9
-}).bindPopup(`${name}`);
+  if(isNaN(lat) || isNaN(lng)) return;
 
-marker.addTo(stopsLayerGroup);
+  const name = row["STOP"] || "";
+
+  const marker = L.circleMarker([lat, lng], {
+    pane: 'stopsPane',
+    radius: 3,
+    color: "#000",
+    weight: 1,
+    fillColor: "#0066ff",
+    fillOpacity: 0.9
+  }).bindPopup(`${name}`);
+
+  marker.addTo(stopsLayerGroup);
 
 // ALWAYS stay above routes
 marker.on('add', () => marker.bringToFront());
